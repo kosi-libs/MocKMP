@@ -1,6 +1,6 @@
 plugins {
     kotlin("multiplatform")
-    id("com.google.devtools.ksp") version "1.6.0-RC-1.0.1-RC"
+    id("com.google.devtools.ksp")
 }
 
 kotlin {
@@ -39,7 +39,7 @@ kotlin {
 
 dependencies {
     // Running KSP for JVM only
-    "kspJvmTest"(project(":processor"))
+    "kspJvmTest"(project(":micro-mock-processor"))
 }
 
 // Adding KSP JVM as a dependency to all Kotlin compilations

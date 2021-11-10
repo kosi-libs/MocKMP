@@ -1,3 +1,7 @@
 rootProject.name = "micro-mock"
 
-include(":processor", ":test")
+include(
+    ":micro-mock-processor",
+    ":test",
+    ":micro-mock-gradle-plugin"
+)

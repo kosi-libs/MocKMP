@@ -1,0 +1,377 @@
+= Micro-Mock
+:toc: preamble
+:toclevels: 3
+:icons: font
+:version: 0.1
+
+A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
+
+Limitations:
+
+- Mocking only applies to *interfaces*
+- Faking only applies to *concrete trees*
+
+
+== Usage
+
+=== Mocks
+
+CAUTION: Only *interfaces* can be mocked!
+
+
+==== Requesting generation
+
+You can declare that a class needs a specific mocked interface by using the `@UsesMocks` annotation.
+
+[source,kotlin]
+----
+@UsesMocks(Database::class, API::class)
+class MyTests {
+}
+----
+
+Once a type appears in `@UsesMocks`, the processor will generate a mock class for it.
+
+
+==== Defining behaviour
+
+To manipulate a mocked type, you need a `Mocker`.
+You can then create mocked types and define their behaviour:
+
+[source,kotlin]
+----
+@UsesMocks(Database::class, API::class)
+class MyTests {
+    @Test fun myUnitTest() {
+        val mocker = Mocker()
+        val db = MockDatabase(mocker)
+        val api = MockAPI(mocker)
+
+        mocker.on { db.open(isAny()) } returns Unit //<1>
+        mocker.on { api.getCurrentUser() } runs { fakeUser() } //<2>
+    }
+}
+----
+<1> `returns` mocks the method to return the provided *instance*.
+<2> `runs` mocks the method to run and return the result of the provided *function*.
+
+Note that a method *must* be mocked to run without throwing an exception (there is no "relaxed" mode).
+
+You can mock methods according to specific argument constraints:
+
+[source,kotlin]
+----
+mocker.on { api.update(isNotNull()) } returns true
+mocker.on { api.update(isNull()) } runs { nullCounter++ ; false }
+----
+
+Available constraints are:
+
+- `isAny` is always valid (even with `null` values).
+- `isNull` and `isNotNull` check nullability.
+- `isEqual` and `isNotEqual` check regular equality.
+- `isSame` and `isNotSame` check identity.
+
+Note that passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
+
+[source,kotlin]
+----
+mocker.on { api.getUserById(42) } returns fakeUser()
+----
+
+is strictly equivalent to:
+
+[source,kotlin]
+----
+mocker.on { api.getUserById(isEqual(42)) } returns fakeUser()
+----
+
+
+==== Verification
+
+You can check that mock functions has been run in order with `verify`.
+
+[source,kotlin]
+----
+val fakeUser = fakeUser()
+
+mocker.on { db.loadUser(isAny()) } returns null
+mocker.on { db.saveUser(isAny()) } returns Unit
+mocker.on { api.getUserById(isAny()) } returns fakeUser
+
+controller.onClickUser(userId = 42)
+
+mocker.verify {
+    db.loadUser(42)
+    api.getUserById(42)
+    db.saveUser(fakeUser)
+}
+----
+
+You can of course use constraints (in fact, not using passing a constraint is equivalent to passing `isEqual(value)`):
+
+[source,kotlin]
+----
+mocker.verify {
+    api.getUserById(isAny())
+    db.saveUser(isNotNull())
+}
+----
+
+The `verify` block must be exhaustive: it must lists *all* mocked functions that was called, *in order*.
+This means that you can easily check that no mocked methods were run:
+
+[source,kotlin]
+----
+mocker.verify {}
+----
+
+You can use `clearCalls` to clear the call log, in order to only verify for future method calls:
+
+[source,kotlin]
+----
+controller.onClickUser(userId = 42)
+mocker.clearCalls() //<1>
+
+controller.onClickDelete()
+mocker.verify { db.deleteUser(42) }
+----
+<1> All mocked calls before this won't be verified.
+
+
+==== Custom constraints
+
+You can define your own constraints:
+
+[source,kotlin]
+----
+fun ArgConstraintsBuilder.isStrictlyPositive(capture: MutableList<Int>? = null): Int =
+    isValid(ArgConstraint(capture) {
+        if (it >= 0) ArgConstraint.Result.Success
+        else ArgConstraint.Result.Failure { "Expected a strictly positive value, got $it" }
+    })
+----
+
+...and use them in *definition*:
+
+[source,kotlin]
+----
+mocker.on { api.getSuccess(isStrictlyPositive()) } returns true
+mocker.on { api.getSuccess(isAny()) } returns false
+----
+
+...or in *verification*:
+
+[source,kotlin]
+----
+mocker.verify { api.getUserById(isStrictlyPositive()) }
+----
+
+
+=== Fakes
+
+CAUTION: Only *concrete trees* (concrete classes containing concrete classes) can be faked!.
+
+*Data classes* are ideal candidates for faking.
+
+
+==== Requesting generation
+
+You can declare that a class needs a specific faked data by using the `@UsesFakes` annotation.
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests {
+}
+----
+
+Once a type appears in `@UsesFakes`, the processor will generate a fake function for it.
+
+
+==== Instantiating
+
+Once a class has been faked, you can get a new instance by calling its `fake*` corresponding function:
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests {
+    val user = fakeUser()
+}
+----
+
+Here are the rules the processor uses to generate fakes:
+
+* Nullable values are always `null`.
+* `Boolean` values are set to `false`.
+* Numeric values are set to `0`.
+* `String` values are set to empty `""`.
+* Other non-nullable non-primitive values are faked.
+
+[TIP]
+====
+By using a `data class`, you can easily tweak your fakes according to your needs:
+
+[source,kotlin]
+----
+val user = fakeUser().copy(id = 42)
+----
+====
+
+
+=== Injecting your tests
+
+Instead of creating your own mocks & fakes, it can be useful to inject them in your test class, especially if you have multiple tests using them.
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests {
+    @set:Mock lateinit var db: Database
+    @set:Mock lateinit var api: API
+
+    @set:Fake lateinit var user: User
+
+    lateinit var controller: Controller
+
+    val mocker = Mocker()
+
+    @BeforeTest fun setUp() {
+        mocker.reset() //<1>
+        this.injectMocks(mocker) //<2>
+        controller = ControllerImpl(db, api) //<3>
+    }
+}
+----
+<1> Resets the mocker before any test (which removes all mocked behaviour & logged calls), so that each test gets a "clean" mocker.
+<2> Injects mocks and fakes.
+<3> Create classes to be tested with injected mocks & fakes.
+
+As soon as a class `T` contains a `@set:Mock` or `@set:Fake` annotated property, a `T.injectMocks(Mocker)` function will be created by the processor.
+
+IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
+
+
+== Setup
+
+=== With KSP
+
+Micro-Mock is a Kotlin Symbol Processor, so you need to apply KSP to use it.
+
+
+==== Regular setup
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("com.google.devtools.ksp") version "1.6.0-RC-1.0.1-RC" //<1>
+}
+
+kotlin {
+    jvm()
+    ios()
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.kodein.micromock:micro-mock:{version}") //<3>
+            }
+        }
+    }
+}
+
+dependencies {
+    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
+    "kspIosX64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
+    "kspIosArm64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
+}
+----
+<1> Applying the KSP plugin
+<2> Adding the processor on each required target
+<3> Adding the dependency to the Micro-Mock runtime
+
+
+==== Buggy multiplatform
+
+KSP for multiplatform is in beta, and *KSP for the new JS/IR compiler is plainly not supported* (yet).
+
+If you need Micro-Mock for your tests but KSP is failing in your multiplatform project, here's a trick that you can use:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("com.google.devtools.ksp")
+}
+
+kotlin {
+    jvm()
+    ios()
+    js(IR) {
+        browser()
+        nodejs()
+    }
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.kodein.micromock:micro-mock:{version}")
+            }
+            kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<2>
+        }
+    }
+}
+
+dependencies {
+    "kspJvmTest"(project(":micro-mock-processor")) //<1>
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
+    if (name.startsWith("compileTestKotlin")) {
+        dependsOn("kspTestKotlinJvm") //<3>
+    }
+}
+----
+<1> Apply the processor only on the JVM target
+<2> Use KSP generated JVM sources on all targets
+<3> Make compilation of all targets dependant on the JVM KSP processor
+
+
+=== With the plugin
+
+The Micro-Mock Gradle plugin applies the trick that only runs the processor on the JVM target and adds the generated sources to all targets.
+Note that this may collision with other Symbol Processors.
+This plugin will be deprecated once KSP properly supports Multiplatform & JS/IR.
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("org.kodein.micromock") version "0.1" //<1>
+}
+
+kotlin {
+    jvm()
+    ios()
+    js(IR) {
+        browser()
+        nodejs()
+    }
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+    }
+}
+----
+<1> Applying the Micro-Mock plugin. That's it!

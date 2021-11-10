@@ -1,6 +1,6 @@
 package org.kodein.micromock
 
-import sun.misc.Unsafe
+import org.objenesis.ObjenesisStd
 import java.util.*
 import kotlin.reflect.KClass
 
@@ -9,11 +9,7 @@ internal actual class ReturnMapper actual constructor() {
 
     private val providedMap = IdentityHashMap<Any, ArgConstraint>()
 
-    private val unsafe by lazy {
-        val f = Unsafe::class.java.getDeclaredField("theUnsafe")
-        f.isAccessible = true
-        f.get(null) as Unsafe
-    }
+    private val objenesis = ObjenesisStd(false)
 
     private var byteCounter: UByte = 0u
     private var shortCounter: UShort = 0u
@@ -33,7 +29,31 @@ internal actual class ReturnMapper actual constructor() {
             ULong::class -> longCounter++
             Long::class -> longCounter++.toLong()
             Double::class -> longCounter++.toDouble()
-            else -> unsafe.allocateInstance(cls.java)
+
+            Function0::class -> ({ })
+                    as () -> Unit
+            Function1::class -> ({ _: Nothing -> })
+                    as (Nothing) -> Unit
+            Function2::class -> ({ _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing) -> Unit
+            Function3::class -> ({ _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing) -> Unit
+            Function4::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function5::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function6::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function7::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function8::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function9::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+            Function10::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+
+            else -> objenesis.newInstance(cls.java)
         }
         providedMap[ret] = constraint
         @Suppress("UNCHECKED_CAST")

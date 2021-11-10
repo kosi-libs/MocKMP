@@ -3,7 +3,8 @@ package foo
 import data.Data
 
 interface Foo {
-    fun doString(string: String)
+    val roString: String
+    var rwString: String
     fun doInt(int: Int)
     fun doPrimitive(string: String, int: Int)
     fun newInt(): Int
@@ -17,4 +18,5 @@ interface Bar : Foo {
     fun doData(data: Data)
     fun doAll(string: String, int: Int, data: Data)
     fun newData(): Data
+    fun callback(cb: (String) -> Int)
 }
