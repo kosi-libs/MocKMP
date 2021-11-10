@@ -10,14 +10,14 @@ internal actual class ReturnMapper actual constructor() {
     @Suppress("UNCHECKED_CAST")
     private fun <T> Any?.unsafeCast(): T = this as T
 
-    private val providedMap = HashMap<Any, ArgConstraint>()
+    private val providedMap = HashMap<Any, ArgConstraint<*>>()
 
     private var byteCounter: UByte = 0u
     private var shortCounter: UShort = 0u
     private var intCounter: UInt = 0u
     private var longCounter: ULong = 0u
 
-    internal actual fun <T> toReturn(constraint: ArgConstraint, cls: KClass<*>): T {
+    internal actual fun <T> toReturn(constraint: ArgConstraint<*>, cls: KClass<*>): T {
         val ret = when (cls) {
             UByte::class -> byteCounter++
             Byte::class -> byteCounter++.toByte()

@@ -7,7 +7,7 @@ import kotlin.reflect.KClass
 
 internal actual class ReturnMapper actual constructor() {
 
-    private val providedMap = IdentityHashMap<Any, ArgConstraint>()
+    private val providedMap = IdentityHashMap<Any, ArgConstraint<*>>()
 
     private val objenesis = ObjenesisStd(false)
 
@@ -16,7 +16,7 @@ internal actual class ReturnMapper actual constructor() {
     private var intCounter: UInt = 0u
     private var longCounter: ULong = 0u
 
-    internal actual fun <T> toReturn(constraint: ArgConstraint, cls: KClass<*>): T {
+    internal actual fun <T> toReturn(constraint: ArgConstraint<*>, cls: KClass<*>): T {
         val ret = when (cls) {
             UByte::class -> byteCounter++
             Byte::class -> byteCounter++.toByte()

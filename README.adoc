@@ -11,8 +11,19 @@ Limitations:
 - Mocking only applies to *interfaces*
 - Faking only applies to *concrete trees*
 
+[WARNING]
+====
+Micro-Mock is in Beta!
+
+- It depends on weird Kotlin/Native behaviour and may break with new Kotlin versions (in which case we'll try to update it as soon as possible). +
+- While it is being used in some of our production unit tests, it has not been widely tested, and may fail on your setup.
+  In which case, please post an issue... or a pull request if you feel like contributing ;)
+====
+
 
 == Usage
+
+https://github.com/Kodein-Framework/Micro-Mock/tree/master/test/src:[Sample usage]
 
 === Mocks
 
@@ -270,6 +281,11 @@ plugins {
     id("com.google.devtools.ksp") version "1.6.0-RC-1.0.1-RC" //<1>
 }
 
+repositories {
+    mavenCentral()
+    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<3>
+}
+
 kotlin {
     jvm()
     ios()
@@ -278,7 +294,7 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.kodein.micromock:micro-mock:{version}") //<3>
+                implementation("org.kodein.micromock:micro-mock:{version}") //<4>
             }
         }
     }
@@ -292,7 +308,8 @@ dependencies {
 ----
 <1> Applying the KSP plugin
 <2> Adding the processor on each required target
-<3> Adding the dependency to the Micro-Mock runtime
+<3> Adding the custom maven repository (won't be necessary after stable release)
+<4> Adding the dependency to the Micro-Mock runtime
 
 
 ==== Buggy multiplatform
@@ -350,11 +367,29 @@ Note that this may collision with other Symbol Processors.
 This plugin will be deprecated once KSP properly supports Multiplatform & JS/IR.
 
 [source,kotlin,subs="verbatim,attributes"]
+.settings.gradle.kts
+----
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<1>
+    }
+}
+----
+<1> Adding the custom maven repository (won't be necessary after stable release)
+
+
+[source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts
 ----
 plugins {
     kotlin("multiplatform")
     id("org.kodein.micromock") version "0.1" //<1>
+}
+
+repositories {
+    mavenCentral()
+    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
 }
 
 kotlin {
@@ -374,4 +409,5 @@ kotlin {
     }
 }
 ----
-<1> Applying the Micro-Mock plugin. That's it!
+<1> Applying the Micro-Mock plugin.
+<2> Adding the custom maven repository (won't be necessary after stable release)
