@@ -1,0 +1,380 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.2.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "metadataApiElements",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.platform.type": "common"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-metadata-0.2.0-all.jar",
+          "url": "micro-mock-0.2.0-all.jar",
+          "size": 5648,
+          "sha512": "a36fc999b76453ec7c10a052dc6f69650f46e00c3b4a1f6a2dfb096da76785b68a43d682f48fca9804151da9749669b8175c8a1749e0abad82754b414a62e3b7",
+          "sha256": "b1f91410f38f2633fea408691f6ddda3fe231d8096bd1a102b6fc88e638856ba",
+          "sha1": "fade9d52b54f3d11cd7ec80d08d62ea91f48f4b0",
+          "md5": "1655e4eac8c657802ea062dbad591bfd"
+        }
+      ]
+    },
+    {
+      "name": "commonMainMetadataElements",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.platform.type": "common"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-0.2.0.jar",
+          "url": "micro-mock-0.2.0.jar",
+          "size": 5789,
+          "sha512": "c392dd566fc2dedc2379f4da807586ec8d7bed1d8cf8321765197f22a2e9cf8b1f83b82f6b780d84d6e90c444d7e556c8306ebde173094d1d16b97ab3386b017",
+          "sha256": "ea8f4278acc41e17e1a96402689cb47566553f4fbe49bb65b07f1384ba00833b",
+          "sha1": "2d24fad318ff212463438425c19a8705e0f9bc60",
+          "md5": "f2c4fbc733dfc30a68e24583dd04cc2a"
+        }
+      ]
+    },
+    {
+      "name": "iosArm64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iosarm64/0.2.0/micro-mock-iosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "iosArm64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iosarm64/0.2.0/micro-mock-iosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iossimulatorarm64/0.2.0/micro-mock-iossimulatorarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iossimulatorarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "iosSimulatorArm64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_simulator_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iossimulatorarm64/0.2.0/micro-mock-iossimulatorarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iossimulatorarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "iosX64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iosx64/0.2.0/micro-mock-iosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iosx64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "iosX64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-iosx64/0.2.0/micro-mock-iosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-iosx64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jsLegacyApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "legacy",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../micro-mock-js/0.2.0/micro-mock-js-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-js",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jsLegacyRuntimeElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "legacy",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../micro-mock-js/0.2.0/micro-mock-js-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-js",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jsIrApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../micro-mock-js/0.2.0/micro-mock-js-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-js",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jsIrRuntimeElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "available-at": {
+        "url": "../../micro-mock-js/0.2.0/micro-mock-js-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-js",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jvmApiElements-published",
+      "attributes": {
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "available-at": {
+        "url": "../../micro-mock-jvm/0.2.0/micro-mock-jvm-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-jvm",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "jvmRuntimeElements-published",
+      "attributes": {
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "available-at": {
+        "url": "../../micro-mock-jvm/0.2.0/micro-mock-jvm-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-jvm",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "tvosArm64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "tvos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-tvosarm64/0.2.0/micro-mock-tvosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-tvosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "tvosArm64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "tvos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-tvosarm64/0.2.0/micro-mock-tvosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-tvosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "tvosX64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-tvosx64/0.2.0/micro-mock-tvosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-tvosx64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "tvosX64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-tvosx64/0.2.0/micro-mock-tvosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-tvosx64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosArm32ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "watchos_arm32",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosarm32/0.2.0/micro-mock-watchosarm32-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosarm32",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosArm32MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "watchos_arm32",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosarm32/0.2.0/micro-mock-watchosarm32-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosarm32",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosArm64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosarm64/0.2.0/micro-mock-watchosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosArm64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosarm64/0.2.0/micro-mock-watchosarm64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosarm64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosX64ApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "watchos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosx64/0.2.0/micro-mock-watchosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosx64",
+        "version": "0.2.0"
+      }
+    },
+    {
+      "name": "watchosX64MetadataElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "watchos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "available-at": {
+        "url": "../../micro-mock-watchosx64/0.2.0/micro-mock-watchosx64-0.2.0.module",
+        "group": "org.kodein.micromock",
+        "module": "micro-mock-watchosx64",
+        "version": "0.2.0"
+      }
+    }
+  ]
+}
