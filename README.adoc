@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.2.0
+:version: 0.3.0
 :ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -47,8 +47,6 @@ class MyTest {
 
 
 == Usage
-
-https://github.com/Kodein-Framework/Micro-Mock/tree/master/test/src[Sample usage]
 
 === Mocks
 
@@ -154,7 +152,7 @@ mocker.verify {
 }
 ----
 
-The `verify` block must be exhaustive: it must lists *all* mocked functions that was called, *in order*.
+By default, the `verify` block is exhaustive and in order: it must list *all* mocked functions that were called, *in order*.
 This means that you can easily check that no mocked methods were run:
 
 [source,kotlin]
@@ -173,6 +171,22 @@ controller.onClickDelete()
 mocker.verify { db.deleteUser(42) }
 ----
 <1> All mocked calls before this won't be verified.
+
+You can verify with:
+
+- `exhaustive = false`, which will verify each call, *in their relative order*, but won't fail if you didn't mention every calls.
+- `inOrder = false`, which allows you to define all calls in any order, but will fail if you did not mention all of them.
+- `exhaustive = false, inOrder = false`, which checks required calls without order nor exhaustiveness.
+
+[source,kotlin]
+----
+mocker.verify(exhaustive = false, inOrder = false) { //<1>
+    db.deleteUser(42)
+    api.deleteUser(42)
+}
+----
+<1> Verify that both calls have been made, no matter the order.
+    Other calls to mocks may have been made since exhaustiveness is not checked.
 
 
 ==== Accessing arguments

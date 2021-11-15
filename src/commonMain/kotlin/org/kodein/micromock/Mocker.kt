@@ -9,7 +9,7 @@ public class Mocker {
     private sealed class SpecialMode {
         val mapper = ReturnMapper()
         class DEFINITION : SpecialMode()
-        class VERIFICATION : SpecialMode()
+        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean) : SpecialMode()
     }
 
     private var specialMode: SpecialMode? = null
@@ -39,13 +39,39 @@ public class Mocker {
             }
             is SpecialMode.VERIFICATION -> {
                 val constraints = args.map { it?.let { mode.mapper.toProvided(it) } } .map { it.toArgConstraint() }
-                val call = calls.removeFirstOrNull() ?: throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method but call list was empty")
-                if (method != call.method || receiver !== receiver) throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method, but was a call to ${call.receiver::class.simpleName}.${call.method}")
-                if (constraints.size != call.arguments.size) throw AssertionError("Expected ${constraints.size} arguments to ${receiver::class.simpleName}.$method but got ${call.arguments.size}")
+                val call = if (mode.exhaustive && mode.inOrder) {
+                    val call = calls.removeFirstOrNull()
+                        ?: throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method but call list was empty")
+                    if (method != call.method || receiver !== receiver)
+                        throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method, but was a call to ${call.receiver::class.simpleName}.${call.method}")
+                    if (constraints.size != call.arguments.size)
+                        throw AssertionError("Expected ${constraints.size} arguments to ${receiver::class.simpleName}.$method but got ${call.arguments.size}")
+                    @Suppress("UNCHECKED_CAST")
+                    constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert(call.arguments[i]) }
+                    call
+                } else {
+                    val callIndices = (
+                            calls.indices.filter { calls[it].receiver == receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
+                                ?: throw AssertionError("Could not find a call to ${receiver::class.simpleName}.$method")
+                            ).filter { calls[it].arguments.size == constraints.size } .takeIf { it.isNotEmpty() }
+                                ?: throw AssertionError("Could not find a call to ${receiver::class.simpleName}.$method with ${constraints.size} arguments")
+                    val callIndex = if (callIndices.size == 1) {
+                        val call = calls[callIndices.single()]
+                        @Suppress("UNCHECKED_CAST")
+                        constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert(call.arguments[i]) }
+                        callIndices.single()
+                    } else {
+                        @Suppress("UNCHECKED_CAST")
+                        callIndices.firstOrNull { callIndex -> constraints.indices.all { (constraints[it] as ArgConstraint<Any?>).isValid(calls[callIndex].arguments[it]) } }
+                            ?: throw AssertionError("Found ${callIndices.size} calls to ${receiver::class.simpleName}.$method, but none that validates the constraints")
+                    }
+                    val call = calls[callIndex]
+                    if (mode.inOrder) repeat(callIndex + 1) { calls.removeFirst() }
+                    else calls.removeAt(callIndex)
+                    call
+                }
                 @Suppress("UNCHECKED_CAST")
-                constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert(call.arguments[i]) }
-                @Suppress("UNCHECKED_CAST")
-                args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
+                constraints.forEachIndexed { i, constraint -> (constraint.capture as MutableList<Any?>?)?.add(call.arguments[i]) }
                 @Suppress("UNCHECKED_CAST")
                 return call.returnValue as R
             }
@@ -92,15 +118,17 @@ public class Mocker {
         }
     }
 
-    public fun verify(block: ArgConstraintsBuilder.() -> Unit) {
+    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit) {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
-        val mode = SpecialMode.VERIFICATION()
+        val mode = SpecialMode.VERIFICATION(exhaustive, inOrder)
         specialMode = mode
         try {
             ArgConstraintsBuilder(mode.mapper).block()
-            if (calls.isNotEmpty()) {
+            if (exhaustive && calls.isNotEmpty()) {
                 val call = calls.first()
                 throw AssertionError("Expected call list to be empty, but got a call to ${call.receiver::class.simpleName}.${call.method}")
+            } else {
+                calls.clear()
             }
         } finally {
             specialMode = null

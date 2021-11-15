@@ -5,14 +5,16 @@ import data.Direction
 import data.SomeDirection
 import data.SubData
 import foo.Bar
+import foo.MockBar
 import org.kodein.micromock.Fake
 import org.kodein.micromock.Mock
 import org.kodein.micromock.Mocker
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
-class BarTests {
+class InjectionTests {
 
     @set:Mock
     lateinit var bar: Bar
@@ -29,21 +31,12 @@ class BarTests {
     }
 
     @Test
-    fun testBar() {
-        mocker.on { bar.rwString = isAny() } returns Unit
-        mocker.on { bar.callback(isAny()) } returns Unit
-
-        bar.rwString = "Salomon"
-        bar.callback { 42 }
-
-        mocker.verify {
-            bar.rwString = "Salomon"
-            bar.callback(isAny())
-        }
+    fun testMockInjection() {
+        assertIs<MockBar>(bar)
     }
 
     @Test
-    fun testData() {
+    fun testFake() {
         assertEquals(
             Data(
                 SubData("", 0),

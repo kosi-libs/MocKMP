@@ -12,12 +12,12 @@ public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, inte
         private fun result(success: Boolean, error: () -> String) = if (success) Result.Success else Result.Failure(error)
 
         public fun <T> isAny(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { Result.Success }
-        public fun <T> isEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual == expected) { "Expected <$expected>, actual <$actual>." } }
-        public fun <T> isNotEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual != expected) { "Illegal value: <$actual>." } }
-        public fun <T> isSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual === expected) { "Expected <$expected>, actual <$actual> is not same." } }
-        public fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual !== expected) { "Expected not same as <$actual>." } }
-        public fun <T> isNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual == null) { "Expected value to be null, but was: <$actual>." } }
-        public fun <T> isNotNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual != null) { "Expected value to be not null." } }
+        public fun <T> isEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual == expected) { "Expected <$expected>, actual <$actual>" } }
+        public fun <T> isNotEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual != expected) { "Illegal value: <$actual>" } }
+        public fun <T> isSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual === expected) { "Expected <$expected>, actual <$actual> is not same" } }
+        public fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual !== expected) { "Expected not same as <$actual>" } }
+        public fun <T> isNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual == null) { "Expected value to be null, but was: <$actual>" } }
+        public fun <T> isNotNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture) { actual -> result(actual != null) { "Expected value to be not null" } }
     }
 }
 
