@@ -48,7 +48,7 @@ class MyTest {
 
 == Usage
 
-https://github.com/Kodein-Framework/Micro-Mock/tree/master/test/src:[Sample usage]
+https://github.com/Kodein-Framework/Micro-Mock/tree/master/test/src[Sample usage]
 
 === Mocks
 
