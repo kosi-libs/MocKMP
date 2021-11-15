@@ -20,6 +20,30 @@ Micro-Mock is in Beta!
   In which case, please post an issue... or a pull request if you feel like contributing ;)
 ====
 
+Here's a simple overview example:
+
+[source,kotlin]
+----
+class MyTest {
+    @set:Mock lateinit var view: View
+    @set:Fake lateinit var model: Model
+    lateinit var controller: Controller
+
+    val mocker = Mocker()
+    @BeforeTest fun setUp() {
+        mocker.reset()
+        injectMocks(mocker)
+        controller = Controller(view = view, firstModel = model)
+    }
+
+    @Test fun controllerTest() {
+        mocker.on { view.render(isAny()) } returns true
+        controller.start()
+        mocker.verify { view.render(model) }
+    }
+}
+----
+
 
 == Usage
 

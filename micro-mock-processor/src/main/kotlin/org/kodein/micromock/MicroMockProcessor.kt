@@ -5,10 +5,8 @@ import com.google.devtools.ksp.isAbstract
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
-import com.squareup.kotlinpoet.ksp.KotlinPoetKspPreview
-import com.squareup.kotlinpoet.ksp.toClassName
-import com.squareup.kotlinpoet.ksp.toTypeName
-import com.squareup.kotlinpoet.ksp.writeTo
+import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
+import com.squareup.kotlinpoet.ksp.*
 
 
 class MicroMockProcessor(
@@ -103,9 +101,15 @@ class MicroMockProcessor(
             val mockClassName = "Mock${vItf.simpleName.asString()}"
             val gFile = FileSpec.builder(vItf.packageName.asString(), mockClassName)
             val gCls = TypeSpec.classBuilder(mockClassName)
-                .addSuperinterface(vItf.toClassName())
+                .addSuperinterface(
+                    if (vItf.typeParameters.isEmpty()) vItf.toClassName()
+                    else vItf.toClassName().parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
+                )
                 .addModifiers(KModifier.INTERNAL)
-                .primaryConstructor(
+            vItf.typeParameters.forEach { vParam ->
+                gCls.addTypeVariable(vParam.toTypeVariableName())
+            }
+            gCls.primaryConstructor(
                     FunSpec.constructorBuilder()
                         .addParameter("mocker", mockerTypeName)
                         .build()
@@ -118,7 +122,8 @@ class MicroMockProcessor(
             vItf.getAllProperties()
                 .filter { it.isAbstract() }
                 .forEach { vProp ->
-                    val gProp = PropertySpec.builder(vProp.simpleName.asString(), vProp.type.toTypeName())
+                    val typeParamResolver = vItf.typeParameters.toTypeParameterResolver()
+                    val gProp = PropertySpec.builder(vProp.simpleName.asString(), vProp.type.toTypeName(typeParamResolver))
                         .addModifiers(KModifier.OVERRIDE)
                         .getter(
                             FunSpec.getterBuilder()
@@ -129,7 +134,7 @@ class MicroMockProcessor(
                         gProp.mutable(true)
                             .setter(
                                 FunSpec.setterBuilder()
-                                    .addParameter("value", vProp.type.toTypeName())
+                                    .addParameter("value", vProp.type.toTypeName(typeParamResolver))
                                     .addStatement("return this.%N.register(this, %S, value)", mocker, "set:${vProp.simpleName.asString()}")
                                     .build()
                             )
@@ -140,10 +145,15 @@ class MicroMockProcessor(
                 .filter { it.isAbstract }
                 .forEach { vFun ->
                     val gFun = FunSpec.builder(vFun.simpleName.asString())
-                        .returns(vFun.returnType!!.toTypeName())
                         .addModifiers(KModifier.OVERRIDE)
+                    val typeParamResolver = vFun.typeParameters.toTypeParameterResolver(vItf.typeParameters.toTypeParameterResolver())
+                    vFun.typeParameters.forEach { vParam ->
+                        gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver))
+                    }
+                    gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT).mapNotNull { it.toKModifier() })
+                    gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
                     vFun.parameters.forEach { vParam ->
-                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName())
+                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString(prefix = ", ") { it.name!!.asString() }

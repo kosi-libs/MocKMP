@@ -1,5 +1,6 @@
 package tests
 
+import foo.Bar
 import foo.Foo
 import foo.MockFoo
 import org.kodein.micromock.Mocker
@@ -13,7 +14,7 @@ class FooTests {
     @Test
     fun testFoo() {
         val mocker = Mocker()
-        val foo = MockFoo(mocker)
+        val foo = MockFoo<Bar>(mocker)
 
         mocker.on { foo.doInt(isAny()) } returns Unit
 
