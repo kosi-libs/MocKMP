@@ -11,8 +11,6 @@ class MicroMockGradlePlugin : Plugin<Project> {
     override fun apply(target: Project) {
         target.plugins.apply("com.google.devtools.ksp")
 
-        val mmVersion = "0.1"
-
         target.afterEvaluate {
             val kotlin = extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
 
@@ -22,13 +20,13 @@ class MicroMockGradlePlugin : Plugin<Project> {
             kotlin.sourceSets.getByName("commonTest") {
                 this.kotlin.srcDir("build/generated/ksp/${jvmName}Test/kotlin")
                 dependencies {
-                    implementation("org.kodein.micromock:micro-mock:$mmVersion")
+                    implementation("org.kodein.micromock:micro-mock:${BuildConfig.VERSION}")
                 }
             }
 
             dependencies {
                 // Running KSP for JVM only
-                "ksp${jvmName.capitalize()}Test"("org.kodein.micromock:micro-mock-processor:$mmVersion")
+                "ksp${jvmName.capitalize()}Test"("org.kodein.micromock:micro-mock-processor:${BuildConfig.VERSION}")
             }
 
             // Adding KSP JVM as a dependency to all Kotlin compilations

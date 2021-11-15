@@ -16,6 +16,7 @@ internal actual class ReturnMapper actual constructor() {
     private var intCounter: UInt = 0u
     private var longCounter: ULong = 0u
 
+    @Suppress("USELESS_CAST")
     internal actual fun <T> toReturn(constraint: ArgConstraint<*>, cls: KClass<*>): T {
         val ret = when (cls) {
             UByte::class -> byteCounter++

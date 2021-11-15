@@ -2,7 +2,8 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.1
+:version: 0.2.0
+:ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
@@ -302,7 +303,7 @@ Micro-Mock is a Kotlin Symbol Processor, so you need to apply KSP to use it.
 ----
 plugins {
     kotlin("multiplatform")
-    id("com.google.devtools.ksp") version "1.6.0-RC-1.0.1-RC" //<1>
+    id("com.google.devtools.ksp") version "{ksp-version}" //<1>
 }
 
 repositories {
@@ -408,7 +409,7 @@ pluginManagement {
 ----
 plugins {
     kotlin("multiplatform")
-    id("org.kodein.micromock") version "0.1" //<1>
+    id("org.kodein.micromock") version "{version}" //<1>
 }
 
 repositories {
