@@ -175,6 +175,74 @@ mocker.verify { db.deleteUser(42) }
 <1> All mocked calls before this won't be verified.
 
 
+==== Accessing arguments
+
+===== Captures
+
+You can capture an argument into a `MutableList` to use or verify it later.
+This can be useful, for example, to capture delegates and call them.
+
+[source,kotlin]
+----
+val delegate = MockDelegate()
+mocker.on { delegate.setSession(isAny()) } returns Unit
+
+val controller = Controller(delegate)
+controller.startNewSession()
+assertEquals(1, controller.runningSessions.size)
+
+val sessionCapture = ArrayList<Session>()
+mocker.verify { delegate.setSession(isAny(capture = sessionCapture)) } //<1>
+
+val session = sessionCapture.single() //<2>
+session.close()
+
+assertEquals(0, controller.runningSessions.size)
+----
+<1> Captures the `setSession` first argument into the `sessionCapture` mutable list.
+<2> As `setSession` should have been called only once, retrieve the one and only `Session` from the capture list.
+
+Captures can also be used in definition blocks.
+The previous example could be rewritten as such:
+
+[source,kotlin]
+----
+val delegate = MockDelegate()
+val sessionCapture = ArrayList<Session>()
+mocker.on { delegate.setSession(isAny(capture = sessionCapture)) } returns Unit
+
+val controller = Controller(delegate)
+controller.startNewSession()
+assertEquals(1, controller.runningSessions.size)
+
+val session = sessionCapture.single()
+session.close()
+
+assertEquals(0, controller.runningSessions.size)
+----
+
+Note that, when declared in a definition block, the capture list may be filled with multiple values (one per call).
+
+
+===== Run block
+
+You can access function parameters from a run block.
+This is less precise than using caputre lists as they are non typed, but allows to write very concise code:
+
+[source,kotlin]
+----
+val delegate = MockDelegate()
+mocker.on { delegate.setSession(isAny()) } runs { args ->
+    (args[0] as Session).close()
+}
+
+val controller = Controller(delegate)
+controller.startNewSession()
+
+assertEquals(0, controller.runningSessions.size)
+----
+
+
 ==== Custom constraints
 
 You can define your own constraints:
