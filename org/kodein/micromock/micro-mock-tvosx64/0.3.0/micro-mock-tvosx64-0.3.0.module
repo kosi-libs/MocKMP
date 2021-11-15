@@ -1,0 +1,77 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.3.0/micro-mock-0.3.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.3.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "tvosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock.klib",
+          "url": "micro-mock-tvosx64-0.3.0.klib",
+          "size": 33846,
+          "sha512": "31a91de61d51628c6eec6fafa20666a9e4759fcaf42ef67d70fcd84c8dcf625078d1428ae013dcfe73ee197111d527a3d3e824d17dc916d762e58ab0e873fe5a",
+          "sha256": "f898242b083f6a7d1c582db973b8673911e688fe5469e71126e8a886417a32f9",
+          "sha1": "62ead994c40c28fc930a39b529c3cc6b4a12f667",
+          "md5": "b9f8b6f38b979e42b3af9beae91b9652"
+        }
+      ]
+    },
+    {
+      "name": "tvosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-tvosx64-0.3.0-metadata.jar",
+          "url": "micro-mock-tvosx64-0.3.0-metadata.jar",
+          "size": 4310,
+          "sha512": "d95ba07bcabee6ab0be2b9bd842da9f01e8239fb5c6dd8b74eb65ec9b53187d2e4f598f227a0c0c33a3187072bd448195c85e412b7b95ae411e2813ec6dad652",
+          "sha256": "7c4308da27e0fbbbb64cbdfe3b0a28becec392122be1d7c769cafbf53339a1f5",
+          "sha1": "40d5b51f41bb954ea65ef567a8a9b02d30173137",
+          "md5": "143393972a084c518c2af9aea9ff40bc"
+        }
+      ]
+    }
+  ]
+}

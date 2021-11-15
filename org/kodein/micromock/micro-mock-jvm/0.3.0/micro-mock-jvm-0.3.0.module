@@ -1,0 +1,96 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.3.0/micro-mock-0.3.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.3.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "jvmApiElements-published",
+      "attributes": {
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jvm-0.3.0.jar",
+          "url": "micro-mock-jvm-0.3.0.jar",
+          "size": 59928,
+          "sha512": "3eb6f9063326b4cb297730c2da59711f50cb01f6bae4b5a1d2a26b710163718f8ddd98b55a6f26aff2579856746856358ac18757bee7646ac4d21a009c29b11d",
+          "sha256": "c75fd8f0f82cf9bba898dc8752b083d9e87098830f33853c889216104f4f622f",
+          "sha1": "affe665266b3d17ca046aee16a6cd0f12f613989",
+          "md5": "73737475275ab0288fd58c0bf274e7c4"
+        }
+      ]
+    },
+    {
+      "name": "jvmRuntimeElements-published",
+      "attributes": {
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.objenesis",
+          "module": "objenesis",
+          "version": {
+            "requires": "3.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jvm-0.3.0.jar",
+          "url": "micro-mock-jvm-0.3.0.jar",
+          "size": 59928,
+          "sha512": "3eb6f9063326b4cb297730c2da59711f50cb01f6bae4b5a1d2a26b710163718f8ddd98b55a6f26aff2579856746856358ac18757bee7646ac4d21a009c29b11d",
+          "sha256": "c75fd8f0f82cf9bba898dc8752b083d9e87098830f33853c889216104f4f622f",
+          "sha1": "affe665266b3d17ca046aee16a6cd0f12f613989",
+          "md5": "73737475275ab0288fd58c0bf274e7c4"
+        }
+      ]
+    }
+  ]
+}
