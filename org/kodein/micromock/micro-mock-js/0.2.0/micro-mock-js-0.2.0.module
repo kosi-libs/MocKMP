@@ -25,14 +25,14 @@
       "dependencies": [
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-common",
+          "module": "kotlin-stdlib-js",
           "version": {
             "requires": "1.5.31"
           }
         },
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-js",
+          "module": "kotlin-stdlib-common",
           "version": {
             "requires": "1.5.31"
           }
@@ -43,10 +43,10 @@
           "name": "micro-mock-jslegacy-0.2.0.jar",
           "url": "micro-mock-js-0.2.0.jar",
           "size": 71445,
-          "sha512": "1d70d8b972987270c6c8a0f5649ee7588e57f1d5197e2d0907d73cca3dc6ba4d8ce8bffc35d0a18dbbdb1ccbd3bb9c457085cbb11dd0a48d7ed64cbe0601d787",
-          "sha256": "e83435a4fe13ccf2831d533880fe2304bca30618bc2dd0d493cefae6f162a759",
-          "sha1": "29577af0d39b7654d907a0d835a5cca50499bfea",
-          "md5": "e3856697d93ad563473bb9038647142b"
+          "sha512": "9f4bee9541cb3e147516d7a640a3a038a0f979342356e6e13f8a36fefae15ade0c7819cd82378d12649312713fdda82504ee2a57d151fc1ec0a8884fbbb5f0f8",
+          "sha256": "a3b13b2a7221d700d44885f12b00afedd55a7aae9ad53f618985d555dc2fff08",
+          "sha1": "08708ad5359b3b1edeb0b18532d9e395221610ba",
+          "md5": "a5094c16b3262fc616c97e1d0c325bc7"
         }
       ]
     },
@@ -60,14 +60,14 @@
       "dependencies": [
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-common",
+          "module": "kotlin-stdlib-js",
           "version": {
             "requires": "1.5.31"
           }
         },
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-js",
+          "module": "kotlin-stdlib-common",
           "version": {
             "requires": "1.5.31"
           }
@@ -78,10 +78,10 @@
           "name": "micro-mock-jslegacy-0.2.0.jar",
           "url": "micro-mock-js-0.2.0.jar",
           "size": 71445,
-          "sha512": "1d70d8b972987270c6c8a0f5649ee7588e57f1d5197e2d0907d73cca3dc6ba4d8ce8bffc35d0a18dbbdb1ccbd3bb9c457085cbb11dd0a48d7ed64cbe0601d787",
-          "sha256": "e83435a4fe13ccf2831d533880fe2304bca30618bc2dd0d493cefae6f162a759",
-          "sha1": "29577af0d39b7654d907a0d835a5cca50499bfea",
-          "md5": "e3856697d93ad563473bb9038647142b"
+          "sha512": "9f4bee9541cb3e147516d7a640a3a038a0f979342356e6e13f8a36fefae15ade0c7819cd82378d12649312713fdda82504ee2a57d151fc1ec0a8884fbbb5f0f8",
+          "sha256": "a3b13b2a7221d700d44885f12b00afedd55a7aae9ad53f618985d555dc2fff08",
+          "sha1": "08708ad5359b3b1edeb0b18532d9e395221610ba",
+          "md5": "a5094c16b3262fc616c97e1d0c325bc7"
         }
       ]
     },
@@ -95,14 +95,14 @@
       "dependencies": [
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-common",
+          "module": "kotlin-stdlib-js",
           "version": {
             "requires": "1.5.31"
           }
         },
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-js",
+          "module": "kotlin-stdlib-common",
           "version": {
             "requires": "1.5.31"
           }
@@ -112,11 +112,11 @@
         {
           "name": "micro-mock-jsir-0.2.0.klib",
           "url": "micro-mock-js-0.2.0.klib",
-          "size": 26979,
-          "sha512": "1c5da479ac6610419fe2a7ed02ce4c5f2a418351ead9daf5367d5666c03d1825b6300ec72d85fa0cbcbc2dd42a19fe1a231ac5a6e2b26ad628b0e5679d68ae98",
-          "sha256": "f9e1e031df09a21a84efd7b426e1443805b1a25df304779942b9e7cd5851fa2b",
-          "sha1": "aeea2379fa0349b6780762e138eb25a0d846aa27",
-          "md5": "4044f0542856d43356e232e95acb08a9"
+          "size": 26980,
+          "sha512": "2416a878134f845d8973f9496d078a353ce01ea854d6aa51db58f3ee544b0f4da80e952ed24eced15d35f5e367cbf39d2f8048d3fb0b24baedddb5c62a0f69aa",
+          "sha256": "b95235b3c1bb79d52c0a7979c9b0930d0f015ce11671e71b4d18550af575df16",
+          "sha1": "87846d3fe10ff7dad66c2f4f6a4e6826efb00125",
+          "md5": "f9501f3c4a44fe9c6e3f60f6ff1da198"
         }
       ]
     },
@@ -130,14 +130,14 @@
       "dependencies": [
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-common",
+          "module": "kotlin-stdlib-js",
           "version": {
             "requires": "1.5.31"
           }
         },
         {
           "group": "org.jetbrains.kotlin",
-          "module": "kotlin-stdlib-js",
+          "module": "kotlin-stdlib-common",
           "version": {
             "requires": "1.5.31"
           }
@@ -147,11 +147,11 @@
         {
           "name": "micro-mock-jsir-0.2.0.klib",
           "url": "micro-mock-js-0.2.0.klib",
-          "size": 26979,
-          "sha512": "1c5da479ac6610419fe2a7ed02ce4c5f2a418351ead9daf5367d5666c03d1825b6300ec72d85fa0cbcbc2dd42a19fe1a231ac5a6e2b26ad628b0e5679d68ae98",
-          "sha256": "f9e1e031df09a21a84efd7b426e1443805b1a25df304779942b9e7cd5851fa2b",
-          "sha1": "aeea2379fa0349b6780762e138eb25a0d846aa27",
-          "md5": "4044f0542856d43356e232e95acb08a9"
+          "size": 26980,
+          "sha512": "2416a878134f845d8973f9496d078a353ce01ea854d6aa51db58f3ee544b0f4da80e952ed24eced15d35f5e367cbf39d2f8048d3fb0b24baedddb5c62a0f69aa",
+          "sha256": "b95235b3c1bb79d52c0a7979c9b0930d0f015ce11671e71b4d18550af575df16",
+          "sha1": "87846d3fe10ff7dad66c2f4f6a4e6826efb00125",
+          "md5": "f9501f3c4a44fe9c6e3f60f6ff1da198"
         }
       ]
     }

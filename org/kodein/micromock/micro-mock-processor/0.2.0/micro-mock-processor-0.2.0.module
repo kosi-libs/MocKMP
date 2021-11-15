@@ -39,10 +39,10 @@
           "name": "micro-mock-processor-0.2.0.jar",
           "url": "micro-mock-processor-0.2.0.jar",
           "size": 29538,
-          "sha512": "fde5aa2d350b25b430553714880f4ba52c1bceb780550ff91ff9cd1b773bc878bb01c3f9afe9077fba70c08c0137d58739265aafbac2de8fcf4d85987db234be",
-          "sha256": "89ebae131f0160c06034c13a1856c67bad46f366f63bbbb2937ce414c1aa23bc",
-          "sha1": "424fdea852d826e504ca64806f6d00da266356a7",
-          "md5": "473387eda1b66d96d27eccb7bd440512"
+          "sha512": "608f477f636f2dac6a00f47ad96282554520db0b00c82afa7e1685a8e6545297e6fe139cacac09e878366709d49d9dd7ef79b76a7eb5046bcdc09b0901c105d4",
+          "sha256": "7d6b88a551dbb1ad816fcfeb4950a7c8630234bd55bc6af41d0063583df51ee3",
+          "sha1": "e7b4c49da4093722316b6d5d0eb22eeb093b742e",
+          "md5": "63990fe487f0d08c2fe2e4563e13be0b"
         }
       ]
     },
@@ -92,10 +92,10 @@
           "name": "micro-mock-processor-0.2.0.jar",
           "url": "micro-mock-processor-0.2.0.jar",
           "size": 29538,
-          "sha512": "fde5aa2d350b25b430553714880f4ba52c1bceb780550ff91ff9cd1b773bc878bb01c3f9afe9077fba70c08c0137d58739265aafbac2de8fcf4d85987db234be",
-          "sha256": "89ebae131f0160c06034c13a1856c67bad46f366f63bbbb2937ce414c1aa23bc",
-          "sha1": "424fdea852d826e504ca64806f6d00da266356a7",
-          "md5": "473387eda1b66d96d27eccb7bd440512"
+          "sha512": "608f477f636f2dac6a00f47ad96282554520db0b00c82afa7e1685a8e6545297e6fe139cacac09e878366709d49d9dd7ef79b76a7eb5046bcdc09b0901c105d4",
+          "sha256": "7d6b88a551dbb1ad816fcfeb4950a7c8630234bd55bc6af41d0063583df51ee3",
+          "sha1": "e7b4c49da4093722316b6d5d0eb22eeb093b742e",
+          "md5": "63990fe487f0d08c2fe2e4563e13be0b"
         }
       ]
     }

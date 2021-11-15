@@ -30,10 +30,10 @@
           "name": "micro-mock-gradle-plugin-0.2.0.jar",
           "url": "micro-mock-gradle-plugin-0.2.0.jar",
           "size": 11702,
-          "sha512": "b58d1849390e716851bbe559a4d1feeb61674ec44f7588cb219d19441603982336b1ecb9d35de8f3e513199f01c7adeed110cb4cc31e73ae366785d2cb8d292c",
-          "sha256": "935be9aec5500dde41d338199f47780fcedc25f2abf64c4eb540f776b19cb9c3",
-          "sha1": "6e3b8ffc935f5b0594d544c7ea3e230a03897792",
-          "md5": "c1dc31fed43ee2db9a2f26037265e9b2"
+          "sha512": "5c4e26cac7e59733c0395b5a82323b8fbd8613c47eb7febefd497be0f7fd9bb9447f1b64c4b3c677dc45c2e7709a31946368927f98d706471ddbd0c0eb1e8860",
+          "sha256": "cd40e9cd0a06357d173cd8a87cc14e6c68d1a6a423e51e5a4853a1ad1edd2cb8",
+          "sha1": "9783796eecd7a617538bb7bd64a377117de98d30",
+          "md5": "a1251538b0932891cb91093e537491cd"
         }
       ]
     },
@@ -69,10 +69,10 @@
           "name": "micro-mock-gradle-plugin-0.2.0.jar",
           "url": "micro-mock-gradle-plugin-0.2.0.jar",
           "size": 11702,
-          "sha512": "b58d1849390e716851bbe559a4d1feeb61674ec44f7588cb219d19441603982336b1ecb9d35de8f3e513199f01c7adeed110cb4cc31e73ae366785d2cb8d292c",
-          "sha256": "935be9aec5500dde41d338199f47780fcedc25f2abf64c4eb540f776b19cb9c3",
-          "sha1": "6e3b8ffc935f5b0594d544c7ea3e230a03897792",
-          "md5": "c1dc31fed43ee2db9a2f26037265e9b2"
+          "sha512": "5c4e26cac7e59733c0395b5a82323b8fbd8613c47eb7febefd497be0f7fd9bb9447f1b64c4b3c677dc45c2e7709a31946368927f98d706471ddbd0c0eb1e8860",
+          "sha256": "cd40e9cd0a06357d173cd8a87cc14e6c68d1a6a423e51e5a4853a1ad1edd2cb8",
+          "sha1": "9783796eecd7a617538bb7bd64a377117de98d30",
+          "md5": "a1251538b0932891cb91093e537491cd"
         }
       ]
     }
