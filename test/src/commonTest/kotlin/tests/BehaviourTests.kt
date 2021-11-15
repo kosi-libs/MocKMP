@@ -1,10 +1,16 @@
 package tests
 
+import foo.Bar
+import foo.Foo
 import foo.MockBar
+import foo.MockFoo
 import org.kodein.micromock.Mocker
+import org.kodein.micromock.UsesMocks
 import kotlin.test.*
 
-class captureTests {
+
+@UsesMocks(Foo::class, Bar::class)
+class BehaviourTests {
 
     val mocker = Mocker()
 
@@ -41,6 +47,16 @@ class captureTests {
         assertNull(lambdaValue)
         captures.single().invoke("Some String")
         assertEquals("Some String", lambdaValue)
+    }
+
+    @Test
+    fun changeBehaviour() {
+        val foo = MockFoo<Bar>(mocker)
+        val onNewInt = mocker.on { foo.newInt() }
+        onNewInt returns 21
+        assertEquals(21, foo.newInt())
+        onNewInt returns 42
+        assertEquals(42, foo.newInt())
     }
 
 }

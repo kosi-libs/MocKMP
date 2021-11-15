@@ -14,9 +14,9 @@ public class Mocker {
 
     private var specialMode: SpecialMode? = null
 
-    internal class CallDefinition(val receiver: Any, val name: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
+    internal class CallDefinition(val receiver: Any, val method: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
 
-    internal val regs = HashMap<Pair<Any, String>, MutableList<Pair<List<ArgConstraint<*>>, (Array<*>) -> Any?>>>()
+    internal val regs = HashMap<Pair<Any, String>, MutableList<Pair<List<ArgConstraint<*>>, On<*>>>>()
 
     private data class Call(val receiver: Any, val method: String, val arguments: Array<*>, val returnValue: Any?)
 
@@ -77,7 +77,7 @@ public class Mocker {
             }
             null -> {
                 val list = regs[receiver to method] ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked")
-                val (constraints, retFunction) = list
+                val (constraints, on) = list
                     .firstOrNull { (constraints, _) ->
                         constraints.size == args.size && constraints.indices.all {
                             @Suppress("UNCHECKED_CAST")
@@ -87,24 +87,26 @@ public class Mocker {
                     ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked for arguments ${args.joinToString()}")
                 @Suppress("UNCHECKED_CAST")
                 args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
-                val ret = retFunction(args)
+                val ret = on.mocked(args)
                 calls.addLast(Call(receiver, method, args, ret))
                 @Suppress("UNCHECKED_CAST") return ret as R
             }
         }
     }
 
-    public inner class CallDsl<T> internal constructor(private val receiver: Any, private val name: String, private val args: List<Any?>) {
+    public inner class On<T> internal constructor(receiver: Any, method: String) {
+
+        internal var mocked: (Array<*>) -> T = { throw MockingException("${receiver::class.simpleName}.$method has not been mocked") }
+
         public infix fun returns(ret: T) {
-            regs.getOrPut(receiver to name) { ArrayList() }
-                .add(args.map { it.toArgConstraint() } to { ret })
+            mocked = { ret }
         }
         public infix fun runs(ret: (Array<*>) -> T) {
-            regs.getOrPut(receiver to name) { ArrayList() }
-                .add(args.map { it.toArgConstraint() } to ret)
+            mocked = ret
         }
     }
-    public fun <T> on(block: ArgConstraintsBuilder.() -> T) : CallDsl<T> {
+
+    public fun <T> on(block: ArgConstraintsBuilder.() -> T) : On<T> {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         val mode = SpecialMode.DEFINITION()
         specialMode = mode
@@ -112,7 +114,10 @@ public class Mocker {
             ArgConstraintsBuilder(mode.mapper).block()
             error("Expected a Mock call")
         } catch (ex: CallDefinition) {
-            return CallDsl(ex.receiver, ex.name, ex.args)
+            val on = On<T>(ex.receiver, ex.method)
+            regs.getOrPut(ex.receiver to ex.method) { ArrayList() }
+                .add(ex.args.map { it.toArgConstraint() } to on)
+            return on
         } finally {
             specialMode = null
         }

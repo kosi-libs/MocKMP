@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.3.0
+:version: 0.4.0
 :ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -118,6 +118,17 @@ is strictly equivalent to:
 [source,kotlin]
 ----
 mocker.on { api.getUserById(isEqual(42)) } returns fakeUser()
+----
+
+You can also keep the `On` reference to change the behaviour over time:
+
+[source,kotlin]
+----
+val onGetUserById = mocker.on { api.getUserById(42) }
+onGetUserById returns fakeUser()
+// Do things...
+onGetUserById returns null
+// Do other things...
 ----
 
 
