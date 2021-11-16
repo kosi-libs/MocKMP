@@ -1,0 +1,77 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.4.1/micro-mock-0.4.1.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.4.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "iosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock.klib",
+          "url": "micro-mock-iosx64-0.4.1.klib",
+          "size": 33674,
+          "sha512": "fbb72595baa2253707f590bf0f6af4c7cdcf327a5bf1c151a6e6d2746b9d31452a5c6f1f72cfa891bd8399896b51b021e89a41a6f37bc0d61934c606425928f4",
+          "sha256": "6a4baa4d10b9af9ca7ca6bb76ee4e3c8fe78c06bbe07c80c339633b518621c66",
+          "sha1": "eaf260bd5bd945654e9c541ca84c79eda4e77fc7",
+          "md5": "3da204190b805b858353d4f8f56ac332"
+        }
+      ]
+    },
+    {
+      "name": "iosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-iosx64-0.4.1-metadata.jar",
+          "url": "micro-mock-iosx64-0.4.1-metadata.jar",
+          "size": 4310,
+          "sha512": "2af5f86f3a673b13b93e71cad8a1028dab2916faf0f8fd74b0f5f6fb09c0649aaffe4844aa544506da6c565a5e6e01a69005d0bbe2502d1c2ac66d2d5c8fe524",
+          "sha256": "2a7c4c6c9b8f9fa830c38498203d21a5fe13b1e80cae5d2998ea2b5675520e06",
+          "sha1": "47f00eff4f27bb7c91f32a2807d9b4c0ae919673",
+          "md5": "004dba7e84b61e1dcdea2b4d27f1b372"
+        }
+      ]
+    }
+  ]
+}

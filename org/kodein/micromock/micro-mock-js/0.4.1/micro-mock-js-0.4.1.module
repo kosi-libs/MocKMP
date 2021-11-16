@@ -1,0 +1,159 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.4.1/micro-mock-0.4.1.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.4.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "jsLegacyApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "legacy",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-js",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jslegacy-0.4.1.jar",
+          "url": "micro-mock-js-0.4.1.jar",
+          "size": 73767,
+          "sha512": "869f5f592dd8498fb69ce52826519080e83c33c2c9fe1aca2d6d939b09c5dea46a8fc831fb67bb5fcf260fa8a1974e066289ef86dfc8b67982b718f72fd34810",
+          "sha256": "1ffec10ea2a2e7220f40f5c390af86dc7df97fc698e03932a7b5c5ff50a833da",
+          "sha1": "fe7295e668fc642b6e73bdde1df6d5efa29cccea",
+          "md5": "9c9af23b6aa335335db22f23c41ac33c"
+        }
+      ]
+    },
+    {
+      "name": "jsLegacyRuntimeElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "legacy",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-js",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jslegacy-0.4.1.jar",
+          "url": "micro-mock-js-0.4.1.jar",
+          "size": 73767,
+          "sha512": "869f5f592dd8498fb69ce52826519080e83c33c2c9fe1aca2d6d939b09c5dea46a8fc831fb67bb5fcf260fa8a1974e066289ef86dfc8b67982b718f72fd34810",
+          "sha256": "1ffec10ea2a2e7220f40f5c390af86dc7df97fc698e03932a7b5c5ff50a833da",
+          "sha1": "fe7295e668fc642b6e73bdde1df6d5efa29cccea",
+          "md5": "9c9af23b6aa335335db22f23c41ac33c"
+        }
+      ]
+    },
+    {
+      "name": "jsIrApiElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-js",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jsir-0.4.1.klib",
+          "url": "micro-mock-js-0.4.1.klib",
+          "size": 29747,
+          "sha512": "7c2d60403e24c3d4bc6c1c1c70944242c6659298a147c3801756dec97e3de7fc9d5e6bcfb193efa6924bf401afe4b4329bde90547ab4069d14c139060091cb7b",
+          "sha256": "22db9e53ee8f08752aff96838984d3797eee1d53321d3ddf4718d5941ec6fbfd",
+          "sha1": "a43faddd317eff7bcb501d25e35241c11e61029c",
+          "md5": "06daa642673adb14b377f1969ac089ff"
+        }
+      ]
+    },
+    {
+      "name": "jsIrRuntimeElements-published",
+      "attributes": {
+        "org.gradle.usage": "kotlin-runtime",
+        "org.jetbrains.kotlin.js.compiler": "ir",
+        "org.jetbrains.kotlin.platform.type": "js"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-js",
+          "version": {
+            "requires": "1.5.31"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.5.31"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-jsir-0.4.1.klib",
+          "url": "micro-mock-js-0.4.1.klib",
+          "size": 29747,
+          "sha512": "7c2d60403e24c3d4bc6c1c1c70944242c6659298a147c3801756dec97e3de7fc9d5e6bcfb193efa6924bf401afe4b4329bde90547ab4069d14c139060091cb7b",
+          "sha256": "22db9e53ee8f08752aff96838984d3797eee1d53321d3ddf4718d5941ec6fbfd",
+          "sha1": "a43faddd317eff7bcb501d25e35241c11e61029c",
+          "md5": "06daa642673adb14b377f1969ac089ff"
+        }
+      ]
+    }
+  ]
+}
