@@ -11,7 +11,7 @@ val kspVersion by extra { "1.5.31-1.0.1" }
 
 allprojects {
     group = "org.kodein.micromock"
-    version = "0.4.0"
+    version = "0.4.1"
 
     repositories {
         mavenCentral()

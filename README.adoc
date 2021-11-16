@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.4.0
+:version: 0.4.1
 :ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -401,7 +401,7 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<3>
+    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
 }
 
 kotlin {
@@ -412,22 +412,22 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.kodein.micromock:micro-mock:{version}") //<4>
+                implementation("org.kodein.micromock:micro-mock:{version}") //<3>
             }
         }
     }
 }
 
 dependencies {
-    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
-    "kspIosX64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
-    "kspIosArm64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<2>
+    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
+    "kspIosX64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
+    "kspIosArm64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
 }
 ----
-<1> Applying the KSP plugin
-<2> Adding the processor on each required target
-<3> Adding the custom maven repository (won't be necessary after stable release)
-<4> Adding the dependency to the Micro-Mock runtime
+<1> Applying the KSP plugin.
+<2> Adding the custom maven repository (won't be necessary after stable release).
+<3> Adding the dependency to the Micro-Mock runtime.
+<4> Adding the processor on each required target.
 
 
 ==== Buggy multiplatform
@@ -441,7 +441,12 @@ If you need Micro-Mock for your tests but KSP is failing in your multiplatform p
 ----
 plugins {
     kotlin("multiplatform")
-    id("com.google.devtools.ksp")
+    id("com.google.devtools.ksp") //<1>
+}
+
+repositories {
+    mavenCentral()
+    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
 }
 
 kotlin {
@@ -458,24 +463,26 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation("org.kodein.micromock:micro-mock:{version}")
             }
-            kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<2>
+            kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<3>
         }
     }
 }
 
 dependencies {
-    "kspJvmTest"(project(":micro-mock-processor")) //<1>
+    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
     if (name.startsWith("compileTestKotlin")) {
-        dependsOn("kspTestKotlinJvm") //<3>
+        dependsOn("kspTestKotlinJvm") //<5>
     }
 }
 ----
-<1> Apply the processor only on the JVM target
-<2> Use KSP generated JVM sources on all targets
-<3> Make compilation of all targets dependant on the JVM KSP processor
+<1> Applying the KSP plugin.
+<2> Adding the custom maven repository (won't be necessary after stable release).
+<3> Use KSP generated JVM sources on all targets.
+<4> Apply the processor only on the JVM target.
+<5> Make compilation of all targets dependant on the JVM KSP processor.
 
 
 === With the plugin
@@ -494,7 +501,7 @@ pluginManagement {
     }
 }
 ----
-<1> Adding the custom maven repository (won't be necessary after stable release)
+<1> Adding the custom maven repository (won't be necessary after stable release).
 
 
 [source,kotlin,subs="verbatim,attributes"]
@@ -528,4 +535,4 @@ kotlin {
 }
 ----
 <1> Applying the Micro-Mock plugin.
-<2> Adding the custom maven repository (won't be necessary after stable release)
+<2> Adding the custom maven repository (won't be necessary after stable release).
