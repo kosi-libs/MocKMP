@@ -1,0 +1,107 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock-test-helper/0.5.0/micro-mock-test-helper-0.5.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-test-helper",
+    "version": "0.5.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "iosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper.klib",
+          "url": "micro-mock-test-helper-iosx64-0.5.0.klib",
+          "size": 9238,
+          "sha512": "f77575f2435316028e268c63b249e5181eb38739a68e2bc4b4e948ef5a6923eacd44452fd0ef5742ee3d926fbf2f9edcc35a73cfc38cb0e66faa1d52ac6f4b53",
+          "sha256": "8ef1f57a42e792401394d4642bc13ee454e0368bfc2287f447b8c6ecf457fa20",
+          "sha1": "ef3e25414b35469a4222f9c10a8ae58097be1d47",
+          "md5": "b1e77847dc3ee615506584c95a845075"
+        }
+      ]
+    },
+    {
+      "name": "iosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper-iosx64-0.5.0-metadata.jar",
+          "url": "micro-mock-test-helper-iosx64-0.5.0-metadata.jar",
+          "size": 261,
+          "sha512": "bd9dd2e7eef5cbb797cd7f72a290d87b79f5a8103baff31bdad538795596dcad39c756e32df5e8466800bd71154cb8344d0b095095b28c516614637f9fe2374d",
+          "sha256": "b4d3993fea660e2a6250e382d4a8f1a5776d66bd599338d7d6f311ae4ff95849",
+          "sha1": "76f78db9da99b3e14c093d9f8bd5154c30663982",
+          "md5": "29e6e2f7ec158227392a8145ebaedaf3"
+        }
+      ]
+    }
+  ]
+}

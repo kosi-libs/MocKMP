@@ -1,0 +1,107 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock-test-helper/0.5.0/micro-mock-test-helper-0.5.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-test-helper",
+    "version": "0.5.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "tvosX64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper.klib",
+          "url": "micro-mock-test-helper-tvosx64-0.5.0.klib",
+          "size": 9247,
+          "sha512": "a7442306ed3faac4bc8ade5fab3ef17dbcdc9715c39acddca65fcaeebd5fcebbeb4f9838fc155fa8341f9d81ff15f97912b996c03b46f3db91278216988b5225",
+          "sha256": "7217e2b9d149fe99e49d5bfd08fa4d04d0857be79431a61d162408ef2bec3522",
+          "sha1": "aca7a72d16a027fbe74e208b45e480f68a4fb5ff",
+          "md5": "1aeca6f3c1175fbbf1a81eafa8d03ceb"
+        }
+      ]
+    },
+    {
+      "name": "tvosX64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "tvos_x64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper-tvosx64-0.5.0-metadata.jar",
+          "url": "micro-mock-test-helper-tvosx64-0.5.0-metadata.jar",
+          "size": 261,
+          "sha512": "b938eb12794b2e170f7eb2e9bcf5b38fe35fcdeb88b02d51b1c7c2b7936144179c8cc77cef086645c15ff1ccfc50cd8453dd354cf03f1b9e77f4672dd367b7b9",
+          "sha256": "215517bef05647b198f219445a753636d5c39bdb523e638479e3420a05019c65",
+          "sha1": "edf46d9b109f39663fc556b7dd46c7b186408c61",
+          "md5": "6b1cab47918b8bbcf7ca6bc0052a714f"
+        }
+      ]
+    }
+  ]
+}

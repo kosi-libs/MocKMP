@@ -1,0 +1,121 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock-test-helper/0.5.0/micro-mock-test-helper-0.5.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-test-helper",
+    "version": "0.5.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "jvmApiElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper-jvm-0.5.0.jar",
+          "url": "micro-mock-test-helper-jvm-0.5.0.jar",
+          "size": 4481,
+          "sha512": "fd5f0465e98d23240469c84924f9f4c380fa29f1836809936f9a6f4d633ad43fc4cd051cd659d224d43c99fe71ba73b11a3444d2584a30689b9a8f9116200bdc",
+          "sha256": "f2c49c0120a7723d5f81c222fc7cc54afc8aa236a88d2149536cb93644bc1870",
+          "sha1": "712884cb7da3aed0aa05b086b53de41a36c6e4d2",
+          "md5": "e24c7cd4c8bca6e7378469fd54a7d057"
+        }
+      ]
+    },
+    {
+      "name": "jvmRuntimeElements-published",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test-junit",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper-jvm-0.5.0.jar",
+          "url": "micro-mock-test-helper-jvm-0.5.0.jar",
+          "size": 4481,
+          "sha512": "fd5f0465e98d23240469c84924f9f4c380fa29f1836809936f9a6f4d633ad43fc4cd051cd659d224d43c99fe71ba73b11a3444d2584a30689b9a8f9116200bdc",
+          "sha256": "f2c49c0120a7723d5f81c222fc7cc54afc8aa236a88d2149536cb93644bc1870",
+          "sha1": "712884cb7da3aed0aa05b086b53de41a36c6e4d2",
+          "md5": "e24c7cd4c8bca6e7378469fd54a7d057"
+        }
+      ]
+    }
+  ]
+}

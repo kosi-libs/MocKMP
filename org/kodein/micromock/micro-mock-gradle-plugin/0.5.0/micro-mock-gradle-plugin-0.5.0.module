@@ -1,0 +1,80 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-gradle-plugin",
+    "version": "0.5.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "files": [
+        {
+          "name": "micro-mock-gradle-plugin-0.5.0.jar",
+          "url": "micro-mock-gradle-plugin-0.5.0.jar",
+          "size": 13167,
+          "sha512": "8d1e038f0759b31c759969ad984a06cdc6429c8dbc0b18fa6ab86848e32176c3f353f072b81ff27db184f06c970a453be0876edfe84ec507899b862b4a30de47",
+          "sha256": "fe60a88e0ee4dcc7565bf130ef4c1e8fdec95eb68699cca61ffc6165a54871ac",
+          "sha1": "8f0b738eb442e8caf428335def361c52297597a5",
+          "md5": "7bce32d92989bdf3eaccba01c832052c"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "com.google.devtools.ksp",
+          "module": "com.google.devtools.ksp.gradle.plugin",
+          "version": {
+            "requires": "1.6.0-1.0.1"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-gradle-plugin",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-gradle-plugin-0.5.0.jar",
+          "url": "micro-mock-gradle-plugin-0.5.0.jar",
+          "size": 13167,
+          "sha512": "8d1e038f0759b31c759969ad984a06cdc6429c8dbc0b18fa6ab86848e32176c3f353f072b81ff27db184f06c970a453be0876edfe84ec507899b862b4a30de47",
+          "sha256": "fe60a88e0ee4dcc7565bf130ef4c1e8fdec95eb68699cca61ffc6165a54871ac",
+          "sha1": "8f0b738eb442e8caf428335def361c52297597a5",
+          "md5": "7bce32d92989bdf3eaccba01c832052c"
+        }
+      ]
+    }
+  ]
+}

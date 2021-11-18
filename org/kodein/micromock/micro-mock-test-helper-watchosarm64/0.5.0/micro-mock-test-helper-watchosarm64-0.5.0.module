@@ -1,0 +1,107 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock-test-helper/0.5.0/micro-mock-test-helper-0.5.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-test-helper",
+    "version": "0.5.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "watchosArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper.klib",
+          "url": "micro-mock-test-helper-watchosarm64-0.5.0.klib",
+          "size": 9289,
+          "sha512": "708a1e3c9f604974176334d73a13de8b9f9d49bd9b206afc97741c8f68b793aecfd458a642b6e530640d27fdb9e597823c1b6e75cf94e1040e9fe73db725a2d4",
+          "sha256": "b7d187154bffc71a6a71105788e7d8914d6e5e5d4a656f86c95c8a10a9f22d1f",
+          "sha1": "64797918d795801c5d902c84626c8ddec5ae4b72",
+          "md5": "01a0dc928408bc843312ca0ac1704863"
+        }
+      ]
+    },
+    {
+      "name": "watchosArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.5.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-test",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-test-helper-watchosarm64-0.5.0-metadata.jar",
+          "url": "micro-mock-test-helper-watchosarm64-0.5.0-metadata.jar",
+          "size": 261,
+          "sha512": "33ca50865c0645e64bbdb41cb681cbec85c3f2a7b2eb0673a648b73b185bb8911863fc135b61ccee66a7d068d749fea5dcfd6b4e169c5d677d7c0042143959cb",
+          "sha256": "e3923badc45eb7308fc01d4a1d47e0933c1b6ff5c642b246cf133f3bd358d3ce",
+          "sha1": "794c939c3d9beaddd0ea2d6893e7b878d1c7e95f",
+          "md5": "1c9c580a2654d43c845ad072c4db9048"
+        }
+      ]
+    }
+  ]
+}
