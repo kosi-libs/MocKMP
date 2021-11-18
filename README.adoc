@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.4.1
+:version: 0.5.0
 :ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -25,22 +25,18 @@ Here's a simple overview example:
 
 [source,kotlin]
 ----
-class MyTest {
-    @set:Mock lateinit var view: View
-    @set:Fake lateinit var model: Model
-    lateinit var controller: Controller
+class MyTest : TestsWithMocks() {
+    override fun setUpMocks() = injectMocks(mocker)
 
-    val mocker = Mocker()
-    @BeforeTest fun setUp() {
-        mocker.reset()
-        injectMocks(mocker)
-        controller = Controller(view = view, firstModel = model)
-    }
+    @Mock lateinit var view: View
+    @Fake lateinit var model: Model
+    
+    val controller by withMocks { Controller(view = view, firstModel = model) }
 
     @Test fun controllerTest() {
-        mocker.on { view.render(isAny()) } returns true
+        every { view.render(isAny()) } returns true
         controller.start()
-        mocker.verify { view.render(model) }
+        verify { view.render(model) }
     }
 }
 ----
@@ -81,8 +77,8 @@ class MyTests {
         val db = MockDatabase(mocker)
         val api = MockAPI(mocker)
 
-        mocker.on { db.open(isAny()) } returns Unit //<1>
-        mocker.on { api.getCurrentUser() } runs { fakeUser() } //<2>
+        mocker.every { db.open(isAny()) } returns Unit //<1>
+        mocker.every { api.getCurrentUser() } runs { fakeUser() } //<2>
     }
 }
 ----
@@ -95,8 +91,8 @@ You can mock methods according to specific argument constraints:
 
 [source,kotlin]
 ----
-mocker.on { api.update(isNotNull()) } returns true
-mocker.on { api.update(isNull()) } runs { nullCounter++ ; false }
+mocker.every { api.update(isNotNull()) } returns true
+mocker.every { api.update(isNull()) } runs { nullCounter++ ; false }
 ----
 
 Available constraints are:
@@ -110,24 +106,24 @@ Note that passing a non-constraint value to the function is equivalent to passin
 
 [source,kotlin]
 ----
-mocker.on { api.getUserById(42) } returns fakeUser()
+mocker.every { api.getUserById(42) } returns fakeUser()
 ----
 
 is strictly equivalent to:
 
 [source,kotlin]
 ----
-mocker.on { api.getUserById(isEqual(42)) } returns fakeUser()
+mocker.every { api.getUserById(isEqual(42)) } returns fakeUser()
 ----
 
-You can also keep the `On` reference to change the behaviour over time:
+You can also keep the `Every` reference to change the behaviour over time:
 
 [source,kotlin]
 ----
-val onGetUserById = mocker.on { api.getUserById(42) }
-onGetUserById returns fakeUser()
+val everyApiGetUserById42 = mocker.every { api.getUserById(42) }
+everyApiGetUserById42 returns fakeUser()
 // Do things...
-onGetUserById returns null
+everyApiGetUserById42 returns null
 // Do other things...
 ----
 
@@ -140,9 +136,9 @@ You can check that mock functions has been run in order with `verify`.
 ----
 val fakeUser = fakeUser()
 
-mocker.on { db.loadUser(isAny()) } returns null
-mocker.on { db.saveUser(isAny()) } returns Unit
-mocker.on { api.getUserById(isAny()) } returns fakeUser
+mocker.every { db.loadUser(isAny()) } returns null
+mocker.every { db.saveUser(isAny()) } returns Unit
+mocker.every { api.getUserById(isAny()) } returns fakeUser
 
 controller.onClickUser(userId = 42)
 
@@ -210,7 +206,7 @@ This can be useful, for example, to capture delegates and call them.
 [source,kotlin]
 ----
 val delegate = MockDelegate()
-mocker.on { delegate.setSession(isAny()) } returns Unit
+mocker.every { delegate.setSession(isAny()) } returns Unit
 
 val controller = Controller(delegate)
 controller.startNewSession()
@@ -234,7 +230,7 @@ The previous example could be rewritten as such:
 ----
 val delegate = MockDelegate()
 val sessionCapture = ArrayList<Session>()
-mocker.on { delegate.setSession(isAny(capture = sessionCapture)) } returns Unit
+mocker.every { delegate.setSession(isAny(capture = sessionCapture)) } returns Unit
 
 val controller = Controller(delegate)
 controller.startNewSession()
@@ -257,7 +253,7 @@ This is less precise than using caputre lists as they are non typed, but allows 
 [source,kotlin]
 ----
 val delegate = MockDelegate()
-mocker.on { delegate.setSession(isAny()) } runs { args ->
+mocker.every { delegate.setSession(isAny()) } runs { args ->
     (args[0] as Session).close()
 }
 
@@ -285,8 +281,8 @@ fun ArgConstraintsBuilder.isStrictlyPositive(capture: MutableList<Int>? = null):
 
 [source,kotlin]
 ----
-mocker.on { api.getSuccess(isStrictlyPositive()) } returns true
-mocker.on { api.getSuccess(isAny()) } returns false
+mocker.every { api.getSuccess(isStrictlyPositive()) } returns true
+mocker.every { api.getSuccess(isAny()) } returns false
 ----
 
 ...or in *verification*:
@@ -357,10 +353,10 @@ Instead of creating your own mocks & fakes, it can be useful to inject them in y
 ----
 @UsesFakes(User::class)
 class MyTests {
-    @set:Mock lateinit var db: Database
-    @set:Mock lateinit var api: API
+    @Mock lateinit var db: Database
+    @Mock lateinit var api: API
 
-    @set:Fake lateinit var user: User
+    @Fake lateinit var user: User
 
     lateinit var controller: Controller
 
@@ -371,15 +367,63 @@ class MyTests {
         this.injectMocks(mocker) //<2>
         controller = ControllerImpl(db, api) //<3>
     }
+
+    @Test fun controllerTest() {
+        mocker.every { view.render(isAny()) } returns true
+        controller.start()
+        mocker.verify { view.render(model) }
+    }
 }
 ----
 <1> Resets the mocker before any test (which removes all mocked behaviour & logged calls), so that each test gets a "clean" mocker.
 <2> Injects mocks and fakes.
 <3> Create classes to be tested with injected mocks & fakes.
 
-As soon as a class `T` contains a `@set:Mock` or `@set:Fake` annotated property, a `T.injectMocks(Mocker)` function will be created by the processor.
+As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `T.injectMocks(Mocker)` function will be created by the processor.
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
+
+
+=== Test class helper
+
+Micro-Mock provides the `TestsWithMocks` helper class that your test classes can inherit from.
+It provides the following benefits:
+
+- Provides a `Mocker`.
+- Resets the `Mocker` before each tests.
+- Provides `withMock` property delegates to initialize objects with mocks.
+- Allows to call `every` and `verify` without `mocker.`.
+
+It does not come with the stndard runtime (as it forces the dependency to JUnit on the JVM), so you need to add the `micro-mock-test-helper` dependency to use it.
+
+The above `MyTests` sample can be rewritten as such:
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests : TestsWithMocks() { //<1>
+    override fun setUpMocks() = injectMocks(mocker) //<2>
+
+    @Mock lateinit var db: Database
+    @Mock lateinit var api: API
+
+    @Fake lateinit var user: User
+
+    val controller by withMock { ControllerImpl(db, api) } //<3>
+
+    @Test fun controllerTest() {
+        every { view.render(isAny()) } returns true //<4>
+        controller.start()
+        verify { view.render(model) } //<4>
+    }
+}
+----
+<1> The class inherits `TestsWithMocks`, which provides helpers.
+<2> `setUpMocks` must be overriden, and can generally be just a delegation to the `injectMocks` generated function.
+<3> Controller will be (re)created before each tests with the new mock dependencies.
+<4> Note the absence of `mocker.` as you can use `every` and `verify` directly.
+
+NOTE: Properties delegated to `withMocks` will be (re)initialized *before each tests*, after the mocks have been (re)injected.
 
 
 == Setup
@@ -413,6 +457,8 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.kodein.micromock:micro-mock:{version}") //<3>
+                // OPTIONAL!
+                implementation("org.kodein.micromock:micro-mock-test-helper:{version}") //<3>
             }
         }
     }
@@ -426,7 +472,7 @@ dependencies {
 ----
 <1> Applying the KSP plugin.
 <2> Adding the custom maven repository (won't be necessary after stable release).
-<3> Adding the dependency to the Micro-Mock runtime.
+<3> Adding the dependencies to the Micro-Mock runtime and the *optional* test helper.
 <4> Adding the processor on each required target.
 
 
@@ -462,6 +508,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.kodein.micromock:micro-mock:{version}")
+                implementation("org.kodein.micromock:micro-mock-test-helper:{version}")
             }
             kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<3>
         }
@@ -489,7 +536,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
 
 The Micro-Mock Gradle plugin applies the trick that only runs the processor on the JVM target and adds the generated sources to all targets.
 Note that this may collision with other Symbol Processors.
-This plugin will be deprecated once KSP properly supports Multiplatform & JS/IR.
+
+Once KSP properly supports Multiplatform & JS/IR, this plugin will apply Micro-Mock "normaly".
 
 [source,kotlin,subs="verbatim,attributes"]
 .settings.gradle.kts
@@ -512,9 +560,9 @@ plugins {
     id("org.kodein.micromock") version "{version}" //<1>
 }
 
-repositories {
-    mavenCentral()
-    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
+microMock {
+    // OPTIONAL!
+    usesHelper = true //<2>
 }
 
 kotlin {
@@ -535,4 +583,4 @@ kotlin {
 }
 ----
 <1> Applying the Micro-Mock plugin.
-<2> Adding the custom maven repository (won't be necessary after stable release).
+<2> Requesting the *optional* `test-helper` dependency

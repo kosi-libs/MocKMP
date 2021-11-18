@@ -1,34 +1,26 @@
 package tests
 
-import data.Data
-import data.Direction
-import data.SomeDirection
-import data.SubData
+import data.*
 import foo.Bar
 import foo.MockBar
 import org.kodein.micromock.Fake
 import org.kodein.micromock.Mock
-import org.kodein.micromock.Mocker
-import kotlin.test.BeforeTest
+import org.kodein.micromock.TestsWithMocks
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
-class InjectionTests {
+class InjectionTests : TestsWithMocks() {
 
-    @set:Mock
+    @Mock
     lateinit var bar: Bar
 
-    @set:Fake
+    @Fake
     lateinit var data: Data
 
-    val mocker = Mocker()
+    val control by withMocks { Control(bar, data) }
 
-    @BeforeTest
-    fun setUp() {
-        mocker.reset()
-        injectMocks(mocker)
-    }
+    override fun setUpMocks() = injectMocks(mocker)
 
     @Test
     fun testMockInjection() {
@@ -46,5 +38,12 @@ class InjectionTests {
             ),
             data
         )
+    }
+
+    @Test
+    fun testDeferred() {
+        every { bar.doData(isAny()) } returns Unit
+        control.doIt()
+        verify { bar.doData(data) }
     }
 }

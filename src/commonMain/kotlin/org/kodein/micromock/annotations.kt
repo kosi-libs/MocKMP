@@ -3,7 +3,7 @@ package org.kodein.micromock
 import kotlin.reflect.KClass
 
 @Retention(AnnotationRetention.SOURCE)
-@Target(AnnotationTarget.PROPERTY_SETTER)
+@Target(AnnotationTarget.PROPERTY_SETTER, AnnotationTarget.PROPERTY)
 public annotation class Mock
 
 @Retention(AnnotationRetention.SOURCE)
@@ -11,7 +11,7 @@ public annotation class Mock
 public annotation class UsesMocks(vararg val types: KClass<*>)
 
 @Retention(AnnotationRetention.SOURCE)
-@Target(AnnotationTarget.PROPERTY_SETTER)
+@Target(AnnotationTarget.PROPERTY_SETTER, AnnotationTarget.PROPERTY)
 public annotation class Fake
 
 @Retention(AnnotationRetention.SOURCE)

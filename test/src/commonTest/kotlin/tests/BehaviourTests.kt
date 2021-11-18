@@ -23,7 +23,7 @@ class BehaviourTests {
     fun lambdaCaptureAtDefinition() {
         val bar = MockBar(mocker)
         val captures = ArrayList<(String) -> Int>()
-        mocker.on { bar.callback(isAny(captures)) } returns Unit
+        mocker.every { bar.callback(isAny(captures)) } returns Unit
 
         var lambdaValue: String? = null
         bar.callback { lambdaValue = it ; 42 }
@@ -36,7 +36,7 @@ class BehaviourTests {
     @Test
     fun lambdaCaptureAtVerification() {
         val bar = MockBar(mocker)
-        mocker.on { bar.callback(isAny()) } returns Unit
+        mocker.every { bar.callback(isAny()) } returns Unit
 
         var lambdaValue: String? = null
         bar.callback { lambdaValue = it ; 42 }
@@ -52,7 +52,7 @@ class BehaviourTests {
     @Test
     fun changeBehaviour() {
         val foo = MockFoo<Bar>(mocker)
-        val onNewInt = mocker.on { foo.newInt() }
+        val onNewInt = mocker.every { foo.newInt() }
         onNewInt returns 21
         assertEquals(21, foo.newInt())
         onNewInt returns 42

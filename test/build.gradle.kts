@@ -10,12 +10,13 @@ kotlin {
         }
     }
 
-    js(IR) {
+    js(BOTH) {
         browser()
         nodejs()
     }
 
     ios()
+    iosSimulatorArm64()
     tvos()
     watchos()
 
@@ -26,6 +27,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(rootProject)
+                implementation(project(":micro-mock-test-helper"))
             }
             // Adding KSP JVM result to COMMON source set
             kotlin.srcDir("build/generated/ksp/jvmTest/kotlin")

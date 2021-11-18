@@ -1,17 +1,17 @@
 plugins {
-    kotlin("multiplatform") version "1.5.31"
+    kotlin("multiplatform") version "1.6.0"
     `maven-publish`
-    id("com.google.devtools.ksp") version "1.5.31-1.0.1" apply false
+    id("com.google.devtools.ksp") version "1.6.0-1.0.1" apply false
 
     id("org.ajoberstar.git-publish") version "3.0.0"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
 
-val kspVersion by extra { "1.5.31-1.0.1" }
+val kspVersion by extra { "1.6.0-1.0.1" }
 
 allprojects {
     group = "org.kodein.micromock"
-    version = "0.4.1"
+    version = "0.5.0"
 
     repositories {
         mavenCentral()

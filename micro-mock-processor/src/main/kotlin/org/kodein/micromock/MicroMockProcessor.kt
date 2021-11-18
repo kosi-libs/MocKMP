@@ -51,11 +51,17 @@ class MicroMockProcessor(
         }
 
         fun lookUpFields(annotationName: String, add: (KSDeclaration, Iterable<KSFile>) -> Unit) {
-            val fields = resolver.getSymbolsWithAnnotation(annotationName)
-            fields.forEach { set ->
-                if (set !is KSPropertySetter) error("$set is not a property setter but is annotated with @${annotationName.split(".").last()}")
-                val prop = set.receiver
-                val cls = prop.parentDeclaration as? KSClassDeclaration ?: error("Cannot generate injector for $set as it is not inside a class")
+            val symbols = resolver.getSymbolsWithAnnotation(annotationName)
+            symbols.forEach { symbol ->
+                val prop = when (symbol) {
+                    is KSPropertySetter -> symbol.receiver
+                    is KSPropertyDeclaration -> {
+                        if (!symbol.isMutable) error("$symbol is immutable but is annotated with @${annotationName.split(".").last()}")
+                        symbol
+                    }
+                    else -> error("$symbol is not a property nor a property setter but is annotated with @${annotationName.split(".").last()} (is ${symbol::class.simpleName})")
+                }
+                val cls = prop.parentDeclaration as? KSClassDeclaration ?: error("Cannot generate injector for $prop as it is not inside a class")
                 toInject.getOrPut(cls) { ArrayList() } .add(annotationName to prop)
                 add(prop.type.resolve().declaration, listOf(cls.containingFile!!))
             }

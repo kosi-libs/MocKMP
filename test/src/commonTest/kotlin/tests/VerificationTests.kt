@@ -24,7 +24,7 @@ class VerificationTests {
     @Test
     fun testSimpleRun() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.doInt(isAny()) } returns Unit
 
         foo.doInt(42)
 
@@ -36,8 +36,8 @@ class VerificationTests {
     @Test
     fun testExhaustive() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -53,7 +53,7 @@ class VerificationTests {
     @Test
     fun testUnexpectedCall() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.doInt(isAny()) } returns Unit
 
         foo.doInt(42)
 
@@ -68,8 +68,8 @@ class VerificationTests {
     @Test
     fun testNonExhaustive() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -82,8 +82,8 @@ class VerificationTests {
     @Test
     fun testNonExhaustiveUnexpectedCall() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -99,8 +99,8 @@ class VerificationTests {
     @Test
     fun testNonOrdered() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -116,8 +116,8 @@ class VerificationTests {
     @Test
     fun testNonOrderedUnexpectedCall() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -134,8 +134,8 @@ class VerificationTests {
     @Test
     fun testNonOrderedExhaustive() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()
@@ -151,8 +151,8 @@ class VerificationTests {
     @Test
     fun testNonExhaustiveOrdered() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.on { foo.doInt(isAny()) } returns Unit
-        mocker.on { foo.newString() } returns ""
+        mocker.every { foo.doInt(isAny()) } returns Unit
+        mocker.every { foo.newString() } returns ""
 
         foo.doInt(42)
         foo.newString()

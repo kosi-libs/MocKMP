@@ -16,7 +16,7 @@ public class Mocker {
 
     internal class CallDefinition(val receiver: Any, val method: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
 
-    internal val regs = HashMap<Pair<Any, String>, MutableList<Pair<List<ArgConstraint<*>>, On<*>>>>()
+    internal val regs = HashMap<Pair<Any, String>, MutableList<Pair<List<ArgConstraint<*>>, Every<*>>>>()
 
     private data class Call(val receiver: Any, val method: String, val arguments: Array<*>, val returnValue: Any?)
 
@@ -77,7 +77,7 @@ public class Mocker {
             }
             null -> {
                 val list = regs[receiver to method] ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked")
-                val (constraints, on) = list
+                val (constraints, every) = list
                     .firstOrNull { (constraints, _) ->
                         constraints.size == args.size && constraints.indices.all {
                             @Suppress("UNCHECKED_CAST")
@@ -87,14 +87,14 @@ public class Mocker {
                     ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked for arguments ${args.joinToString()}")
                 @Suppress("UNCHECKED_CAST")
                 args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
-                val ret = on.mocked(args)
+                val ret = every.mocked(args)
                 calls.addLast(Call(receiver, method, args, ret))
                 @Suppress("UNCHECKED_CAST") return ret as R
             }
         }
     }
 
-    public inner class On<T> internal constructor(receiver: Any, method: String) {
+    public inner class Every<T> internal constructor(receiver: Any, method: String) {
 
         internal var mocked: (Array<*>) -> T = { throw MockingException("${receiver::class.simpleName}.$method has not been mocked") }
 
@@ -106,7 +106,7 @@ public class Mocker {
         }
     }
 
-    public fun <T> on(block: ArgConstraintsBuilder.() -> T) : On<T> {
+    public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         val mode = SpecialMode.DEFINITION()
         specialMode = mode
@@ -114,14 +114,17 @@ public class Mocker {
             ArgConstraintsBuilder(mode.mapper).block()
             error("Expected a Mock call")
         } catch (ex: CallDefinition) {
-            val on = On<T>(ex.receiver, ex.method)
+            val every = Every<T>(ex.receiver, ex.method)
             regs.getOrPut(ex.receiver to ex.method) { ArrayList() }
-                .add(ex.args.map { it.toArgConstraint() } to on)
-            return on
+                .add(ex.args.map { it.toArgConstraint() } to every)
+            return every
         } finally {
             specialMode = null
         }
     }
+
+    @Deprecated("Renamed every", ReplaceWith("every(block)"), level = DeprecationLevel.ERROR)
+    public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)
 
     public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit) {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")

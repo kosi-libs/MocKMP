@@ -8,8 +8,15 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
 class MicroMockGradlePlugin : Plugin<Project> {
 
+    class Extension(var usesHelper: Boolean = false)
+
     override fun apply(target: Project) {
         target.plugins.apply("com.google.devtools.ksp")
+
+        val ext = Extension()
+        target.extensions.add("microMock", ext)
+
+        target.repositories.add(target.repositories.maven("https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo"))
 
         target.afterEvaluate {
             val kotlin = extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
@@ -21,6 +28,9 @@ class MicroMockGradlePlugin : Plugin<Project> {
                 this.kotlin.srcDir("build/generated/ksp/${jvmName}Test/kotlin")
                 dependencies {
                     implementation("org.kodein.micromock:micro-mock:${BuildConfig.VERSION}")
+                    if (ext.usesHelper) {
+                        implementation("org.kodein.micromock:micro-mock-test-helper:${BuildConfig.VERSION}")
+                    }
                 }
             }
 
