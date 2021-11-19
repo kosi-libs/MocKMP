@@ -1,0 +1,79 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.6.0/micro-mock-0.6.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.6.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "iosArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock.klib",
+          "url": "micro-mock-iosarm64-0.6.0.klib",
+          "size": 51600,
+          "sha512": "50988a208dc435e8a81dad03502044cc5c981034d9771a2e6074db326cc5cd9f231a45e27123cfa0b22df8990150ccb11ac6c83e332d3489948d65e34acda769",
+          "sha256": "a0b301fe9e30ade9bd2e61b2b1c03ca92b4bbecee1d23fc7d90051797cd35a48",
+          "sha1": "d00b1946aad4391fc5e5b65f3e435f87df851943",
+          "md5": "90d46b1f109db6f4ae5dfd6b0afab620"
+        }
+      ]
+    },
+    {
+      "name": "iosArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "ios_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-iosarm64-0.6.0-metadata.jar",
+          "url": "micro-mock-iosarm64-0.6.0-metadata.jar",
+          "size": 4713,
+          "sha512": "b8499e4132bad7c7132a92711c0554d2ce4eff643ddf6f170b8ef473b263221ddea63f1c44f2e353e00381a1a6b4e3aa2d4a634ff8ba65d70609ff275ab2f269",
+          "sha256": "fdd20d2373eff5fd6a8406099f31a51a3b10f3a4e012c6b13198f2fdb009b70a",
+          "sha1": "2db45994f944c3b72242c206f166b0d31c9e3efc",
+          "md5": "6cbfdfc4a676533990089dfe29728090"
+        }
+      ]
+    }
+  ]
+}
