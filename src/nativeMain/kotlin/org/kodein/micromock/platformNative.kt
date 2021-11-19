@@ -40,3 +40,6 @@ internal actual class ReturnMapper actual constructor() {
 
     internal actual fun toProvided(from: Any): Any = providedMap.remove(from) ?: from
 }
+
+@PublishedApi
+internal actual fun KClass<*>.bestName(): String = qualifiedName ?: simpleName ?: "Unknown"

@@ -164,6 +164,6 @@ class VerificationTests {
                 foo.doInt(42)
             }
         }
-        assertEquals("Expected <42>, actual <21>", ex.message)
+        assertEquals("Argument 1: Expected <42>, actual <21>", ex.message)
     }
 }

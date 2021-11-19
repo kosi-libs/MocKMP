@@ -14,11 +14,12 @@ public class Mocker {
 
     private var specialMode: SpecialMode? = null
 
-    internal class CallDefinition(val receiver: Any, val method: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
+    internal class CallDefinition(val receiver: Any?, val method: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
 
-    internal val regs = HashMap<Pair<Any, String>, MutableList<Pair<List<ArgConstraint<*>>, Every<*>>>>()
+    internal val regs = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, Every<*>>>>()
 
-    private data class Call(val receiver: Any, val method: String, val arguments: Array<*>, val returnValue: Any?)
+    @Suppress("ArrayInDataClass")
+    private data class Call(val receiver: Any?, val method: String, val arguments: Array<*>, val returnValue: Any?)
 
     private val calls = ArrayDeque<Call>()
 
@@ -32,7 +33,9 @@ public class Mocker {
     @JvmName("toNotNullArgConstraint") private fun Any.toArgConstraint() = this as? ArgConstraint<*> ?: ArgConstraint.isEqual(this)
     @JvmName("toNullableArgConstraint") private fun Any?.toArgConstraint() = this?.toArgConstraint() ?: ArgConstraint.isNull()
 
-    public fun <R> register(receiver: Any, method: String, vararg args: Any?): R {
+    private fun methodName(receiver: Any?, methodName: String) = if (receiver == null) methodName else "${receiver::class.simpleName}.$methodName"
+
+    public fun <R> register(receiver: Any?, method: String, vararg args: Any?): R {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
                 throw CallDefinition(receiver, method, args.map { it?.let { mode.mapper.toProvided(it) } })
@@ -41,29 +44,29 @@ public class Mocker {
                 val constraints = args.map { it?.let { mode.mapper.toProvided(it) } } .map { it.toArgConstraint() }
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
-                        ?: throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method but call list was empty")
+                        ?: throw AssertionError("Expected a call to ${methodName(receiver, method)} but call list was empty")
                     if (method != call.method || receiver !== receiver)
-                        throw AssertionError("Expected a call to ${receiver::class.simpleName}.$method, but was a call to ${call.receiver::class.simpleName}.${call.method}")
+                        throw AssertionError("Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}")
                     if (constraints.size != call.arguments.size)
-                        throw AssertionError("Expected ${constraints.size} arguments to ${receiver::class.simpleName}.$method but got ${call.arguments.size}")
+                        throw AssertionError("Expected ${constraints.size} arguments to ${methodName(receiver, method)} but got ${call.arguments.size}")
                     @Suppress("UNCHECKED_CAST")
-                    constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert(call.arguments[i]) }
+                    constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert("Argument ${i + 1}", call.arguments[i]) }
                     call
                 } else {
                     val callIndices = (
                             calls.indices.filter { calls[it].receiver == receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
-                                ?: throw AssertionError("Could not find a call to ${receiver::class.simpleName}.$method")
+                                ?: throw AssertionError("Could not find a call to ${methodName(receiver, method)}")
                             ).filter { calls[it].arguments.size == constraints.size } .takeIf { it.isNotEmpty() }
-                                ?: throw AssertionError("Could not find a call to ${receiver::class.simpleName}.$method with ${constraints.size} arguments")
+                                ?: throw AssertionError("Could not find a call to ${methodName(receiver, method)} with ${constraints.size} arguments")
                     val callIndex = if (callIndices.size == 1) {
                         val call = calls[callIndices.single()]
                         @Suppress("UNCHECKED_CAST")
-                        constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert(call.arguments[i]) }
+                        constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert("Argument ${i + 1}", call.arguments[i]) }
                         callIndices.single()
                     } else {
                         @Suppress("UNCHECKED_CAST")
                         callIndices.firstOrNull { callIndex -> constraints.indices.all { (constraints[it] as ArgConstraint<Any?>).isValid(calls[callIndex].arguments[it]) } }
-                            ?: throw AssertionError("Found ${callIndices.size} calls to ${receiver::class.simpleName}.$method, but none that validates the constraints")
+                            ?: throw AssertionError("Found ${callIndices.size} calls to ${methodName(receiver, method)}, but none that validates the constraints")
                     }
                     val call = calls[callIndex]
                     if (mode.inOrder) repeat(callIndex + 1) { calls.removeFirst() }
@@ -76,7 +79,7 @@ public class Mocker {
                 return call.returnValue as R
             }
             null -> {
-                val list = regs[receiver to method] ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked")
+                val list = regs[receiver to method] ?: throw MockingException("${methodName(receiver, method)} has not been mocked")
                 val (constraints, every) = list
                     .firstOrNull { (constraints, _) ->
                         constraints.size == args.size && constraints.indices.all {
@@ -84,7 +87,7 @@ public class Mocker {
                             (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
                         }
                     }
-                    ?: throw MockingException("${receiver::class.simpleName}.$method has not been mocked for arguments ${args.joinToString()}")
+                    ?: throw MockingException("${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}")
                 @Suppress("UNCHECKED_CAST")
                 args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
                 val ret = every.mocked(args)
@@ -94,9 +97,9 @@ public class Mocker {
         }
     }
 
-    public inner class Every<T> internal constructor(receiver: Any, method: String) {
+    public inner class Every<T> internal constructor(receiver: Any?, method: String) {
 
-        internal var mocked: (Array<*>) -> T = { throw MockingException("${receiver::class.simpleName}.$method has not been mocked") }
+        internal var mocked: (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }
 
         public infix fun returns(ret: T) {
             mocked = { ret }
@@ -134,7 +137,7 @@ public class Mocker {
             ArgConstraintsBuilder(mode.mapper).block()
             if (exhaustive && calls.isNotEmpty()) {
                 val call = calls.first()
-                throw AssertionError("Expected call list to be empty, but got a call to ${call.receiver::class.simpleName}.${call.method}")
+                throw AssertionError("Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}")
             } else {
                 calls.clear()
             }

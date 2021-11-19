@@ -10,3 +10,6 @@ internal expect class ReturnMapper() {
     internal fun toProvided(from: Any): Any
 
 }
+
+@PublishedApi
+internal expect fun KClass<*>.bestName(): String

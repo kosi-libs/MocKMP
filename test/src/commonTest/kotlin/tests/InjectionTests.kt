@@ -18,6 +18,9 @@ class InjectionTests : TestsWithMocks() {
     @Fake
     lateinit var data: Data
 
+    @Mock
+    lateinit var callback: (Boolean, Int) -> String
+
     val control by withMocks { Control(bar, data) }
 
     override fun setUpMocks() = injectMocks(mocker)
@@ -45,5 +48,12 @@ class InjectionTests : TestsWithMocks() {
         every { bar.doData(isAny()) } returns Unit
         control.doIt()
         verify { bar.doData(data) }
+    }
+
+    @Test
+    fun testCallback() {
+        every { callback(isAny(), isAny()) } returns "test"
+        callback(true, 42)
+        verify { callback(true, 42) }
     }
 }

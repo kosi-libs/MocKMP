@@ -37,12 +37,15 @@ class MicroMockProcessor(
         val toMock = HashMap<KSClassDeclaration, HashSet<KSFile>>()
         val toFake = HashMap<KSClassDeclaration, HashSet<KSFile>>()
 
-        fun addMock(decl: KSDeclaration, files: Iterable<KSFile>) {
+        fun addMock(type: KSType, files: Iterable<KSFile>) {
+            if (type.isFunctionType) return
+            val decl = type.declaration
             if (decl !is KSClassDeclaration || decl.classKind != ClassKind.INTERFACE) error("Cannot generate mock for non interface $decl")
             toMock.getOrPut(decl) { HashSet() } .addAll(files)
         }
 
-        fun addFake(decl: KSDeclaration, files: Iterable<KSFile>) {
+        fun addFake(type: KSType, files: Iterable<KSFile>) {
+            val decl = type.declaration
             if (
                 decl !is KSClassDeclaration || decl.isAbstract() ||
                 decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS)
@@ -50,7 +53,7 @@ class MicroMockProcessor(
             toFake.getOrPut(decl) { HashSet() } .addAll(files)
         }
 
-        fun lookUpFields(annotationName: String, add: (KSDeclaration, Iterable<KSFile>) -> Unit) {
+        fun lookUpFields(annotationName: String, add: (KSType, Iterable<KSFile>) -> Unit) {
             val symbols = resolver.getSymbolsWithAnnotation(annotationName)
             symbols.forEach { symbol ->
                 val prop = when (symbol) {
@@ -63,16 +66,16 @@ class MicroMockProcessor(
                 }
                 val cls = prop.parentDeclaration as? KSClassDeclaration ?: error("Cannot generate injector for $prop as it is not inside a class")
                 toInject.getOrPut(cls) { ArrayList() } .add(annotationName to prop)
-                add(prop.type.resolve().declaration, listOf(cls.containingFile!!))
+                add(prop.type.resolve(), listOf(cls.containingFile!!))
             }
         }
 
-        fun lookUpUses(annotationName: String, add: (KSDeclaration, Iterable<KSFile>) -> Unit) {
+        fun lookUpUses(annotationName: String, add: (KSType, Iterable<KSFile>) -> Unit) {
             val uses = resolver.getSymbolsWithAnnotation(annotationName)
             uses.forEach { use ->
                 val anno = use.annotations.first { it.annotationType.resolve().declaration.qualifiedName!!.asString() == annotationName }
                 (anno.arguments.first().value as List<*>).forEach {
-                    add((it as KSType).declaration, listOf(use.containingFile!!))
+                    add((it as KSType), listOf(use.containingFile!!))
                 }
             }
         }
@@ -95,7 +98,7 @@ class MicroMockProcessor(
                             &&  paramDecl.qualifiedName!!.asString() !in builtins
                             &&  paramDecl !in toFake
                         ) {
-                            addFake(paramDecl, files)
+                            addFake(paramType, files)
                             toExplore.add((paramDecl as KSClassDeclaration) to files)
                         }
                     }
@@ -222,12 +225,28 @@ class MicroMockProcessor(
             vProps.forEach { (anno, vProp) ->
                 when {
                     anno == "org.kodein.micromock.Mock" -> {
-                        gFun.addStatement(
-                            "this.%N = %T(%N)",
-                            vProp.simpleName.asString(),
-                            vProp.type.resolve().declaration.let { ClassName(it.packageName.asString(), "Mock${it.simpleName.asString()}") },
-                            "mocker"
-                        )
+                        val vType = vProp.type.resolve()
+                        if (vType.isFunctionType) {
+                            logger.warn(vType.arguments.joinToString())
+                            val argCount = vType.arguments.size - 1
+                            val args =
+                                if (argCount == 0) ""
+                                else vType.arguments.take(argCount).joinToString(prefix = ", ") { "\"${it.type!!.resolve().declaration.qualifiedName!!.asString()}\"" }
+                            gFun.addStatement(
+                                "this.%N = %M(%N$args)",
+                                vProp.simpleName.asString(),
+                                MemberName("org.kodein.micromock", "mockFunction$argCount"),
+                                "mocker"
+                            )
+                        } else {
+                            val vDecl = vType.declaration
+                            gFun.addStatement(
+                                "this.%N = %T(%N)",
+                                vProp.simpleName.asString(),
+                                ClassName(vDecl.packageName.asString(), "Mock${vDecl.simpleName.asString()}"),
+                                "mocker"
+                            )
+                        }
                     }
                     anno == "org.kodein.micromock.Fake" -> {
                         gFun.addStatement(

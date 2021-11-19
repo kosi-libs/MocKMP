@@ -10,3 +10,6 @@ internal actual class ReturnMapper actual constructor() {
     internal actual fun toProvided(from: Any): Any = from
 
 }
+
+@PublishedApi
+internal actual fun KClass<*>.bestName(): String = simpleName ?: "Unknown"

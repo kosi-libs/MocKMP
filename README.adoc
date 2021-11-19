@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.5.0
+:version: 0.6.0
 :ksp-version: 1.5.31-1.0.1
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -194,6 +194,29 @@ mocker.verify(exhaustive = false, inOrder = false) { //<1>
 ----
 <1> Verify that both calls have been made, no matter the order.
     Other calls to mocks may have been made since exhaustiveness is not checked.
+
+
+==== Functional types
+
+You can create mocks for functional type by using `mockFunctionX` where X is the number of arguments.
+
+[source,kotlin]
+----
+val callback: (User) -> Unit = mockFunction1()
+mocker.every { callback(isAny()) } returns Unit
+
+userRepository.fetchUser(callback)
+
+mocker.verify { callback(fakeUser) }
+----
+
+The `mockFunctionX` builders can accept a lambda parameter that defines behaviour & return type of the mocked function (so that you don't have to call `mocker.every`).
+The above mocked callback function can be declared as such:
+
+[source,kotlin]
+----
+val callback: (User) -> Unit = mockFunction1() {} // implicit Unit
+----
 
 
 ==== Accessing arguments
