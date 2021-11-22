@@ -1,0 +1,103 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.kodein.micromock",
+    "module": "micro-mock-processor",
+    "version": "0.7.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-processor-0.7.0.jar",
+          "url": "micro-mock-processor-0.7.0.jar",
+          "size": 32353,
+          "sha512": "8fcb39e4518b2436a603cdc3e04d6f5aba10e8c94d70398815c769c721caf1fe9fd1517e3884bfed91a027a6c87878ef50eafd7fbe13f5897c6c076701dd2bfc",
+          "sha256": "69c29f2b4ca834044272bd4b56bce4c8f434d453d742d115c647c22740de7b18",
+          "sha1": "2ddbdc2ea3be854f40b6c1638188c30fd18c68ca",
+          "md5": "89815c7178963ad3ac64d252cf6aea27"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.environment": "standard-jvm",
+        "org.gradle.jvm.version": 8,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime",
+        "org.jetbrains.kotlin.platform.type": "jvm"
+      },
+      "dependencies": [
+        {
+          "group": "com.google.devtools.ksp",
+          "module": "symbol-processing-api",
+          "version": {
+            "requires": "1.6.0-1.0.1"
+          }
+        },
+        {
+          "group": "com.squareup",
+          "module": "kotlinpoet-ksp",
+          "version": {
+            "requires": "1.10.2"
+          }
+        },
+        {
+          "group": "org.kodein.micromock",
+          "module": "micro-mock",
+          "version": {
+            "requires": "0.7.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-jdk8",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-processor-0.7.0.jar",
+          "url": "micro-mock-processor-0.7.0.jar",
+          "size": 32353,
+          "sha512": "8fcb39e4518b2436a603cdc3e04d6f5aba10e8c94d70398815c769c721caf1fe9fd1517e3884bfed91a027a6c87878ef50eafd7fbe13f5897c6c076701dd2bfc",
+          "sha256": "69c29f2b4ca834044272bd4b56bce4c8f434d453d742d115c647c22740de7b18",
+          "sha1": "2ddbdc2ea3be854f40b6c1638188c30fd18c68ca",
+          "md5": "89815c7178963ad3ac64d252cf6aea27"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "url": "../../micro-mock/0.7.0/micro-mock-0.7.0.module",
+    "group": "org.kodein.micromock",
+    "module": "micro-mock",
+    "version": "0.7.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "7.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "watchosArm64ApiElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-api",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock.klib",
+          "url": "micro-mock-watchosarm64-0.7.0.klib",
+          "size": 51636,
+          "sha512": "c962824a8fdbff16cc6cc51e6eaaa0dbe32f0ef797c5b0882dfa4a844586092c3aefa44d268e0580854aadfa0a367a3e2e6fe7eceafc55292f0f704e964e0581",
+          "sha256": "2cf6bd1744b66d8e44d89f225ad189ac1dd7dfed16d8ec26a62d509ef8e401da",
+          "sha1": "7c711ea1e18432a85b3aaf572d94b95aa678c75d",
+          "md5": "4f8d04f265c56074f02dfb32918efb8b"
+        }
+      ]
+    },
+    {
+      "name": "watchosArm64MetadataElements-published",
+      "attributes": {
+        "artifactType": "org.jetbrains.kotlin.klib",
+        "org.gradle.category": "library",
+        "org.gradle.usage": "kotlin-metadata",
+        "org.jetbrains.kotlin.native.target": "watchos_arm64",
+        "org.jetbrains.kotlin.platform.type": "native"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib-common",
+          "version": {
+            "requires": "1.6.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "micro-mock-watchosarm64-0.7.0-metadata.jar",
+          "url": "micro-mock-watchosarm64-0.7.0-metadata.jar",
+          "size": 4713,
+          "sha512": "31a06c3aa203716dfd84b6313c560101dedf56483ca983aa4dda5b6fe767eae290bad08b61aa2429a38f312aadcf19ebbcfb8b95c2b033bb01fc6ff5693c3422",
+          "sha256": "0dd28bf4ef057b614c3d714cdbadd01e7ea8f0033b9d01ea11fa24ce2bb50089",
+          "sha1": "b7971a1d3a092c9e4a90d197f98bd6a5543c222f",
+          "md5": "863ee1c73a8df266bd88c3437e8e4c67"
+        }
+      ]
+    }
+  ]
+}
