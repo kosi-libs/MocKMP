@@ -31,51 +31,56 @@ class MicroMockProcessor(
         )
     }
 
+    private fun Location.asString() = when (this) {
+        is FileLocation -> "${this.filePath}:${this.lineNumber}"
+        NonExistLocation -> "Unnown location"
+    }
+
     @OptIn(KotlinPoetKspPreview::class)
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val toInject = HashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
         val toMock = HashMap<KSClassDeclaration, HashSet<KSFile>>()
         val toFake = HashMap<KSClassDeclaration, HashSet<KSFile>>()
 
-        fun addMock(type: KSType, files: Iterable<KSFile>) {
+        fun addMock(type: KSType, files: Iterable<KSFile>, loc: Location) {
             if (type.isFunctionType) return
             val decl = type.declaration
-            if (decl !is KSClassDeclaration || decl.classKind != ClassKind.INTERFACE) error("Cannot generate mock for non interface $decl")
+            if (decl !is KSClassDeclaration || decl.classKind != ClassKind.INTERFACE) error("${loc.asString()}: Cannot generate mock for non interface $decl")
             toMock.getOrPut(decl) { HashSet() } .addAll(files)
         }
 
-        fun addFake(type: KSType, files: Iterable<KSFile>) {
+        fun addFake(type: KSType, files: Iterable<KSFile>, loc: Location) {
             val decl = type.declaration
             if (
                 decl !is KSClassDeclaration || decl.isAbstract() ||
                 decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS)
-            ) error("Cannot generate fake for non concrete class $decl")
+            ) error("${loc.asString()}: Cannot generate fake for non concrete class $decl")
             toFake.getOrPut(decl) { HashSet() } .addAll(files)
         }
 
-        fun lookUpFields(annotationName: String, add: (KSType, Iterable<KSFile>) -> Unit) {
+        fun lookUpFields(annotationName: String, add: (KSType, Iterable<KSFile>, Location) -> Unit) {
             val symbols = resolver.getSymbolsWithAnnotation(annotationName)
             symbols.forEach { symbol ->
                 val prop = when (symbol) {
                     is KSPropertySetter -> symbol.receiver
                     is KSPropertyDeclaration -> {
-                        if (!symbol.isMutable) error("$symbol is immutable but is annotated with @${annotationName.split(".").last()}")
+                        if (!symbol.isMutable) error("${symbol.location.asString()}: $symbol is immutable but is annotated with @${annotationName.split(".").last()}")
                         symbol
                     }
-                    else -> error("$symbol is not a property nor a property setter but is annotated with @${annotationName.split(".").last()} (is ${symbol::class.simpleName})")
+                    else -> error("${symbol.location.asString()}: $symbol is not a property nor a property setter but is annotated with @${annotationName.split(".").last()} (is ${symbol::class.simpleName})")
                 }
-                val cls = prop.parentDeclaration as? KSClassDeclaration ?: error("Cannot generate injector for $prop as it is not inside a class")
+                val cls = prop.parentDeclaration as? KSClassDeclaration ?: error("${symbol.location.asString()}: Cannot generate injector for $prop as it is not inside a class")
                 toInject.getOrPut(cls) { ArrayList() } .add(annotationName to prop)
-                add(prop.type.resolve(), listOf(cls.containingFile!!))
+                add(prop.type.resolve(), listOf(cls.containingFile!!), symbol.location)
             }
         }
 
-        fun lookUpUses(annotationName: String, add: (KSType, Iterable<KSFile>) -> Unit) {
+        fun lookUpUses(annotationName: String, add: (KSType, Iterable<KSFile>, Location) -> Unit) {
             val uses = resolver.getSymbolsWithAnnotation(annotationName)
             uses.forEach { use ->
                 val anno = use.annotations.first { it.annotationType.resolve().declaration.qualifiedName!!.asString() == annotationName }
                 (anno.arguments.first().value as List<*>).forEach {
-                    add((it as KSType), listOf(use.containingFile!!))
+                    add((it as KSType), listOf(use.containingFile!!), use.location)
                 }
             }
         }
@@ -98,7 +103,7 @@ class MicroMockProcessor(
                             &&  paramDecl.qualifiedName!!.asString() !in builtins
                             &&  paramDecl !in toFake
                         ) {
-                            addFake(paramType, files)
+                            addFake(paramType, files, param.location)
                             toExplore.add((paramDecl as KSClassDeclaration) to files)
                         }
                     }
@@ -207,10 +212,10 @@ class MicroMockProcessor(
                 }
                 ClassKind.ENUM_CLASS -> {
                     val firstEntry = vCls.declarations.filterIsInstance<KSClassDeclaration>().firstOrNull { it.classKind == ClassKind.ENUM_ENTRY }
-                        ?: error("Cannot fake empty enum class ${vCls.qualifiedName!!.asString()}")
+                        ?: error("${vCls.location.asString()}: Cannot fake empty enum class ${vCls.qualifiedName!!.asString()}")
                     gFun.addStatement("return %T.%L", vCls.toClassName(), firstEntry.simpleName.asString())
                 }
-                else -> error("Cannot process ${vCls.classKind}")
+                else -> error("${vCls.location.asString()}: Cannot process ${vCls.classKind}")
             }
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(false, *files.toTypedArray()))
