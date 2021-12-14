@@ -3,13 +3,9 @@ package org.kodein.micromock
 import kotlin.reflect.KClass
 
 
-internal actual class ReturnMapper actual constructor() {
+private object UnsafeValue
 
-    internal actual fun <T> toReturn(constraint: ArgConstraint<*>, cls: KClass<*>): T = constraint.unsafeCast<T>()
-
-    internal actual fun toProvided(from: Any): Any = from
-
-}
+internal actual fun <T> KClass<*>.unsafeValue() = UnsafeValue.unsafeCast<T>()
 
 @PublishedApi
 internal actual fun KClass<*>.bestName(): String = simpleName ?: "Unknown"

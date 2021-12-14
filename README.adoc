@@ -2,8 +2,8 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 0.6.0
-:ksp-version: 1.5.31-1.0.1
+:version: 1.0.0
+:ksp-version: 1.6.0-1.0.2
 
 A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
@@ -11,15 +11,6 @@ Limitations:
 
 - Mocking only applies to *interfaces*
 - Faking only applies to *concrete trees*
-
-[WARNING]
-====
-Micro-Mock is in Beta!
-
-- It depends on weird Kotlin/Native behaviour and may break with new Kotlin versions (in which case we'll try to update it as soon as possible). +
-- While it is being used in some of our production unit tests, it has not been widely tested, and may fail on your setup.
-  In which case, please post an issue... or a pull request if you feel like contributing ;)
-====
 
 Here's a simple overview example:
 
@@ -116,6 +107,8 @@ is strictly equivalent to:
 mocker.every { api.getUserById(isEqual(42)) } returns fakeUser()
 ----
 
+WARNING: You cannot mix constraints & non-constraint values.
+
 You can also keep the `Every` reference to change the behaviour over time:
 
 [source,kotlin]
@@ -158,6 +151,28 @@ mocker.verify {
     db.saveUser(isNotNull())
 }
 ----
+
+[WARNING]
+====
+You cannot mix constraints & non-constraint values.
+This fails:
+
+[source,kotlin]
+----
+mocker.verify {
+    api.registerCallback(42, isAny())
+}
+----
+
+...and needs to be replaced by:
+
+[source,kotlin]
+----
+mocker.verify {
+    api.registerCallback(isEqual(42), isAny())
+}
+----
+====
 
 By default, the `verify` block is exhaustive and in order: it must list *all* mocked functions that were called, *in order*.
 This means that you can easily check that no mocked methods were run:
@@ -294,7 +309,7 @@ You can define your own constraints:
 [source,kotlin]
 ----
 fun ArgConstraintsBuilder.isStrictlyPositive(capture: MutableList<Int>? = null): Int =
-    isValid(ArgConstraint(capture) {
+    isValid(ArgConstraint(capture, "isStrictlyPositive") {
         if (it >= 0) ArgConstraint.Result.Success
         else ArgConstraint.Result.Failure { "Expected a strictly positive value, got $it" }
     })
@@ -456,7 +471,62 @@ NOTE: Properties delegated to `withMocks` will be (re)initialized *before each t
 Micro-Mock is a Kotlin Symbol Processor, so you need to apply KSP to use it.
 
 
-==== Regular setup
+=== With the plugin
+
+The Micro-Mock Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation (see <<buggy-multiplatform>>).
+
+Once KSP properly supports hierarchical Multiplatform, this plugin will apply Micro-Mock "normally".
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("org.kodein.micromock") version "{version}" //<1>
+}
+
+repositories {
+    mavenCentral()
+}
+
+microMock {
+    // OPTIONAL!
+    usesHelper = true //<2>
+}
+
+kotlin {
+    jvm()
+    ios()
+    js(IR) {
+        browser()
+    }
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+    }
+}
+----
+<1> Applying the Micro-Mock plugin.
+<2> Requesting the *optional* `test-helper` dependency
+
+The plugin takes care of:
+
+* Applying the KSP Gradle plugin
+* Declaring the Micro-Mock KSP dependency
+* Declaring the Micro-Mock runtime dependencies
+* Applying the buggy multiplatform workaround
+
+
+[[buggy-multiplatform]]
+==== Buggy multiplatform
+
+KSP for multiplatform is in beta, and *https://github.com/google/ksp/issues/567[KSP for common tests is not supported]* (yet).
+
+To have IDEA completion, here's a trick that you can use:
 
 [source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts
@@ -468,54 +538,6 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
-}
-
-kotlin {
-    jvm()
-    ios()
-
-    sourceSets {
-        val commonTest by getting {
-            dependencies {
-                implementation(kotlin("test"))
-                implementation("org.kodein.micromock:micro-mock:{version}") //<3>
-                // OPTIONAL!
-                implementation("org.kodein.micromock:micro-mock-test-helper:{version}") //<3>
-            }
-        }
-    }
-}
-
-dependencies {
-    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
-    "kspIosX64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
-    "kspIosArm64Test"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
-}
-----
-<1> Applying the KSP plugin.
-<2> Adding the custom maven repository (won't be necessary after stable release).
-<3> Adding the dependencies to the Micro-Mock runtime and the *optional* test helper.
-<4> Adding the processor on each required target.
-
-
-==== Buggy multiplatform
-
-KSP for multiplatform is in beta, and *KSP for the new JS/IR compiler is plainly not supported* (yet).
-
-If you need Micro-Mock for your tests but KSP is failing in your multiplatform project, here's a trick that you can use:
-
-[source,kotlin,subs="verbatim,attributes"]
-.build.gradle.kts
-----
-plugins {
-    kotlin("multiplatform")
-    id("com.google.devtools.ksp") //<1>
-}
-
-repositories {
-    mavenCentral()
-    maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<2>
 }
 
 kotlin {
@@ -523,15 +545,15 @@ kotlin {
     ios()
     js(IR) {
         browser()
-        nodejs()
     }
 
     sourceSets {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.kodein.micromock:micro-mock:{version}")
-                implementation("org.kodein.micromock:micro-mock-test-helper:{version}")
+                implementation("org.kodein.micromock:micro-mock:{version}") //<2>
+                // OPTIONAL!
+                implementation("org.kodein.micromock:micro-mock-test-helper:{version}") //<2>
             }
             kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<3>
         }
@@ -549,61 +571,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
 }
 ----
 <1> Applying the KSP plugin.
-<2> Adding the custom maven repository (won't be necessary after stable release).
+<2> Adding the dependencies to the Micro-Mock runtime and the *optional* test helper.
 <3> Use KSP generated JVM sources on all targets.
 <4> Apply the processor only on the JVM target.
 <5> Make compilation of all targets dependant on the JVM KSP processor.
-
-
-=== With the plugin
-
-The Micro-Mock Gradle plugin applies the trick that only runs the processor on the JVM target and adds the generated sources to all targets.
-Note that this may collision with other Symbol Processors.
-
-Once KSP properly supports Multiplatform & JS/IR, this plugin will apply Micro-Mock "normaly".
-
-[source,kotlin,subs="verbatim,attributes"]
-.settings.gradle.kts
-----
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        maven(url = "https://raw.githubusercontent.com/Kodein-Framework/Micro-Mock/mvn-repo") //<1>
-    }
-}
-----
-<1> Adding the custom maven repository (won't be necessary after stable release).
-
-
-[source,kotlin,subs="verbatim,attributes"]
-.build.gradle.kts
-----
-plugins {
-    kotlin("multiplatform")
-    id("org.kodein.micromock") version "{version}" //<1>
-}
-
-microMock {
-    // OPTIONAL!
-    usesHelper = true //<2>
-}
-
-kotlin {
-    jvm()
-    ios()
-    js(IR) {
-        browser()
-        nodejs()
-    }
-
-    sourceSets {
-        val commonTest by getting {
-            dependencies {
-                implementation(kotlin("test"))
-            }
-        }
-    }
-}
-----
-<1> Applying the Micro-Mock plugin.
-<2> Requesting the *optional* `test-helper` dependency

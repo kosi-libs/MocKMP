@@ -7,14 +7,15 @@ public class Mocker {
     public class MockingException(message: String) : Exception(message)
 
     private sealed class SpecialMode {
-        val mapper = ReturnMapper()
-        class DEFINITION : SpecialMode()
-        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean) : SpecialMode()
+        object DEFINITION : SpecialMode()
+        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean) : SpecialMode() {
+            val builder = ArgConstraintsBuilder()
+        }
     }
 
     private var specialMode: SpecialMode? = null
 
-    internal class CallDefinition(val receiver: Any?, val method: String, val args: List<*>) : RuntimeException("This exception should have been caught!")
+    internal class CallDefinition(val receiver: Any?, val method: String, val args: Array<*>) : RuntimeException("This exception should have been caught!")
 
     internal val regs = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, Every<*>>>>()
 
@@ -30,18 +31,15 @@ public class Mocker {
         regs.clear()
     }
 
-    @JvmName("toNotNullArgConstraint") private fun Any.toArgConstraint() = this as? ArgConstraint<*> ?: ArgConstraint.isEqual(this)
-    @JvmName("toNullableArgConstraint") private fun Any?.toArgConstraint() = this?.toArgConstraint() ?: ArgConstraint.isNull()
-
     private fun methodName(receiver: Any?, methodName: String) = if (receiver == null) methodName else "${receiver::class.simpleName}.$methodName"
 
     public fun <R> register(receiver: Any?, method: String, vararg args: Any?): R {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
-                throw CallDefinition(receiver, method, args.map { it?.let { mode.mapper.toProvided(it) } })
+                throw CallDefinition(receiver, method, args)
             }
             is SpecialMode.VERIFICATION -> {
-                val constraints = args.map { it?.let { mode.mapper.toProvided(it) } } .map { it.toArgConstraint() }
+                val constraints = mode.builder.getConstraints(args)
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
                         ?: throw AssertionError("Expected a call to ${methodName(receiver, method)} but call list was empty")
@@ -87,7 +85,10 @@ public class Mocker {
                             (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
                         }
                     }
-                    ?: throw MockingException("${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}")
+                    ?: throw MockingException(
+                        "${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}\n" +
+                        "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
+                    )
                 @Suppress("UNCHECKED_CAST")
                 args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
                 val ret = every.mocked(args)
@@ -111,15 +112,16 @@ public class Mocker {
 
     public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
-        val mode = SpecialMode.DEFINITION()
+        val mode = SpecialMode.DEFINITION
         specialMode = mode
+        val builder = ArgConstraintsBuilder()
         try {
-            ArgConstraintsBuilder(mode.mapper).block()
+            builder.block()
             error("Expected a Mock call")
         } catch (ex: CallDefinition) {
             val every = Every<T>(ex.receiver, ex.method)
             regs.getOrPut(ex.receiver to ex.method) { ArrayList() }
-                .add(ex.args.map { it.toArgConstraint() } to every)
+                .add(builder.getConstraints(ex.args) to every)
             return every
         } finally {
             specialMode = null
@@ -134,7 +136,7 @@ public class Mocker {
         val mode = SpecialMode.VERIFICATION(exhaustive, inOrder)
         specialMode = mode
         try {
-            ArgConstraintsBuilder(mode.mapper).block()
+            mode.builder.block()
             if (exhaustive && calls.isNotEmpty()) {
                 val call = calls.first()
                 throw AssertionError("Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}")

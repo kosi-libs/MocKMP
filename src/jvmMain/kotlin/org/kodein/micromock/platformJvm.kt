@@ -5,64 +5,47 @@ import java.util.*
 import kotlin.reflect.KClass
 
 
-internal actual class ReturnMapper actual constructor() {
-
-    private val providedMap = IdentityHashMap<Any, ArgConstraint<*>>()
-
-    private val objenesis = ObjenesisStd(false)
-
-    private var byteCounter: UByte = 0u
-    private var shortCounter: UShort = 0u
-    private var intCounter: UInt = 0u
-    private var longCounter: ULong = 0u
-
-    @Suppress("USELESS_CAST")
-    internal actual fun <T> toReturn(constraint: ArgConstraint<*>, cls: KClass<*>): T {
-        val ret = when (cls) {
-            UByte::class -> byteCounter++
-            Byte::class -> byteCounter++.toByte()
-            UShort::class -> shortCounter++
-            Short::class -> shortCounter++.toShort()
-            Char::class -> shortCounter++.toInt().toChar()
-            UInt::class -> intCounter++
-            Int::class -> intCounter++.toInt()
-            Float::class -> intCounter++
-            ULong::class -> longCounter++
-            Long::class -> longCounter++.toLong()
-            Double::class -> longCounter++.toDouble()
-
-            Function0::class -> ({ })
-                    as () -> Unit
-            Function1::class -> ({ _: Nothing -> })
-                    as (Nothing) -> Unit
-            Function2::class -> ({ _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing) -> Unit
-            Function3::class -> ({ _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing) -> Unit
-            Function4::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function5::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function6::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function7::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function8::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function9::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-            Function10::class -> ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-                    as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
-
-            else -> objenesis.newInstance(cls.java)
-        }
-        providedMap[ret] = constraint
-        @Suppress("UNCHECKED_CAST")
-        return ret as T
-    }
-
-    internal actual fun toProvided(from: Any): Any = providedMap.remove(from) ?: from
+@Suppress("USELESS_CAST")
+private object UnsafeFunctions {
+    val f0 = ({ })
+            as () -> Unit
+    val f1 = ({ _: Nothing -> })
+            as (Nothing) -> Unit
+    val f2 = ({ _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing) -> Unit
+    val f3 = ({ _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing) -> Unit
+    val f4 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f5 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f6 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f7 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f8 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f9 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+    val f10 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
+            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
 }
+
+@Suppress("UNCHECKED_CAST")
+internal actual fun <T> KClass<*>.unsafeValue() = when (this) {
+    Function0::class -> UnsafeFunctions.f0
+    Function1::class -> UnsafeFunctions.f1
+    Function2::class -> UnsafeFunctions.f2
+    Function3::class -> UnsafeFunctions.f3
+    Function4::class -> UnsafeFunctions.f4
+    Function5::class -> UnsafeFunctions.f5
+    Function6::class -> UnsafeFunctions.f6
+    Function7::class -> UnsafeFunctions.f7
+    Function8::class -> UnsafeFunctions.f8
+    Function9::class -> UnsafeFunctions.f9
+    Function10::class -> UnsafeFunctions.f10
+    else -> ObjenesisStd(true).newInstance(java)
+} as T
 
 @PublishedApi
 internal actual fun KClass<*>.bestName(): String = qualifiedName ?: simpleName ?: "Unknown"

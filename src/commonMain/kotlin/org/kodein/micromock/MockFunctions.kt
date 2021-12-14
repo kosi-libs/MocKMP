@@ -1,7 +1,7 @@
 package org.kodein.micromock
 
 
-public inline fun <R> mockFunction0(mocker: Mocker, noinline block: ((Array<*>) -> R)? = null):
+public fun <R> mockFunction0(mocker: Mocker, block: ((Array<*>) -> R)? = null):
             () -> R =
     {
         mocker.register<R>(null, "invoke()")

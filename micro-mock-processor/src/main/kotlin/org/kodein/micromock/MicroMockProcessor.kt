@@ -232,7 +232,6 @@ class MicroMockProcessor(
                     anno == "org.kodein.micromock.Mock" -> {
                         val vType = vProp.type.resolve()
                         if (vType.isFunctionType) {
-                            logger.warn(vType.arguments.joinToString())
                             val argCount = vType.arguments.size - 1
                             val args =
                                 if (argCount == 0) ""
