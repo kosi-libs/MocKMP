@@ -20,3 +20,13 @@ kodeinUpload {
     name = "mockmp-runtime"
     description = "MocKMP runtime"
 }
+
+// https://youtrack.jetbrains.com/issue/KT-46257
+afterEvaluate {
+    val compilation = kotlin.targets["metadata"].compilations["allNativeMain"]
+    compilation.compileKotlinTask.doFirst {
+        compilation.compileDependencyFiles = files(
+            compilation.compileDependencyFiles.filterNot { it.absolutePath.endsWith("klib/common/stdlib") }
+        )
+    }
+}

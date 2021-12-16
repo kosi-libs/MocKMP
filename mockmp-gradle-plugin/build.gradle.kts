@@ -27,3 +27,9 @@ buildConfig {
     packageName("org.kodein.mock.gradle")
     buildConfigField("String", "VERSION", "\"${project.version}\"")
 }
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions {
+        freeCompilerArgs = freeCompilerArgs + "-Xsuppress-version-warnings"
+    }
+}
