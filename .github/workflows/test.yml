@@ -36,5 +36,5 @@ jobs:
         with:
           java-version: 11
       - name: Check
-        run: ./gradlew check
+        run: ./gradlew --stacktrace check
         shell: bash

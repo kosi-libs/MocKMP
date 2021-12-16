@@ -52,20 +52,20 @@ jobs:
       # Host only for MacOS / Windows
       - name: Check (macos / windows)
         if: matrix.os != 'ubuntu-latest'
-        run: ./gradlew hostOnlyTest
+        run: ./gradlew --stacktrace hostOnlyTest
         shell: bash
       - name: Upload (macos / windows)
         if: matrix.os != 'ubuntu-latest'
-        run: ./gradlew hostOnlyPublish -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository_id }}
+        run: ./gradlew --stacktrace hostOnlyPublish -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository_id }}
         shell: bash
       # Linux / JVM / JS
       - name: Check (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: ./gradlew check
+        run: ./gradlew --stacktrace check
         shell: bash
       - name: Upload (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        run: ./gradlew publishAllPublicationsToOssrhStagingRepository -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository_id }}
+        run: ./gradlew --stacktrace publishAllPublicationsToOssrhStagingRepository -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository_id }}
         shell: bash
 
   drop-or-release:
