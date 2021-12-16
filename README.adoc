@@ -1,11 +1,11 @@
-= Micro-Mock
+= MocKMP
 :toc: preamble
 :toclevels: 3
 :icons: font
 :version: 1.0.0
 :ksp-version: 1.6.0-1.0.2
 
-A micro Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
+A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
 Limitations:
 
@@ -424,7 +424,7 @@ IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
 
 === Test class helper
 
-Micro-Mock provides the `TestsWithMocks` helper class that your test classes can inherit from.
+MocKMP provides the `TestsWithMocks` helper class that your test classes can inherit from.
 It provides the following benefits:
 
 - Provides a `Mocker`.
@@ -432,7 +432,7 @@ It provides the following benefits:
 - Provides `withMock` property delegates to initialize objects with mocks.
 - Allows to call `every` and `verify` without `mocker.`.
 
-It does not come with the stndard runtime (as it forces the dependency to JUnit on the JVM), so you need to add the `micro-mock-test-helper` dependency to use it.
+It does not come with the stndard runtime (as it forces the dependency to JUnit on the JVM), so you need to add the `mockmp-test-helper` dependency to use it.
 
 The above `MyTests` sample can be rewritten as such:
 
@@ -468,28 +468,28 @@ NOTE: Properties delegated to `withMocks` will be (re)initialized *before each t
 
 === With KSP
 
-Micro-Mock is a Kotlin Symbol Processor, so you need to apply KSP to use it.
+MocKMP is a Kotlin Symbol Processor, so you need to apply KSP to use it.
 
 
 === With the plugin
 
-The Micro-Mock Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation (see <<buggy-multiplatform>>).
+The MocKMP Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation (see <<buggy-multiplatform>>).
 
-Once KSP properly supports hierarchical Multiplatform, this plugin will apply Micro-Mock "normally".
+Once KSP properly supports hierarchical Multiplatform, this plugin will apply MocKMP "normally".
 
 [source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts
 ----
 plugins {
     kotlin("multiplatform")
-    id("org.kodein.micromock") version "{version}" //<1>
+    id("org.kodein.mock.mockmp") version "{version}" //<1>
 }
 
 repositories {
     mavenCentral()
 }
 
-microMock {
+mockmp {
     // OPTIONAL!
     usesHelper = true //<2>
 }
@@ -510,14 +510,14 @@ kotlin {
     }
 }
 ----
-<1> Applying the Micro-Mock plugin.
+<1> Applying the MocKMP plugin.
 <2> Requesting the *optional* `test-helper` dependency
 
 The plugin takes care of:
 
 * Applying the KSP Gradle plugin
-* Declaring the Micro-Mock KSP dependency
-* Declaring the Micro-Mock runtime dependencies
+* Declaring the MocKMP KSP dependency
+* Declaring the MocKMP runtime dependencies
 * Applying the buggy multiplatform workaround
 
 
@@ -551,9 +551,9 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.kodein.micromock:micro-mock:{version}") //<2>
+                implementation("org.kodein.mock:mockmp-runtime:{version}") //<2>
                 // OPTIONAL!
-                implementation("org.kodein.micromock:micro-mock-test-helper:{version}") //<2>
+                implementation("org.kodein.mock:mockmp-test-helper:{version}") //<2>
             }
             kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<3>
         }
@@ -561,7 +561,7 @@ kotlin {
 }
 
 dependencies {
-    "kspJvmTest"("org.kodein.micromock:micro-mock-processor:{version}") //<4>
+    "kspJvmTest"("org.kodein.mock:mockmp-processor:{version}") //<4>
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
@@ -571,7 +571,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
 }
 ----
 <1> Applying the KSP plugin.
-<2> Adding the dependencies to the Micro-Mock runtime and the *optional* test helper.
+<2> Adding the dependencies to the MocKMP runtime and the *optional* test helper.
 <3> Use KSP generated JVM sources on all targets.
 <4> Apply the processor only on the JVM target.
 <5> Make compilation of all targets dependant on the JVM KSP processor.
