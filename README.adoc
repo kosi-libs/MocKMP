@@ -32,6 +32,8 @@ class MyTest : TestsWithMocks() {
 }
 ----
 
+Built in collaboration with https://www.deezer.com/[Deezer].
+
 
 == Usage
 
