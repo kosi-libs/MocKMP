@@ -17,3 +17,8 @@ kodein {
         add(kodeinTargets.js.js)
     }
 }
+
+kodeinUpload {
+    name = "mockmp-test-helper"
+    description = "MocKMP test helper"
+}

@@ -33,3 +33,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         freeCompilerArgs = freeCompilerArgs + "-Xsuppress-version-warnings"
     }
 }
+
+kodeinUpload {
+    name = "mockmp-gradle-plugin"
+    description = "MocKMP Gradle Plugin"
+}
