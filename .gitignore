@@ -12,6 +12,7 @@
 build/
 out/
 .gradletasknamecache
+*local.properties
 
 # JS
 node_modules/
