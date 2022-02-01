@@ -61,6 +61,7 @@ class MocKMPGradlePlugin : Plugin<Project> {
                 }
             }
 
+            // Handling dual Debug / Release generation in Android
             if (jvmTarget.isAndroid) {
                 afterEvaluate {
                     tasks.named("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}") {

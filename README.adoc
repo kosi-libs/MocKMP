@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.0.1
+:version: 1.1.0
 :ksp-version: 1.6.0-1.0.2
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -12,16 +12,34 @@ Limitations:
 - Mocking only applies to *interfaces*
 - Faking only applies to *concrete trees*
 
-Here's a simple overview example:
+Built in collaboration with https://www.deezer.com/[Deezer].
 
+
+== Quick Start Guide
+
+1. Apply the Gradle plugin and activate the helper dependency:
++
+[source,kotlin,subs="verbatim,attributes"]
+----
+plugins {
+    id("org.kodein.mock.mockmp") version "{version}"
+}
+
+mockmp {
+    usesHelper = true
+}
+----
+
+2. Create a test class that declares injected mocks and fakes:
++
 [source,kotlin]
 ----
 class MyTest : TestsWithMocks() {
-    override fun setUpMocks() = injectMocks(mocker)
+    override fun setUpMocks() = injectMocks(mocker) //<1>
 
     @Mock lateinit var view: View
     @Fake lateinit var model: Model
-    
+
     val controller by withMocks { Controller(view = view, firstModel = model) }
 
     @Test fun controllerTest() {
@@ -31,11 +49,12 @@ class MyTest : TestsWithMocks() {
     }
 }
 ----
+<1> This is mandatory and cannot be generated. You need to run the KSP generation at least once for your IDE to see the `injectMocks` generated function.
++
+NOTE: Every property annotated by `@Mock`, annotated by `@Fake` or delegated to `withMocks` will be reset fresh between each test.
 
-Built in collaboration with https://www.deezer.com/[Deezer].
 
-
-== Usage
+== Full Usage
 
 === Mocks
 
@@ -431,7 +450,7 @@ It provides the following benefits:
 
 - Provides a `Mocker`.
 - Resets the `Mocker` before each tests.
-- Provides `withMock` property delegates to initialize objects with mocks.
+- Provides `withMocks` property delegates to initialize objects with mocks.
 - Allows to call `every` and `verify` without `mocker.`.
 
 It does not come with the stndard runtime (as it forces the dependency to JUnit on the JVM), so you need to add the `mockmp-test-helper` dependency to use it.
@@ -449,7 +468,7 @@ class MyTests : TestsWithMocks() { //<1>
 
     @Fake lateinit var user: User
 
-    val controller by withMock { ControllerImpl(db, api) } //<3>
+    val controller by withMocks { ControllerImpl(db, api) } //<3>
 
     @Test fun controllerTest() {
         every { view.render(isAny()) } returns true //<4>
