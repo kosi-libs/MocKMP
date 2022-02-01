@@ -8,7 +8,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
 class MocKMPGradlePlugin : Plugin<Project> {
 
-    class Extension(var usesHelper: Boolean = false)
+    class Extension(var usesHelper: Boolean = false, val throwErrors: Boolean = false)
 
     override fun apply(target: Project) {
         target.plugins.apply("com.google.devtools.ksp")
@@ -28,6 +28,9 @@ class MocKMPGradlePlugin : Plugin<Project> {
                     implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
                     if (ext.usesHelper) {
                         implementation("org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}")
+                    }
+                    if (ext.throwErrors) {
+                        target.extensions.getByName<com.google.devtools.ksp.gradle.KspExtension>("ksp").arg("org.kodein.mock.errors", "throw")
                     }
                 }
             }

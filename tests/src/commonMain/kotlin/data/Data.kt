@@ -15,5 +15,11 @@ data class Data(
     val sub1: SubData,
     val sub2: SubData,
     val nullDir: SomeDirection?,
-    val dir: SomeDirection
+    val dir: SomeDirection,
+)
+
+class Funs(
+    val cb: (String) -> Unit,
+    val data: () -> SubData,
+    val combo: (String) -> SubData
 )

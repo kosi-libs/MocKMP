@@ -18,6 +18,9 @@ class InjectionTests : TestsWithMocks() {
     @Fake
     lateinit var data: Data
 
+    @Fake
+    lateinit var funs: Funs
+
     @Mock
     lateinit var callback: (Boolean, Int) -> String
 
@@ -55,5 +58,12 @@ class InjectionTests : TestsWithMocks() {
         every { callback(isAny(), isAny()) } returns "test"
         callback(true, 42)
         verify { callback(true, 42) }
+    }
+
+    @Test
+    fun testFakeFunctions() {
+        funs.cb("foo")
+        assertEquals(SubData("", 0), funs.data())
+        assertEquals(SubData("", 0), funs.combo("foo"))
     }
 }

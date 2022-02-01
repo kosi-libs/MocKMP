@@ -21,6 +21,10 @@ kodein {
     }
 }
 
+ksp {
+    arg("org.kodein.mock.errors", "throw")
+}
+
 dependencies {
     // Running KSP for JVM only
     "kspJvmTest"(project(":mockmp-processor"))
