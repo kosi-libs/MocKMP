@@ -50,6 +50,13 @@ public abstract class TestsWithMocks {
 
     protected abstract fun setUpMocks()
 
-    protected fun <T> every(block: ArgConstraintsBuilder.() -> T) : Mocker.Every<T> = mocker.every(block)
-    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit = mocker.verify(exhaustive = exhaustive, inOrder = inOrder, block)
+    protected fun <T> every(block: ArgConstraintsBuilder.() -> T) : Mocker.Every<T> =
+        mocker.every(block)
+    protected suspend fun <T> everySuspend(block: suspend ArgConstraintsBuilder.() -> T) : Mocker.Every<T> =
+        mocker.everySuspend(block)
+
+    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
+        mocker.verify(exhaustive = exhaustive, inOrder = inOrder, block)
+    public suspend fun verifySuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
+        mocker.verifySuspend(exhaustive = exhaustive, inOrder = inOrder, block)
 }

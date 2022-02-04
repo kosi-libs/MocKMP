@@ -1,8 +1,12 @@
 package tests
 
+import data.fakeData
 import foo.Bar
 import foo.Foo
+import foo.MockBar
 import foo.MockFoo
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Mocker
 import org.kodein.mock.UsesMocks
 import kotlin.test.BeforeTest
@@ -165,5 +169,25 @@ class VerificationTests {
             }
         }
         assertEquals("Argument 1: Expected <42>, actual <21>", ex.message)
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspend() = runTest {
+        val bar = MockBar(mocker)
+        mocker.everySuspend { bar.newData() } returns fakeData()
+        val data = bar.newData()
+        assertEquals(fakeData(), data)
+        mocker.verifySuspend { bar.newData() }
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendFails() = runTest {
+        val bar = MockBar(mocker)
+        val ex = assertFailsWith<AssertionError> {
+            mocker.verifySuspend { bar.newData() }
+        }
+        assertEquals("Expected a call to MockBar.newData() but call list was empty", ex.message)
     }
 }

@@ -108,10 +108,10 @@ public class Mocker {
         }
     }
 
-    public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> {
+    // This will be inlined twice: once for regular functions, and once for suspend functions.
+    private inline fun <T> everyImpl(block: ArgConstraintsBuilder.() -> T): Every<T> {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
-        val mode = SpecialMode.DEFINITION
-        specialMode = mode
+        specialMode = SpecialMode.DEFINITION
         val builder = ArgConstraintsBuilder()
         try {
             builder.block()
@@ -126,10 +126,17 @@ public class Mocker {
         }
     }
 
+    public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> =
+        everyImpl { block() }
+
+    public suspend fun <T> everySuspend(block: suspend ArgConstraintsBuilder.() -> T): Every<T> =
+        everyImpl { block() }
+
     @Deprecated("Renamed every", ReplaceWith("every(block)"), level = DeprecationLevel.ERROR)
     public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)
 
-    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit) {
+    // This will be inlined twice: once for regular functions, and once for suspend functions.
+    private inline fun verifyImpl(exhaustive: Boolean, inOrder: Boolean, block: ArgConstraintsBuilder.() -> Unit) {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         val mode = SpecialMode.VERIFICATION(exhaustive, inOrder)
         specialMode = mode
@@ -145,4 +152,10 @@ public class Mocker {
             specialMode = null
         }
     }
+
+    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
+        verifyImpl(exhaustive, inOrder) { block() }
+
+    public suspend fun verifySuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
+        verifyImpl(exhaustive, inOrder) { block() }
 }
