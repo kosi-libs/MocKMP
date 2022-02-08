@@ -56,6 +56,10 @@ NOTE: Every property annotated by `@Mock`, annotated by `@Fake` or delegated to 
 
 == Full Usage
 
+TIP: This section covers the use of the MocKMP `mocker` by itself.
+     MocKMP also provides a very useful abstract class helper for test classes.
+     The `TestWithMocks` helper class usage is recommended when possible (as it makes your tests reasier to read), and is documented later in the <<test-helper>> chapter.
+
 === Mocks
 
 CAUTION: Only *interfaces* can be mocked!
@@ -107,6 +111,38 @@ mocker.every { api.update(isNotNull()) } returns true
 mocker.every { api.update(isNull()) } runs { nullCounter++ ; false }
 ----
 
+You can also keep the `Every` reference to change the behaviour over time:
+
+[source,kotlin]
+----
+val everyApiGetUserById42 = mocker.every { api.getUserById(42) }
+everyApiGetUserById42 returns fakeUser()
+// Do things...
+everyApiGetUserById42 returns null
+// Do other things...
+----
+
+
+==== Defining suspending behaviour
+
+You can define the behaviour of a suspending function with `everySuspending`:
+
+[source,kotlin]
+----
+mocker.everySuspending { app.openDB() } runs { openTestDB() } //<1>
+mocker.everySuspending { api.getCurrentUser() } returns fakeUser()
+----
+<1> Here, `openTestDB` can be suspending.
+
+[WARNING]
+====
+* You *must* use `every` to mock *non suspending functions*.
+* You *must* use `everySuspending` to mock *suspending functions*.
+====
+
+
+==== Adding argument constraints
+
 Available constraints are:
 
 - `isAny` is always valid (even with `null` values).
@@ -128,21 +164,26 @@ is strictly equivalent to:
 mocker.every { api.getUserById(isEqual(42)) } returns fakeUser()
 ----
 
-WARNING: You cannot mix constraints & non-constraint values.
-
-You can also keep the `Every` reference to change the behaviour over time:
+[WARNING]
+====
+You cannot mix constraints & non-constraint values.
+This fails:
 
 [source,kotlin]
 ----
-val everyApiGetUserById42 = mocker.every { api.getUserById(42) }
-everyApiGetUserById42 returns fakeUser()
-// Do things...
-everyApiGetUserById42 returns null
-// Do other things...
+mocker.every { api.registerCallback(42, isAny()) } returns Unit
 ----
 
+...and needs to be replaced by:
 
-==== Verification
+[source,kotlin]
+----
+mocker.every { api.registerCallback(isEqual(42), isAny()) } returns Unit
+----
+====
+
+
+==== Verifying
 
 You can check that mock functions has been run in order with `verify`.
 
@@ -173,27 +214,23 @@ mocker.verify {
 }
 ----
 
-[WARNING]
-====
-You cannot mix constraints & non-constraint values.
-This fails:
+WARNING: You cannot mix constraints & non-constraint values.
+
+If you want to verify the use of suspend functions, you can use `verifyWithSuspend`:
 
 [source,kotlin]
 ----
-mocker.verify {
-    api.registerCallback(42, isAny())
+mocker.verifyWithSuspend {
+    api.getUserById(isAny())
+    db.saveUser(isNotNull())
 }
 ----
 
-...and needs to be replaced by:
+NOTE: You can check suspending *and* non suspending functions in `verifyWithSuspend`.
+      Unlike `everySuspending`, all `verifyWithSuspend` does is running `verify` in a suspending context, which works for both regular and suspending functions.
 
-[source,kotlin]
-----
-mocker.verify {
-    api.registerCallback(isEqual(42), isAny())
-}
-----
-====
+
+==== Configuring verification exhaustivity & order
 
 By default, the `verify` block is exhaustive and in order: it must list *all* mocked functions that were called, *in order*.
 This means that you can easily check that no mocked methods were run:
@@ -232,32 +269,7 @@ mocker.verify(exhaustive = false, inOrder = false) { //<1>
     Other calls to mocks may have been made since exhaustiveness is not checked.
 
 
-==== Functional types
-
-You can create mocks for functional type by using `mockFunctionX` where X is the number of arguments.
-
-[source,kotlin]
-----
-val callback: (User) -> Unit = mockFunction1()
-mocker.every { callback(isAny()) } returns Unit
-
-userRepository.fetchUser(callback)
-
-mocker.verify { callback(fakeUser) }
-----
-
-The `mockFunctionX` builders can accept a lambda parameter that defines behaviour & return type of the mocked function (so that you don't have to call `mocker.every`).
-The above mocked callback function can be declared as such:
-
-[source,kotlin]
-----
-val callback: (User) -> Unit = mockFunction1() {} // implicit Unit
-----
-
-
-==== Accessing arguments
-
-===== Captures
+==== Capturing arguments
 
 You can capture an argument into a `MutableList` to use or verify it later.
 This can be useful, for example, to capture delegates and call them.
@@ -304,7 +316,7 @@ assertEquals(0, controller.runningSessions.size)
 Note that, when declared in a definition block, the capture list may be filled with multiple values (one per call).
 
 
-===== Run block
+==== Accessing run block arguments
 
 You can access function parameters from a run block.
 This is less precise than using caputre lists as they are non typed, but allows to write very concise code:
@@ -323,7 +335,30 @@ assertEquals(0, controller.runningSessions.size)
 ----
 
 
-==== Custom constraints
+==== Mocking functional types
+
+You can create mocks for functional type by using `mockFunctionX` where X is the number of arguments.
+
+[source,kotlin]
+----
+val callback: (User) -> Unit = mockFunction1()
+mocker.every { callback(isAny()) } returns Unit
+
+userRepository.fetchUser(callback)
+
+mocker.verify { callback(fakeUser) }
+----
+
+The `mockFunctionX` builders can accept a lambda parameter that defines behaviour & return type of the mocked function (so that you don't have to call `mocker.every`).
+The above mocked callback function can be declared as such:
+
+[source,kotlin]
+----
+val callback: (User) -> Unit = mockFunction1() {} // implicit Unit
+----
+
+
+==== Defining custom argument constraints
 
 You can define your own constraints:
 
@@ -442,8 +477,8 @@ As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `T.in
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
 
-
-=== Test class helper
+[[test-helper]]
+=== Using the test class helper
 
 MocKMP provides the `TestsWithMocks` helper class that your test classes can inherit from.
 It provides the following benefits:
@@ -451,9 +486,12 @@ It provides the following benefits:
 - Provides a `Mocker`.
 - Resets the `Mocker` before each tests.
 - Provides `withMocks` property delegates to initialize objects with mocks.
-- Allows to call `every` and `verify` without `mocker.`.
+- Allows to call `every`, `everySuspending`, `verify`, and `verifyWithSuspend` without `mocker.`.
 
-It does not come with the stndard runtime (as it forces the dependency to JUnit on the JVM), so you need to add the `mockmp-test-helper` dependency to use it.
+It does not come with the standard runtime (as it forces the dependency to JUnit on the JVM), so to use it you need to either:
+
+* define `usesHelper = true` in the MocKMP Gradle plulgin configuration block,
+* or add the `mockmp-test-helper` implementation dependency.
 
 The above `MyTests` sample can be rewritten as such:
 
@@ -487,14 +525,9 @@ NOTE: Properties delegated to `withMocks` will be (re)initialized *before each t
 
 == Setup
 
-=== With KSP
+=== With the official plugin
 
-MocKMP is a Kotlin Symbol Processor, so you need to apply KSP to use it.
-
-
-=== With the plugin
-
-The MocKMP Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation (see <<buggy-multiplatform>>).
+The MocKMP Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation.
 
 Once KSP properly supports hierarchical Multiplatform, this plugin will apply MocKMP "normally".
 
@@ -539,15 +572,16 @@ The plugin takes care of:
 * Applying the KSP Gradle plugin
 * Declaring the MocKMP KSP dependency
 * Declaring the MocKMP runtime dependencies
-* Applying the buggy multiplatform workaround
+* Applying the incomplete multiplatform support workaround:
+** Using Android if the Android plugin is applied
+** Using the JVM otherwise
 
 
-[[buggy-multiplatform]]
-==== Buggy multiplatform
+=== With KSP and its incomplete multiplatform support
 
 KSP for multiplatform is in beta, and *https://github.com/google/ksp/issues/567[KSP for common tests is not supported]* (yet).
 
-To have IDEA completion, here's a trick that you can use:
+To have IDEA completion, here's a trick that you can use (in fact, that's what the MocKMP plugin does):
 
 [source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts

@@ -1,6 +1,8 @@
 package org.kodein.mock
 
 
+private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, E>>>
+
 public class Mocker {
     public class MockingException(message: String) : Exception(message)
 
@@ -13,9 +15,10 @@ public class Mocker {
 
     private var specialMode: SpecialMode? = null
 
-    internal class CallDefinition(val receiver: Any?, val method: String, val args: Array<*>) : RuntimeException("This exception should have been caught!")
+    internal class CallDefinition(val isSuspend: Boolean, val receiver: Any?, val method: String, val args: Array<*>) : RuntimeException("This exception should have been caught!")
 
-    internal val regs = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, Every<*>>>>()
+    private val regFuns = RegistrationMap<Every<*>>()
+    private val regSuspendFuns = RegistrationMap<EverySuspend<*>>()
 
     @Suppress("ArrayInDataClass")
     private data class Call(val receiver: Any?, val method: String, val arguments: Array<*>, val returnValue: Any?)
@@ -26,15 +29,21 @@ public class Mocker {
 
     public fun reset() {
         calls.clear()
-        regs.clear()
+        regFuns.clear()
+        regSuspendFuns.clear()
     }
 
     private fun methodName(receiver: Any?, methodName: String) = if (receiver == null) methodName else "${receiver::class.simpleName}.$methodName"
 
-    public fun <R> register(receiver: Any?, method: String, vararg args: Any?): R {
+    private sealed class ProcessResult<R> {
+        class Value<R>(val value: R) : ProcessResult<R>()
+        object FromRegistration : ProcessResult<Nothing>()
+    }
+
+    private fun <R> process(isSuspend: Boolean, receiver: Any?, method: String, args: Array<*>): ProcessResult<R> {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
-                throw CallDefinition(receiver, method, args)
+                throw CallDefinition(isSuspend, receiver, method, args)
             }
             is SpecialMode.VERIFICATION -> {
                 val constraints = mode.builder.getConstraints(args)
@@ -72,34 +81,53 @@ public class Mocker {
                 @Suppress("UNCHECKED_CAST")
                 constraints.forEachIndexed { i, constraint -> (constraint.capture as MutableList<Any?>?)?.add(call.arguments[i]) }
                 @Suppress("UNCHECKED_CAST")
-                return call.returnValue as R
+                return ProcessResult.Value(call.returnValue as R)
             }
             null -> {
-                val list = regs[receiver to method] ?: throw MockingException("${methodName(receiver, method)} has not been mocked")
-                val (constraints, every) = list
-                    .firstOrNull { (constraints, _) ->
-                        constraints.size == args.size && constraints.indices.all {
-                            @Suppress("UNCHECKED_CAST")
-                            (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
-                        }
-                    }
-                    ?: throw MockingException(
-                        "${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}\n" +
-                        "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
-                    )
                 @Suppress("UNCHECKED_CAST")
-                args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
-                val ret = every.mocked(args)
+                return ProcessResult.FromRegistration as ProcessResult<R>
+            }
+        }
+    }
+
+    private fun <E> findEvery(regs: RegistrationMap<E>, receiver: Any?, method: String, args: Array<*>): E {
+        val list = regs[receiver to method] ?: throw MockingException("${methodName(receiver, method)} has not been mocked")
+        val (constraints, every) = list
+            .firstOrNull { (constraints, _) ->
+                constraints.size == args.size && constraints.indices.all {
+                    @Suppress("UNCHECKED_CAST")
+                    (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
+                }
+            }
+            ?: throw MockingException(
+                "${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}\n" +
+                        "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
+            )
+        @Suppress("UNCHECKED_CAST")
+        args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
+        return every
+    }
+
+    private inline fun <E, R> registerImpl(isSuspend: Boolean, regs: RegistrationMap<E>, run: E.(Array<*>) -> Any?, receiver: Any?, method: String, args: Array<*>): R {
+        when (val result = process<R>(isSuspend, receiver, method, args)) {
+            is ProcessResult.Value<R> -> return result.value
+            is ProcessResult.FromRegistration -> {
+                val every = findEvery(regs, receiver, method, args)
+                val ret = every.run(args)
                 calls.addLast(Call(receiver, method, args, ret))
                 @Suppress("UNCHECKED_CAST") return ret as R
             }
         }
     }
 
+    public fun <R> register(receiver: Any?, method: String, vararg args: Any?): R =
+        registerImpl(false, regFuns, { mocked(it) }, receiver, method, args)
+
+    public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?): R =
+        registerImpl(true, regSuspendFuns, { mocked(it) }, receiver, method, args)
+
     public inner class Every<T> internal constructor(receiver: Any?, method: String) {
-
         internal var mocked: (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }
-
         public infix fun returns(ret: T) {
             mocked = { ret }
         }
@@ -108,18 +136,29 @@ public class Mocker {
         }
     }
 
+    public inner class EverySuspend<T> internal constructor(receiver: Any?, method: String) {
+        internal var mocked: suspend (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }
+        public infix fun returns(ret: T) {
+            mocked = { ret }
+        }
+        public infix fun runs(ret: suspend (Array<*>) -> T) {
+            mocked = ret
+        }
+    }
+
     // This will be inlined twice: once for regular functions, and once for suspend functions.
-    private inline fun <T> everyImpl(block: ArgConstraintsBuilder.() -> T): Every<T> {
+    private inline fun <T, E, ET : E> everyImpl(isSuspend: Boolean, newEvery: (Any?, String) -> ET, map: RegistrationMap<E>, block: ArgConstraintsBuilder.() -> T): ET {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         specialMode = SpecialMode.DEFINITION
         val builder = ArgConstraintsBuilder()
         try {
             builder.block()
             error("Expected a Mock call")
-        } catch (ex: CallDefinition) {
-            val every = Every<T>(ex.receiver, ex.method)
-            regs.getOrPut(ex.receiver to ex.method) { ArrayList() }
-                .add(builder.getConstraints(ex.args) to every)
+        } catch (call: CallDefinition) {
+            if (call.isSuspend != isSuspend) error("Calling a ${if (call.isSuspend) "suspend" else "non suspend"} function inside a ${if (isSuspend) "suspending" else "non suspending"} every block")
+            val every = newEvery(call.receiver, call.method)
+            map.getOrPut(call.receiver to call.method) { ArrayList() }
+                .add(builder.getConstraints(call.args) to every)
             return every
         } finally {
             specialMode = null
@@ -127,10 +166,10 @@ public class Mocker {
     }
 
     public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> =
-        everyImpl { block() }
+        everyImpl(false, ::Every, regFuns) { block() }
 
-    public suspend fun <T> everySuspend(block: suspend ArgConstraintsBuilder.() -> T): Every<T> =
-        everyImpl { block() }
+    public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T): EverySuspend<T> =
+        everyImpl(true, ::EverySuspend, regSuspendFuns) { block() }
 
     @Deprecated("Renamed every", ReplaceWith("every(block)"), level = DeprecationLevel.ERROR)
     public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)
@@ -156,6 +195,6 @@ public class Mocker {
     public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
-    public suspend fun verifySuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
+    public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 }

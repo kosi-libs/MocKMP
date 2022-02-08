@@ -213,7 +213,8 @@ public class MocKMPProcessor(
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString(prefix = ", ") { it.name!!.asString() }
-                    gFun.addStatement("return this.%N.register(this, %S$paramsCall)", mocker, "${vFun.simpleName.asString()}($paramsDescription)")
+                    val register = if (Modifier.SUSPEND in vFun.modifiers) "registerSuspend" else "register"
+                    gFun.addStatement("return this.%N.$register(this, %S$paramsCall)", mocker, "${vFun.simpleName.asString()}($paramsDescription)")
                     gCls.addFunction(gFun.build())
                 }
             gFile.addType(gCls.build())

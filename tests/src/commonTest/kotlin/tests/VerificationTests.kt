@@ -175,10 +175,10 @@ class VerificationTests {
     @ExperimentalCoroutinesApi
     fun testSuspend() = runTest {
         val bar = MockBar(mocker)
-        mocker.everySuspend { bar.newData() } returns fakeData()
+        mocker.everySuspending { bar.newData() } returns fakeData()
         val data = bar.newData()
         assertEquals(fakeData(), data)
-        mocker.verifySuspend { bar.newData() }
+        mocker.verifyWithSuspend { bar.newData() }
     }
 
     @Test
@@ -186,8 +186,27 @@ class VerificationTests {
     fun testSuspendFails() = runTest {
         val bar = MockBar(mocker)
         val ex = assertFailsWith<AssertionError> {
-            mocker.verifySuspend { bar.newData() }
+            mocker.verifyWithSuspend { bar.newData() }
         }
         assertEquals("Expected a call to MockBar.newData() but call list was empty", ex.message)
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testNonSuspendInSuspendingEvery() = runTest {
+        val foo = MockFoo<Int>(mocker)
+        val ex = assertFailsWith<IllegalStateException> {
+            mocker.everySuspending { foo.defaultT } returns 42
+        }
+        assertEquals("Calling a non suspend function inside a suspending every block", ex.message)
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testNonSuspendInSuspend() = runTest {
+        val foo = MockFoo<Int>(mocker)
+        mocker.every { foo.defaultT } returns 42
+        assertEquals(42, foo.defaultT)
+        mocker.verifyWithSuspend { foo.defaultT }
     }
 }
