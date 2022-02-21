@@ -318,20 +318,27 @@ Note that, when declared in a definition block, the capture list may be filled w
 
 ==== Accessing run block arguments
 
-You can access function parameters from a run block.
-This is less precise than using caputre lists as they are non typed, but allows to write very concise code:
+There are 2 ways you can access arguments in a run block.
+
+* You can use capture lists:
++
+[source,kotlin]
+----
+val sessions = ArrayList<String>()
+mocker
+    .every { delegate.setSession(isAny(capture = sessions)) }
+    .runs { sessions.last().close() } //<1>
+----
+<1> `.last()` returns the last call argument, which is always the current.
+
+* You can access function parameters in a run block arguments.
+This is less precise than using capture lists as they are non typed, but allows to write very concise code:
 
 [source,kotlin]
 ----
-val delegate = MockDelegate()
-mocker.every { delegate.setSession(isAny()) } runs { args ->
-    (args[0] as Session).close()
-}
-
-val controller = Controller(delegate)
-controller.startNewSession()
-
-assertEquals(0, controller.runningSessions.size)
+mocker
+    .every { delegate.setSession(isAny()) }
+    .runs { args -> (args[0] as Session).close() }
 ----
 
 
