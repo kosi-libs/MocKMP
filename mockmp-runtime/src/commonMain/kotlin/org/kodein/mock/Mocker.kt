@@ -157,8 +157,13 @@ public class Mocker {
         } catch (call: CallDefinition) {
             if (call.isSuspend != isSuspend) error("Calling a ${if (call.isSuspend) "suspend" else "non suspend"} function inside a ${if (isSuspend) "suspending" else "non suspending"} every block")
             val every = newEvery(call.receiver, call.method)
-            map.getOrPut(call.receiver to call.method) { ArrayList() }
-                .add(builder.getConstraints(call.args) to every)
+            val reg = map.getOrPut(call.receiver to call.method){ ArrayList() }
+            val index = reg.indexOfFirst{ it.first == builder.getConstraints(call.args)}
+            if (index >= 0) {
+                reg[index] = builder.getConstraints(call.args) to every
+            } else {
+                reg.add(builder.getConstraints(call.args) to every)
+            }
             return every
         } finally {
             specialMode = null
