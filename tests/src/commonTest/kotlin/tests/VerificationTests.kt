@@ -209,4 +209,16 @@ class VerificationTests {
         assertEquals(42, foo.defaultT)
         mocker.verifyWithSuspend { foo.defaultT }
     }
+
+    @Test
+    fun testIsAnyOnInterface() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.consume(isAny()) } returns Unit
+
+        foo.consume(MockBar(mocker))
+
+        mocker.verify {
+            foo.consume(isAny())
+        }
+    }
 }

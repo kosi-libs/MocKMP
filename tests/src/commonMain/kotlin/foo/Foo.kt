@@ -11,6 +11,7 @@ interface Foo<out T : Any> {
     fun newString(): String
     fun newT(): T
     val defaultT: T
+    fun consume(bar: Bar)
 }
 
 interface Bar : Foo<Bar> {
