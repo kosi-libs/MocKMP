@@ -209,4 +209,29 @@ class VerificationTests {
         assertEquals(42, foo.defaultT)
         mocker.verifyWithSuspend { foo.defaultT }
     }
+
+    @Test
+    fun testDefaultMethodOnInterface_notCalled() {
+        val bar = MockBar(mocker)
+        var throwable: Throwable? = null
+        try {
+            mocker.verify { bar.doNothing() }
+        } catch (ae: AssertionError) {
+            // expecting an AssertionError here as the mock has never been called
+            throwable = ae
+        }
+        assertEquals("Expected a call to MockBar.doNothing() but call list was empty", throwable?.message)
+    }
+
+    @Test
+    fun testDefaultMethodOnInterface_called() {
+        val bar = MockBar(mocker)
+        var throwable: Throwable? = null
+        try {
+            bar.doNothing()
+        } catch (me: Mocker.MockingException) {
+            throwable = me
+        }
+        assertEquals("MockBar.doNothing() has not been mocked", throwable?.message)
+    }
 }

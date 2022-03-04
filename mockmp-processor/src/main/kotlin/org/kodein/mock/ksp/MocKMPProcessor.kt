@@ -198,7 +198,9 @@ public class MocKMPProcessor(
                     gCls.addProperty(gProp.build())
                 }
             vItf.getAllFunctions()
-                .filter { it.isAbstract }
+                // Methods [equals] & [hashCode] are used when we add mocks in collections like Set/Map.
+                // toString() is probably not something we want to mock/verify and is the 3rd [Any] method.
+                .filter { it.simpleName.asString() !in listOf("equals", "hashCode", "toString") }
                 .forEach { vFun ->
                     val gFun = FunSpec.builder(vFun.simpleName.asString())
                         .addModifiers(KModifier.OVERRIDE)
@@ -206,7 +208,7 @@ public class MocKMPProcessor(
                     vFun.typeParameters.forEach { vParam ->
                         gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver))
                     }
-                    gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT).mapNotNull { it.toKModifier() })
+                    gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN).mapNotNull { it.toKModifier() })
                     gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
                     vFun.parameters.forEach { vParam ->
                         gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))

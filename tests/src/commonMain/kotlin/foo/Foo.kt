@@ -20,5 +20,5 @@ interface Bar : Foo<Bar> {
     fun doAll(string: String, int: Int, data: Data)
     suspend fun newData(): Data
     fun callback(cb: (String) -> Int)
-    fun <T: Comparable<T>> order(c: Iterable<T>) : List<T>
+    fun <T : Comparable<T>> order(c: Iterable<T>): List<T>
 }
