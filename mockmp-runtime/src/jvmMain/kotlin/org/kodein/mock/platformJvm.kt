@@ -25,9 +25,9 @@ private object UnsafeFunctions {
     val f8 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
             as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
     val f9 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+                as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
     val f10 = ({ _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing, _: Nothing -> })
-            as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
+                as (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> Unit
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -43,7 +43,23 @@ internal actual fun <T> KClass<*>.unsafeValue() = when (this) {
     Function8::class -> UnsafeFunctions.f8
     Function9::class -> UnsafeFunctions.f9
     Function10::class -> UnsafeFunctions.f10
-    else -> ObjenesisStd(true).newInstance(java)
+    else -> {
+        val target = if (this.java.isInterface) {
+            // Objenesis cannot instantiate an interface, so we try to find a generated Mock based on the conventional naming.
+            // If the Mock class exists, we can use it to generate an instance.
+            try {
+                this.java.classLoader.loadClass(this.java.packageName + ".Mock" + this.java.simpleName)
+            } catch (e: ClassNotFoundException) {
+                error(
+                    "Cannot instantiate the class ${this.qualifiedName}. " +
+                            "Please try to use @UsesMock on this interface to generate a mock or report the issue."
+                )
+            }
+        } else {
+            java
+        }
+        ObjenesisStd(true).newInstance(target)
+    }
 } as T
 
 @PublishedApi
