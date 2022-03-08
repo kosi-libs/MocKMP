@@ -3,7 +3,7 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-public class ArgConstraintsBuilder internal constructor(private val references: List<Any>) {
+public class ArgConstraintsBuilder internal constructor(private val references: References) {
     private val constraints: MutableList<ArgConstraint<*>> = ArrayList()
 
     internal fun getConstraints(args: Array<*>): List<ArgConstraint<*>> {
@@ -17,34 +17,17 @@ public class ArgConstraintsBuilder internal constructor(private val references: 
     }
 
     @PublishedApi
+    @Suppress("UNCHECKED_CAST")
     internal fun <T> toReturn(constraint: ArgConstraint<T>, cls: KClass<*>): T {
         constraints.add(constraint)
 
-        @Suppress("UNCHECKED_CAST", "RemoveRedundantCallsOfConversionMethods", "IMPLICIT_CAST_TO_ANY")
-        return when (cls) {
-            Boolean::class -> false
-            UByte::class -> 0.toUByte()
-            Byte::class -> 0.toByte()
-            UShort::class -> 0.toUShort()
-            Short::class -> 0.toShort()
-            Char::class -> 0.toChar()
-            UInt::class -> 0.toUInt()
-            Int::class -> 0.toInt()
-            Float::class -> 0.toFloat()
-            ULong::class -> 0.toULong()
-            Long::class -> 0.toLong()
-            Double::class -> 0.toDouble()
-            else -> {
-                for (ref in references) {
-                    if (cls.isInstance(ref)) return (ref as T)
-                }
-                try {
-                    cls.unsafeValue<T>()
-                } catch (e: Throwable) {
-                    throw RuntimeException("Could not find a way to create an instance of ${cls.bestName()}.\nPlease give the mocker a reference to use with mocker.addReference.", e)
-                }
-            }
-        } as T
+        try {
+            return references.getReference(cls) as T
+        } catch (e: Throwable) {
+            throw RuntimeException("Could not find a way to get a reference of ${cls.bestName()}.\n" +
+                    "Please open an issue: https://github.com/Kodein-Framework/MocKMP/issues/new\n" +
+                    "In the meantime, you can give the mocker a reference to use with mocker.useReference(${cls.simpleName}).", e)
+        }
     }
 
     public inline fun <reified T> isAny(capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isAny(capture), T::class)

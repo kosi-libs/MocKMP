@@ -8,7 +8,7 @@ public class Mocker {
 
     private sealed class SpecialMode {
         object DEFINITION : SpecialMode()
-        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean, references: List<Any>) : SpecialMode() {
+        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean, references: References) : SpecialMode() {
             val builder = ArgConstraintsBuilder(references)
         }
     }
@@ -25,7 +25,7 @@ public class Mocker {
 
     private val calls = ArrayDeque<Call>()
 
-    private val references = ArrayList<Any>()
+    private val references = References()
 
     public fun clearCalls() { calls.clear() }
 
@@ -200,7 +200,7 @@ public class Mocker {
     public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
-    public fun addReference(r: Any) {
-        references.add(r)
+    public fun useReference(r: Any) {
+        references.addReference(r)
     }
 }

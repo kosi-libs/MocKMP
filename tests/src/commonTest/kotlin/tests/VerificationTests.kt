@@ -248,12 +248,10 @@ class VerificationTests {
 
     @Test
     fun testAbstractArgument() {
-        mocker.addReference(object : Abs() {})
-
         val foo = MockFoo<Bar>(mocker)
         mocker.every { foo.doAbstract(isAny()) } returns Unit
 
-        foo.doAbstract(object : Abs() {})
+        foo.doAbstract(object : Abs(42) {})
 
         mocker.verify {
             foo.doAbstract(isAny())
@@ -272,15 +270,40 @@ class VerificationTests {
         }
     }
 
-    @Test
-    fun testSuspendFunctionArgument() {
-        val bar = MockBar(mocker)
-        mocker.every { bar.suspendCallback(isAny()) } returns Unit
+    // TODO: This makes JS/IR crash. Should be fixed in Kotlin 1.4.20
+//    @Test
+//    fun testSuspendFunctionArgument() {
+//        val bar = MockBar(mocker)
+//        mocker.every { bar.suspendCallback(isAny()) } returns Unit
+//
+//        bar.suspendCallback { 42 }
+//
+//        mocker.verify {
+//            bar.suspendCallback(isAny())
+//        }
+//    }
 
-        bar.suspendCallback { 42 }
+    @Test
+    fun testSealedClassArgument() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doSealedClass(isAny()) } returns Unit
+
+        foo.doSealedClass(SCls.O)
 
         mocker.verify {
-            bar.suspendCallback(isAny())
+            foo.doSealedClass(isAny())
+        }
+    }
+
+    @Test
+    fun testSealedInterfaceArgument() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doSealedInterface(isAny()) } returns Unit
+
+        foo.doSealedInterface(SItf.O)
+
+        mocker.verify {
+            foo.doSealedInterface(isAny())
         }
     }
 }
