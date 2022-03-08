@@ -29,11 +29,11 @@ class MocKMPGradlePlugin : Plugin<Project> {
             kotlin.sourceSets.getByName("commonTest") {
                 if (jvmTarget.isAndroid) {
                     this.kotlin.srcDirs(
-                        "build/generated/ksp/${jvmTarget.name}DebugUnitTest/kotlin",
-                        "build/generated/ksp/${jvmTarget.name}ReleaseUnitTest/kotlin"
+                        "build/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin",
+                        "build/generated/ksp/${jvmTarget.name}/${jvmTarget.name}ReleaseUnitTest/kotlin"
                     )
                 } else {
-                    this.kotlin.srcDir("build/generated/ksp/${jvmTarget.name}Test/kotlin")
+                    this.kotlin.srcDir("build/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
                 }
                 dependencies {
                     implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
@@ -66,13 +66,13 @@ class MocKMPGradlePlugin : Plugin<Project> {
                 afterEvaluate {
                     tasks.named("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}") {
                         doFirst {
-                            delete("build/generated/ksp/${jvmTarget.name}ReleaseUnitTest/kotlin")
+                            delete("build/generated/ksp/${jvmTarget.name}/${jvmTarget.name}ReleaseUnitTest/kotlin")
                         }
                     }
 
                     tasks.named("kspReleaseUnitTestKotlin${jvmTarget.name.capitalize()}") {
                         doFirst {
-                            delete("build/generated/ksp/${jvmTarget.name}DebugUnitTest/kotlin")
+                            delete("build/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
                         }
                     }
                 }

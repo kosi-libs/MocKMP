@@ -346,4 +346,19 @@ class VerificationTests {
             bar.doSomething()
         }
     }
+
+    @Test
+    fun testOverrideToString() {
+        val foo = MockFoo<Bar>(mocker)
+
+        val answers = ArrayList<Int>()
+        mocker.every { foo.doInt(isAny(capture = answers)) } returns Unit
+        mocker.every { foo.toString() } runs { "Answer is ${answers.last()}!" }
+        foo.doInt(42)
+        assertEquals("Answer is 42!", foo.toString())
+        mocker.verify {
+            foo.doInt(42)
+            foo.toString()
+        }
+    }
 }

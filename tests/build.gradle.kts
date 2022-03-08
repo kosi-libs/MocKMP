@@ -13,7 +13,7 @@ kodein {
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.0")
             }
             // Adding KSP JVM result to COMMON source set
-            kotlin.srcDir("build/generated/ksp/jvmTest/kotlin")
+            kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin")
         }
 
         add(kodeinTargets.jvm.jvm)
