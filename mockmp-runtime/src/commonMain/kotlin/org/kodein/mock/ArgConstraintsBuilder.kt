@@ -3,7 +3,7 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-public class ArgConstraintsBuilder internal constructor() {
+public class ArgConstraintsBuilder internal constructor(private val references: List<Any>) {
     private val constraints: MutableList<ArgConstraint<*>> = ArrayList()
 
     internal fun getConstraints(args: Array<*>): List<ArgConstraint<*>> {
@@ -34,7 +34,16 @@ public class ArgConstraintsBuilder internal constructor() {
             ULong::class -> 0.toULong()
             Long::class -> 0.toLong()
             Double::class -> 0.toDouble()
-            else -> cls.unsafeValue<T>()
+            else -> {
+                for (ref in references) {
+                    if (cls.isInstance(ref)) return (ref as T)
+                }
+                try {
+                    cls.unsafeValue<T>()
+                } catch (e: Throwable) {
+                    throw RuntimeException("Could not find a way to create an instance of ${cls.bestName()}.\nPlease give the mocker a reference to use with mocker.addReference.", e)
+                }
+            }
         } as T
     }
 

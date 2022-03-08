@@ -1,8 +1,8 @@
 package tests
 
+import data.Direction
 import data.fakeData
-import foo.Bar
-import foo.Foo
+import foo.*
 import foo.MockBar
 import foo.MockFoo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -211,14 +211,76 @@ class VerificationTests {
     }
 
     @Test
-    fun testIsAnyOnInterface() {
+    fun testInterfaceArgument() {
         val foo = MockFoo<Bar>(mocker)
-        mocker.every { foo.consume(isAny()) } returns Unit
+        mocker.every { foo.doInterface(isAny()) } returns Unit
 
-        foo.consume(MockBar(mocker))
+        foo.doInterface(MockBar(mocker))
 
         mocker.verify {
-            foo.consume(isAny())
+            foo.doInterface(isAny())
+        }
+    }
+
+    @Test
+    fun testArrayArgument() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doArray(isAny()) } returns Unit
+
+        foo.doArray(arrayOf("Test"))
+
+        mocker.verify {
+            foo.doArray(isAny())
+        }
+    }
+
+    @Test
+    fun testEnumArgument() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doEnum(isAny()) } returns Unit
+
+        foo.doEnum(Direction.LEFT)
+
+        mocker.verify {
+            foo.doEnum(isAny())
+        }
+    }
+
+    @Test
+    fun testAbstractArgument() {
+        mocker.addReference(object : Abs() {})
+
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doAbstract(isAny()) } returns Unit
+
+        foo.doAbstract(object : Abs() {})
+
+        mocker.verify {
+            foo.doAbstract(isAny())
+        }
+    }
+
+    @Test
+    fun testFunctionArgument() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.callback(isAny()) } returns Unit
+
+        bar.callback { 42 }
+
+        mocker.verify {
+            bar.callback(isAny())
+        }
+    }
+
+    @Test
+    fun testSuspendFunctionArgument() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.suspendCallback(isAny()) } returns Unit
+
+        bar.suspendCallback { 42 }
+
+        mocker.verify {
+            bar.suspendCallback(isAny())
         }
     }
 }

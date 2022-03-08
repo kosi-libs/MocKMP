@@ -8,8 +8,8 @@ public class Mocker {
 
     private sealed class SpecialMode {
         object DEFINITION : SpecialMode()
-        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean) : SpecialMode() {
-            val builder = ArgConstraintsBuilder()
+        class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean, references: List<Any>) : SpecialMode() {
+            val builder = ArgConstraintsBuilder(references)
         }
     }
 
@@ -24,6 +24,8 @@ public class Mocker {
     private data class Call(val receiver: Any?, val method: String, val arguments: Array<*>, val returnValue: Any?)
 
     private val calls = ArrayDeque<Call>()
+
+    private val references = ArrayList<Any>()
 
     public fun clearCalls() { calls.clear() }
 
@@ -150,7 +152,7 @@ public class Mocker {
     private inline fun <T, E, ET : E> everyImpl(isSuspend: Boolean, newEvery: (Any?, String) -> ET, map: RegistrationMap<E>, block: ArgConstraintsBuilder.() -> T): ET {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         specialMode = SpecialMode.DEFINITION
-        val builder = ArgConstraintsBuilder()
+        val builder = ArgConstraintsBuilder(references)
         try {
             builder.block()
             error("Expected a Mock call")
@@ -177,7 +179,7 @@ public class Mocker {
     // This will be inlined twice: once for regular functions, and once for suspend functions.
     private inline fun verifyImpl(exhaustive: Boolean, inOrder: Boolean, block: ArgConstraintsBuilder.() -> Unit) {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
-        val mode = SpecialMode.VERIFICATION(exhaustive, inOrder)
+        val mode = SpecialMode.VERIFICATION(exhaustive, inOrder, references)
         specialMode = mode
         try {
             mode.builder.block()
@@ -197,4 +199,8 @@ public class Mocker {
 
     public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
+
+    public fun addReference(r: Any) {
+        references.add(r)
+    }
 }
