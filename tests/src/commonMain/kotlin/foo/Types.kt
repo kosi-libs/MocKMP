@@ -22,6 +22,7 @@ interface Foo<out T : Any> {
 
 interface Bar : Foo<Bar> {
     fun doNothing() {}
+    fun doSomething() { doNothing() }
     fun newData(string: String, int: Int): Data
     fun doData(data: Data)
     fun doAll(string: String, int: Int, data: Data)

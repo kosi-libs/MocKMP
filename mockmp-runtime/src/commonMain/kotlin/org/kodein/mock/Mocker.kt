@@ -42,13 +42,23 @@ public class Mocker {
         object FromRegistration : ProcessResult<Nothing>()
     }
 
-    private fun <R> process(isSuspend: Boolean, receiver: Any?, method: String, args: Array<*>): ProcessResult<R> {
+    private fun <E, R> process(isSuspend: Boolean, receiver: Any?, method: String, args: Array<*>, regs: RegistrationMap<E>): ProcessResult<R> {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
                 throw CallDefinition(isSuspend, receiver, method, args)
             }
             is SpecialMode.VERIFICATION -> {
                 val constraints = mode.builder.getConstraints(args)
+                val list = regs[receiver to method] ?: throw MockingException("Cannot verify ${methodName(receiver, method)} as it has not been mocked")
+                list.firstOrNull { (constraints, _) ->
+                    constraints.size == args.size && constraints.indices.all {
+                        @Suppress("UNCHECKED_CAST")
+                        (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
+                    }
+                } ?: throw MockingException(
+                        "Cannot verify ${methodName(receiver, method)} as it has not been mocked for arguments ${args.joinToString()}\n" +
+                                "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
+                    )
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
                         ?: throw AssertionError("Expected a call to ${methodName(receiver, method)} but call list was empty")
@@ -92,41 +102,46 @@ public class Mocker {
         }
     }
 
-    private fun <E> findEvery(regs: RegistrationMap<E>, receiver: Any?, method: String, args: Array<*>): E {
-        val list = regs[receiver to method] ?: throw MockingException("${methodName(receiver, method)} has not been mocked")
-        val (constraints, every) = list
-            .firstOrNull { (constraints, _) ->
-                constraints.size == args.size && constraints.indices.all {
-                    @Suppress("UNCHECKED_CAST")
-                    (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
-                }
-            }
-            ?: throw MockingException(
-                "${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}\n" +
-                        "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
-            )
-        @Suppress("UNCHECKED_CAST")
-        args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
-        return every
-    }
-
-    private inline fun <E, R> registerImpl(isSuspend: Boolean, regs: RegistrationMap<E>, run: E.(Array<*>) -> Any?, receiver: Any?, method: String, args: Array<*>): R {
-        when (val result = process<R>(isSuspend, receiver, method, args)) {
+    @Suppress("UNCHECKED_CAST")
+    private inline fun <E, R> registerImpl(isSuspend: Boolean, regs: RegistrationMap<E>, run: E.(Array<*>) -> Any?, receiver: Any?, method: String, args: Array<*>, @Suppress("UNUSED_PARAMETER") noinline default: (() -> R)?): R {
+        when (val result = process<E, R>(isSuspend, receiver, method, args, regs)) {
             is ProcessResult.Value<R> -> return result.value
             is ProcessResult.FromRegistration -> {
-                val every = findEvery(regs, receiver, method, args)
-                val ret = every.run(args)
-                calls.addLast(Call(receiver, method, args, ret))
-                @Suppress("UNCHECKED_CAST") return ret as R
+                val list = regs[receiver to method]
+                val pair = list?.firstOrNull { (constraints, _) ->
+                    constraints.size == args.size && constraints.indices.all {
+                        (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
+                    }
+                }
+                return when {
+                    pair != null -> {
+                        val (constraints, every) = pair
+                        args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
+                        val ret = every.run(args)
+                        calls.addLast(Call(receiver, method, args, ret))
+                        ret as R
+                    }
+                    default != null -> default()
+                    else -> {
+                        if (list != null) {
+                            throw MockingException(
+                                "${methodName(receiver, method)} has not been mocked for arguments ${args.joinToString()}\n" +
+                                        "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
+                            )
+                        } else {
+                            throw MockingException("${methodName(receiver, method)} has not been mocked")
+                        }
+                    }
+                }
             }
         }
     }
 
-    public fun <R> register(receiver: Any?, method: String, vararg args: Any?): R =
-        registerImpl(false, regFuns, { mocked(it) }, receiver, method, args)
+    public fun <R> register(receiver: Any?, method: String, vararg args: Any?, default: (() -> R)? = null): R =
+        registerImpl(false, regFuns, { mocked(it) }, receiver, method, args, default)
 
-    public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?): R =
-        registerImpl(true, regSuspendFuns, { mocked(it) }, receiver, method, args)
+    public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?, default: (() -> R)? = null): R =
+        registerImpl(true, regSuspendFuns, { mocked(it) }, receiver, method, args, default)
 
     public inner class Every<T> internal constructor(receiver: Any?, method: String) {
         internal var mocked: (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }

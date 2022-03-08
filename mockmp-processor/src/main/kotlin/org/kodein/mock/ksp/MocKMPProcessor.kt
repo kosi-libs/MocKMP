@@ -198,7 +198,7 @@ public class MocKMPProcessor(
                     gCls.addProperty(gProp.build())
                 }
             vItf.getAllFunctions()
-                .filter { it.isAbstract }
+                .filter { it.simpleName.asString() !in listOf("equals", "hashCode") }
                 .forEach { vFun ->
                     val gFun = FunSpec.builder(vFun.simpleName.asString())
                         .addModifiers(KModifier.OVERRIDE)
@@ -206,15 +206,20 @@ public class MocKMPProcessor(
                     vFun.typeParameters.forEach { vParam ->
                         gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver))
                     }
-                    gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT).mapNotNull { it.toKModifier() })
+                    gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
                     gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
                     vFun.parameters.forEach { vParam ->
                         gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
-                    val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString(prefix = ", ") { it.name!!.asString() }
+                    val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString { it.name!!.asString() }
                     val register = if (Modifier.SUSPEND in vFun.modifiers) "registerSuspend" else "register"
-                    gFun.addStatement("return this.%N.$register(this, %S$paramsCall)", mocker, "${vFun.simpleName.asString()}($paramsDescription)")
+                    val default = if (vFun.isAbstract) "" else "default = { super.${vFun.simpleName.asString()}($paramsCall) }"
+                    gFun.addStatement(
+                        "return this.%N.$register(this, %S${paramsCall.withNonEmptyPrefix(", ")}${default.withNonEmptyPrefix(", ")})",
+                        mocker,
+                        "${vFun.simpleName.asString()}($paramsDescription)"
+                    )
                     gCls.addFunction(gFun.build())
                 }
             gFile.addType(gCls.build())

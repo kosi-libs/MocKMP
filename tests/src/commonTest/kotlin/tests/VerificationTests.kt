@@ -61,12 +61,12 @@ class VerificationTests {
 
         foo.doInt(42)
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<Mocker.MockingException> {
             mocker.verify {
                 foo.newString()
             }
         }
-        assertEquals("Expected a call to MockFoo.newString(), but was a call to MockFoo.doInt(kotlin.Int)", ex.message)
+        assertEquals("Cannot verify MockFoo.newString() as it has not been mocked", ex.message)
     }
 
     @Test
@@ -92,12 +92,12 @@ class VerificationTests {
         foo.doInt(42)
         foo.newString()
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<Mocker.MockingException> {
             mocker.verify(exhaustive = false) {
                 foo.newInt()
             }
         }
-        assertEquals("Could not find a call to MockFoo.newInt()", ex.message)
+        assertEquals("Cannot verify MockFoo.newInt() as it has not been mocked", ex.message)
     }
 
     @Test
@@ -185,10 +185,10 @@ class VerificationTests {
     @ExperimentalCoroutinesApi
     fun testSuspendFails() = runTest {
         val bar = MockBar(mocker)
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<Mocker.MockingException> {
             mocker.verifyWithSuspend { bar.newData() }
         }
-        assertEquals("Expected a call to MockBar.newData() but call list was empty", ex.message)
+        assertEquals("Cannot verify MockBar.newData() as it has not been mocked", ex.message)
     }
 
     @Test
@@ -304,6 +304,46 @@ class VerificationTests {
 
         mocker.verify {
             foo.doSealedInterface(isAny())
+        }
+    }
+
+    @Test
+    fun testDefaultImplementation() {
+        val bar = MockBar(mocker)
+        bar.doSomething()
+        mocker.verify {}
+    }
+
+    @Test
+    fun testSomeDefaultImplementationOverride() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doNothing() } returns Unit
+        bar.doSomething()
+        mocker.verify {
+            bar.doNothing()
+        }
+    }
+
+    @Test
+    fun testNoDefaultImplementationOverride() {
+        val bar = MockBar(mocker)
+        bar.doSomething()
+        val ex = assertFailsWith<Mocker.MockingException> {
+            mocker.verify {
+                bar.doNothing()
+            }
+        }
+        assertEquals("Cannot verify MockBar.doNothing() as it has not been mocked", ex.message)
+    }
+
+    @Test
+    fun testAllDefaultImplementationOverride() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doSomething() } returns Unit
+        mocker.every { bar.doNothing() } returns Unit
+        bar.doSomething()
+        mocker.verify {
+            bar.doSomething()
         }
     }
 }

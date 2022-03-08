@@ -21,3 +21,9 @@ kodeinUpload {
     name = "mockmp-runtime"
     description = "MocKMP runtime"
 }
+
+// TODO: remove this when moving to Kotlin 1.6.20
+// Support M1 (patch for now due to KotlinJS relying on a version 14 not available for arm64)
+rootProject.plugins.withType<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootPlugin> {
+    rootProject.the<org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootExtension>().nodeVersion = "16.0.0"
+}
