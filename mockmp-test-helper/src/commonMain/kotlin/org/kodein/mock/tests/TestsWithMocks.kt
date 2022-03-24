@@ -30,15 +30,15 @@ public abstract class TestsWithMocks {
 
     public val mocker: Mocker = Mocker()
 
-    public fun initDeferred() {
+    protected fun initDeferred() {
         defs.forEach { it.init() }
     }
 
-    public fun clearDeferred() {
+    protected fun clearDeferred() {
         defs.forEach { it.clear() }
     }
 
-    public fun <T> withMocks(create: () -> T): Deferred<T> = Deferred(create)
+    protected fun <T> withMocks(create: () -> T): Deferred<T> = Deferred(create)
 
     @BeforeTest
     public fun setUpMocksBeforeTest() {
@@ -50,9 +50,9 @@ public abstract class TestsWithMocks {
 
     protected abstract fun setUpMocks()
 
-    protected fun <T> every(block: ArgConstraintsBuilder.() -> T) : Mocker.Every<T> =
+    public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Mocker.Every<T> =
         mocker.every(block)
-    protected suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T) : Mocker.EverySuspend<T> =
+    public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T) : Mocker.EverySuspend<T> =
         mocker.everySuspending(block)
 
     public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
