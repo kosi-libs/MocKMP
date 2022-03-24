@@ -49,16 +49,7 @@ public class Mocker {
             }
             is SpecialMode.VERIFICATION -> {
                 val constraints = mode.builder.getConstraints(args)
-                val list = regs[receiver to method] ?: throw MockingException("Cannot verify ${methodName(receiver, method)} as it has not been mocked")
-                list.firstOrNull { (constraints, _) ->
-                    constraints.size == args.size && constraints.indices.all {
-                        @Suppress("UNCHECKED_CAST")
-                        (constraints[it] as ArgConstraint<Any?>).isValid(args[it])
-                    }
-                } ?: throw MockingException(
-                        "Cannot verify ${methodName(receiver, method)} as it has not been mocked for arguments ${args.joinToString()}\n" +
-                                "    Registered mocked:\n" + list.map { it.first.joinToString { it.description } } .joinToString("\n") { "        $it" }
-                    )
+                regs[receiver to method] ?: throw MockingException("Cannot verify ${methodName(receiver, method)} as it has not been mocked")
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
                         ?: throw AssertionError("Expected a call to ${methodName(receiver, method)} but call list was empty")

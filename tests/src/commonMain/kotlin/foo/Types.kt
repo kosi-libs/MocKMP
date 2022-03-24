@@ -41,6 +41,10 @@ sealed class SCls {
 }
 
 sealed interface SItf {
-    class C : SItf
-    object O : SItf
+    class C : SItf {
+        override fun toString(): String = "C"
+    }
+    object O : SItf {
+        override fun toString(): String = "O"
+    }
 }

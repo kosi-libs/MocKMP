@@ -37,6 +37,7 @@ public class ArgConstraintsBuilder internal constructor(private val references: 
     public inline fun <reified T> isNotSame(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotSame(expected, capture), T::class)
     public inline fun <reified T> isNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNull(capture), T::class)
     public inline fun <reified T> isNotNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotNull(capture), T::class)
+    public inline fun <reified T : Any> isInstanceOf(capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isInstanceOf(T::class, capture), T::class)
 
     public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T = toReturn<T>(constraint, T::class)
     @Suppress("UNCHECKED_CAST")
