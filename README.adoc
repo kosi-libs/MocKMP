@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.3.0
+:version: 1.4.0
 :ksp-version: 1.6.0-1.0.4
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -149,6 +149,7 @@ Available constraints are:
 - `isNull` and `isNotNull` check nullability.
 - `isEqual` and `isNotEqual` check regular equality.
 - `isSame` and `isNotSame` check identity.
+- `isInstanceOf` checks type.
 
 Note that passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
 
@@ -444,6 +445,20 @@ By using a `data class`, you can easily tweak your fakes according to your needs
 val user = fakeUser().copy(id = 42)
 ----
 ====
+
+
+==== Providing fake instances
+
+Classes that do not have a public constructor cannot be automatically faked.
+For these types, you need to provide your custom fake provider with `@FakeProvider`:
+
+[source,kotlin]
+----
+@FakeProvider
+fun provideFakeInstant() = Instant.fromEpochSeconds(0)
+----
+
+CAUTION: There can be only one provider per type, and it needs to be a top-level function.
 
 
 === Injecting your tests
