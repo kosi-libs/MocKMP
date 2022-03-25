@@ -3,6 +3,7 @@ package tests
 import data.*
 import foo.Bar
 import foo.MockBar
+import kotlinx.datetime.Instant
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
 import org.kodein.mock.tests.TestsWithMocks
@@ -40,7 +41,8 @@ class InjectionTests : TestsWithMocks() {
                 SubData("", 0),
                 SubData("", 0),
                 null,
-                SomeDirection(Direction.LEFT)
+                SomeDirection(Direction.LEFT),
+                Instant.fromEpochSeconds(0)
             ),
             data
         )

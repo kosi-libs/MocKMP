@@ -1,5 +1,7 @@
 package data
 
+import kotlinx.datetime.Instant
+
 data class SubData(
     val string: String,
     val int: Int
@@ -16,6 +18,7 @@ data class Data(
     val sub2: SubData,
     val nullDir: SomeDirection?,
     val dir: SomeDirection,
+    val special: Instant
 )
 
 class Funs(

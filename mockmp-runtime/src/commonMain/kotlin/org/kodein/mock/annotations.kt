@@ -15,5 +15,9 @@ public annotation class UsesMocks(vararg val types: KClass<*>)
 public annotation class Fake
 
 @Retention(AnnotationRetention.SOURCE)
+@Target(AnnotationTarget.FUNCTION)
+public annotation class FakeProvider
+
+@Retention(AnnotationRetention.SOURCE)
 @Target(AnnotationTarget.CLASS)
 public annotation class UsesFakes(vararg val types: KClass<*>)

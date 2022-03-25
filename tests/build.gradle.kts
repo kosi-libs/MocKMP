@@ -5,6 +5,10 @@ plugins {
 
 kodein {
     kotlin {
+        common.main.dependencies {
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.2")
+        }
+
         common.test {
             dependencies {
                 implementation(kotlin("test"))
@@ -17,7 +21,7 @@ kodein {
         }
 
         add(kodeinTargets.jvm.jvm)
-        add(kodeinTargets.native.all)
+        add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
         add(kodeinTargets.js.js)
     }
 }
