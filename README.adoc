@@ -632,7 +632,7 @@ kotlin {
                 // OPTIONAL!
                 implementation("org.kodein.mock:mockmp-test-helper:{version}") //<2>
             }
-            kotlin.srcDir("build/generated/ksp/jvmTest/kotlin") //<3>
+            kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin") //<3>
         }
     }
 }
