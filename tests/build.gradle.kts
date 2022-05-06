@@ -23,6 +23,15 @@ kodein {
         add(kodeinTargets.jvm.jvm)
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
         add(kodeinTargets.js.js)
+
+        targets.all {
+            compilations.all {
+                kotlinOptions {
+                    freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn"
+                    allWarningsAsErrors = true
+                }
+            }
+        }
     }
 }
 

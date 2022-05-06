@@ -199,6 +199,9 @@ public class MocKMPProcessor(
                                 .addStatement("return this.%N.register(this, %S)", mocker, "get:${vProp.simpleName.asString()}")
                                 .build()
                         )
+                    vProp.annotations.forEach {
+                        gProp.addAnnotation(it.toAnnotationSpec())
+                    }
                     if (vProp.isMutable) {
                         gProp.mutable(true)
                             .setter(
@@ -221,6 +224,9 @@ public class MocKMPProcessor(
                     }
                     gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
                     gFun.returns(vFun.returnType!!.toRealTypeName(typeParamResolver))
+                    vFun.annotations.forEach {
+                        gFun.addAnnotation(it.toAnnotationSpec())
+                    }
                     vFun.parameters.forEach { vParam ->
                         gFun.addParameter(vParam.name!!.asString(), vParam.type.toRealTypeName(typeParamResolver))
                     }

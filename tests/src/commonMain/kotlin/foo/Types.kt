@@ -4,6 +4,9 @@ import data.Data
 import data.Direction
 
 
+@RequiresOptIn
+annotation class ExperimentalTest
+
 typealias FooMap = Map<String, List<Pair<Int, Set<String>>>>
 
 interface Foo<out T : Any> {
@@ -24,6 +27,18 @@ interface Foo<out T : Any> {
     val defaultT: T
     val map: FooMap
     val list: List<Set<Int>>
+
+    @Deprecated("This is a test")
+    var deprecatedProperty: String
+
+    @Deprecated("This is a test")
+    fun deprecatedMethod()
+
+    @ExperimentalTest
+    var experimentalProperty: String
+
+    @ExperimentalTest
+    fun experimentalMethod()
 }
 
 typealias BarCB = (String) -> Int
