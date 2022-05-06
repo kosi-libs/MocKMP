@@ -41,5 +41,5 @@ public class ArgConstraintsBuilder internal constructor(private val references: 
 
     public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T = toReturn<T>(constraint, T::class)
     @Suppress("UNCHECKED_CAST")
-    public inline fun <reified T> isValid(capture: MutableList<T>? = null, description: String = "isValid", noinline test: (T) -> ArgConstraint.Result): T = isValid<T>(ArgConstraint(capture, description, test as (Any?) -> ArgConstraint.Result))
+    public inline fun <reified T> isValid(capture: MutableList<T>? = null, noinline description: () -> String = { "isValid" }, noinline test: (T) -> ArgConstraint.Result): T = isValid<T>(ArgConstraint(capture, description, test as (Any?) -> ArgConstraint.Result))
 }

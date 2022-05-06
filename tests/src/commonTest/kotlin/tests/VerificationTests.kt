@@ -8,6 +8,7 @@ import foo.MockFoo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Mocker
+import org.kodein.mock.MockerVerificationAssertionError
 import org.kodein.mock.UsesMocks
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -46,7 +47,7 @@ class VerificationTests {
         foo.doInt(42)
         foo.newString()
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify {
                 foo.doInt(42)
             }
@@ -127,7 +128,7 @@ class VerificationTests {
         foo.newString()
         foo.doInt(21)
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify(inOrder = false) {
                 foo.doInt(63)
             }
@@ -144,7 +145,7 @@ class VerificationTests {
         foo.doInt(42)
         foo.newString()
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify(inOrder = false) {
                 foo.newString()
             }
@@ -162,7 +163,7 @@ class VerificationTests {
         foo.newString()
         foo.doInt(21)
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify(exhaustive = false) {
                 foo.newString()
                 foo.doInt(42)
@@ -211,7 +212,7 @@ class VerificationTests {
     }
 
     @Test
-    fun testInterfaceArgument() {
+    fun testAnyInterfaceArgument() {
         val foo = MockFoo<Bar>(mocker)
         mocker.every { foo.doInterface(isAny()) } returns Unit
 
@@ -219,6 +220,34 @@ class VerificationTests {
 
         mocker.verify {
             foo.doInterface(isAny())
+        }
+    }
+
+    @Test
+    fun testSpecificInterfaceArgument() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doInterface(isAny()) } returns Unit
+
+        val bar = MockBar(mocker)
+        foo.doInterface(bar)
+
+        mocker.verify {
+            foo.doInterface(isEqual(bar))
+        }
+    }
+
+    @Test
+    fun testSpecificInterfaceArgumentFails() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.doInterface(isAny()) } returns Unit
+
+        val bar = MockBar(mocker)
+        foo.doInterface(bar)
+
+        assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify {
+                foo.doInterface(isEqual(MockBar(mocker)))
+            }
         }
     }
 
@@ -399,7 +428,7 @@ class VerificationTests {
         foo.doSealedInterface(SItf.C())
         assertEquals("C", ran)
 
-        val ex = assertFailsWith<AssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify {
                 foo.doSealedInterface(isInstanceOf<SItf.O>())
             }

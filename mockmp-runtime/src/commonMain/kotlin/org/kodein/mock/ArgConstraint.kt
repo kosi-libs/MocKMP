@@ -3,7 +3,7 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, internal val description: String = "?", internal val test: (T) -> Result) {
+public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, internal val description: () -> String = { "?" }, internal val test: (T) -> Result) {
 
     public sealed class Result {
         public object Success : Result()
@@ -13,17 +13,21 @@ public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, inte
     public companion object {
         private fun result(success: Boolean, error: () -> String) = if (success) Result.Success else Result.Failure(error)
 
-        public fun <T> isAny(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isAny") { Result.Success }
-        public fun <T> isEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isEqual($expected)") { actual -> result(actual == expected) { "Expected <$expected>, actual <$actual>" } }
-        public fun <T> isNotEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isNotEqual($expected)") { actual -> result(actual != expected) { "Illegal value: <$actual>" } }
-        public fun <T> isSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isSame($expected)") { actual -> result(actual === expected) { "Expected <$expected>, actual <$actual> is not same" } }
-        public fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isNotSame($expected)") { actual -> result(actual !== expected) { "Expected not same as <$actual>" } }
-        public fun <T> isNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isNull") { actual -> result(actual == null) { "Expected value to be null, but was: <$actual>" } }
-        public fun <T> isNotNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isNotNull") { actual -> result(actual != null) { "Expected value to be not null" } }
-        public fun <T : Any> isInstanceOf(cls: KClass<T>, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, "isInstanceOf<${cls.simpleName}>") { actual -> result(cls.isInstance(actual)) { "Expected an instance of type ${cls.simpleName}, but was <$actual>" } }
+        public fun <T> isAny(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isAny" }) { Result.Success }
+        public fun <T> isEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isEqual($expected)" }) { actual -> result(actual == expected) { "Expected <$expected>, actual <$actual>" } }
+        public fun <T> isNotEqual(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNotEqual($expected)" }) { actual -> result(actual != expected) { "Illegal value: <$actual>" } }
+        public fun <T> isSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isSame($expected)" }) { actual -> result(actual === expected) { "Expected <$expected>, actual <$actual> is not same" } }
+        public fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNotSame($expected)" }) { actual -> result(actual !== expected) { "Expected not same as <$actual>" } }
+        public fun <T> isNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNull" }) { actual -> result(actual == null) { "Expected value to be null, but was: <$actual>" } }
+        public fun <T> isNotNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNotNull"} ) { actual -> result(actual != null) { "Expected value to be not null" } }
+        public fun <T : Any> isInstanceOf(cls: KClass<T>, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isInstanceOf<${cls.simpleName}>" }) { actual -> result(cls.isInstance(actual)) { "Expected an instance of type ${cls.simpleName}, but was <$actual>" } }
     }
+}
+
+public class MockerVerificationAssertionError(messageBuilder: () -> String) : AssertionError() {
+    override val message: String by lazy(messageBuilder)
 }
 
 internal fun <T> ArgConstraint<T>.isValid(arg: T): Boolean = test(arg) is ArgConstraint.Result.Success
 
-internal fun <T> ArgConstraint<T>.assert(name: String, arg: T) { (test(arg) as? ArgConstraint.Result.Failure)?.let { throw AssertionError("$name: ${it.error()}") } }
+internal fun <T> ArgConstraint<T>.assert(name: String, arg: T) { (test(arg) as? ArgConstraint.Result.Failure)?.let { throw MockerVerificationAssertionError { "$name: ${it.error()}" } } }
