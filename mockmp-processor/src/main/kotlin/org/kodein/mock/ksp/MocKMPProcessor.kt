@@ -191,7 +191,8 @@ public class MocKMPProcessor(
                 .filter { it.isAbstract() }
                 .forEach { vProp ->
                     val typeParamResolver = vItf.typeParameters.toTypeParameterResolver()
-                    val gProp = PropertySpec.builder(vProp.simpleName.asString(), vProp.type.toTypeName(typeParamResolver))
+                    val gPropType = vProp.type.toRealTypeName(typeParamResolver)
+                    val gProp = PropertySpec.builder(vProp.simpleName.asString(), gPropType)
                         .addModifiers(KModifier.OVERRIDE)
                         .getter(
                             FunSpec.getterBuilder()
@@ -202,7 +203,7 @@ public class MocKMPProcessor(
                         gProp.mutable(true)
                             .setter(
                                 FunSpec.setterBuilder()
-                                    .addParameter("value", vProp.type.toTypeName(typeParamResolver))
+                                    .addParameter("value", gPropType)
                                     .addStatement("return this.%N.register(this, %S, value)", mocker, "set:${vProp.simpleName.asString()}")
                                     .build()
                             )
@@ -219,9 +220,9 @@ public class MocKMPProcessor(
                         gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver))
                     }
                     gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
-                    gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
+                    gFun.returns(vFun.returnType!!.toRealTypeName(typeParamResolver))
                     vFun.parameters.forEach { vParam ->
-                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))
+                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toRealTypeName(typeParamResolver))
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString { it.name!!.asString() }
