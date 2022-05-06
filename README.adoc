@@ -2,8 +2,8 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.4.0
-:ksp-version: 1.6.0-1.0.4
+:version: 1.5.0
+:ksp-version: 1.6.21-1.0.5
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
@@ -373,7 +373,7 @@ You can define your own constraints:
 [source,kotlin]
 ----
 fun ArgConstraintsBuilder.isStrictlyPositive(capture: MutableList<Int>? = null): Int =
-    isValid(ArgConstraint(capture, "isStrictlyPositive") {
+    isValid(ArgConstraint(capture, { "isStrictlyPositive" }) {
         if (it >= 0) ArgConstraint.Result.Success
         else ArgConstraint.Result.Failure { "Expected a strictly positive value, got $it" }
     })
