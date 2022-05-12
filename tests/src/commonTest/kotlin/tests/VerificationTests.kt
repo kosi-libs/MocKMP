@@ -297,18 +297,17 @@ class VerificationTests {
         }
     }
 
-    // TODO: This makes JS/IR crash. Should be fixed in Kotlin 1.4.20
-//    @Test
-//    fun testSuspendFunctionArgument() {
-//        val bar = MockBar(mocker)
-//        mocker.every { bar.suspendCallback(isAny()) } returns Unit
-//
-//        bar.suspendCallback { 42 }
-//
-//        mocker.verify {
-//            bar.suspendCallback(isAny())
-//        }
-//    }
+    @Test
+    fun testSuspendFunctionArgument() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.suspendCallback(isAny()) } returns Unit
+
+        bar.suspendCallback { 42 }
+
+        mocker.verify {
+            bar.suspendCallback(isAny())
+        }
+    }
 
     @Test
     fun testSealedClassArgument() {

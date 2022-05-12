@@ -52,8 +52,7 @@ interface Bar : Foo<Bar> {
     suspend fun newData(): Data
     fun callback(cb: (String) -> Int)
     fun taCallback(cb: BarCB)
-    // TODO: This makes JS/IR crash. Should be fixed in Kotlin 1.4.20
-//    fun suspendCallback(cb: suspend (String) -> Int)
+    fun suspendCallback(cb: suspend (String) -> Int)
     fun <T: Comparable<T>> order(c: Iterable<T>) : List<T>
 }
 
