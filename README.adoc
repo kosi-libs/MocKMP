@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.5.0
+:version: 1.6.0
 :ksp-version: 1.6.21-1.0.5
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -229,6 +229,40 @@ mocker.verifyWithSuspend {
 
 NOTE: You can check suspending *and* non suspending functions in `verifyWithSuspend`.
       Unlike `everySuspending`, all `verifyWithSuspend` does is running `verify` in a suspending context, which works for both regular and suspending functions.
+
+
+==== Verifying exception thrown
+
+If you define a mock function behaviour to throw an exception, you must verify the call with `threw`:
+
+[source,kotlin]
+----
+mocker.every { db.saveUser(isAny()) } runs { error("DB is not accessible") }
+
+//...
+
+mocker.verify {
+    val ex = threw<IllegalStateException> { db.saveUser(isAny()) }
+    assertEquals("DB is not accessible", ex.message)
+}
+----
+
+If you configure your behaviour to _maybe throw_ an exception, you can verify a call that may or may not have thrown an exception with `called`:
+
+[source,kotlin]
+----
+mocker.every { api.getUserById(isAny()) } runs { args ->
+    val idArg = args[0] as Int
+    if (idArg == 42) return MockUser()
+    else throw UnknownUserException(idArg)
+}
+
+//...
+
+mocker.verify {
+    called { api.getUserById(isAny()) }
+}
+----
 
 
 ==== Configuring verification exhaustivity & order
