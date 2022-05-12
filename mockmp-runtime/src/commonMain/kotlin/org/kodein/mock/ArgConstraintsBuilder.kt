@@ -3,7 +3,7 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-public class ArgConstraintsBuilder internal constructor(private val references: References) {
+public open class ArgConstraintsBuilder internal constructor(private val references: References) {
     private val constraints: MutableList<ArgConstraint<*>> = ArrayList()
 
     internal fun getConstraints(args: Array<*>): List<ArgConstraint<*>> {

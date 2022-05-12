@@ -24,9 +24,6 @@ public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, inte
     }
 }
 
-public class MockerVerificationAssertionError(messageBuilder: () -> String) : AssertionError() {
-    override val message: String by lazy(messageBuilder)
-}
 
 internal fun <T> ArgConstraint<T>.isValid(arg: T): Boolean = test(arg) is ArgConstraint.Result.Success
 

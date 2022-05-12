@@ -59,4 +59,12 @@ class BehaviourTests {
         assertEquals(42, foo.newInt())
     }
 
+    @Test
+    fun throws() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doNothing() } runs { error("This is a test!") }
+
+        val ex = assertFailsWith<IllegalStateException> { bar.doNothing() }
+        assertEquals("This is a test!", ex.message)
+    }
 }

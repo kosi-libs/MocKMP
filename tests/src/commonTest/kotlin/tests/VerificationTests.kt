@@ -9,11 +9,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Mocker
 import org.kodein.mock.MockerVerificationAssertionError
+import org.kodein.mock.MockerVerificationThrownAssertionError
 import org.kodein.mock.UsesMocks
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.*
 
 
 @UsesMocks(Foo::class)
@@ -436,4 +434,44 @@ class VerificationTests {
         assertEquals("Argument 1: Expected an instance of type O, but was <C>", ex.message)
     }
 
+    @Test
+    fun testThrowsAndVerifyWithoutThrew() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doNothing() } runs { error("This is a test!") }
+
+        assertFails { bar.doNothing() }
+
+        mocker.verify {
+            val ex = assertFailsWith<MockerVerificationThrownAssertionError> { bar.doNothing() }
+            assertEquals("MockBar.doNothing() was called but threw an exception. You should verify it with threw {}.", ex.message)
+        }
+    }
+
+    @Test
+    fun testThrowsAndVerifyWithThrew() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doNothing() } runs { error("This is a test!") }
+
+        assertFails { bar.doNothing() }
+
+        mocker.verify {
+            val ex = threw<IllegalStateException> { bar.doNothing() }
+            assertEquals("This is a test!", ex.message)
+        }
+    }
+
+    @Test
+    fun testThrowsAndVerifyWithWrongThrew() {
+        val bar = MockBar(mocker)
+        mocker.every { bar.doNothing() } runs { error("This is a test!") }
+
+        assertFails { bar.doNothing() }
+
+        mocker.verify {
+            val ex = assertFailsWith<MockerVerificationAssertionError> {
+                threw<IllegalArgumentException> { bar.doNothing() }
+            }
+            assertEquals("Expected IllegalArgumentException exception to be thrown, but was IllegalStateException", ex.message)
+        }
+    }
 }

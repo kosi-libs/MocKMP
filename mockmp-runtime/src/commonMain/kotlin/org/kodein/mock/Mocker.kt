@@ -9,7 +9,7 @@ public class Mocker {
     private sealed class SpecialMode {
         object DEFINITION : SpecialMode()
         class VERIFICATION(val exhaustive: Boolean, val inOrder: Boolean, references: References) : SpecialMode() {
-            val builder = ArgConstraintsBuilder(references)
+            val builder = VerificationBuilder(references)
         }
     }
 
@@ -21,7 +21,7 @@ public class Mocker {
     private val regSuspendFuns = RegistrationMap<EverySuspend<*>>()
 
     @Suppress("ArrayInDataClass")
-    private data class Call(val receiver: Any?, val method: String, val arguments: Array<*>, val returnValue: Any?)
+    private data class Call(val receiver: Any?, val method: String, val arguments: Array<*>, val returnValue: Result<Any?>)
 
     private val calls = ArrayDeque<Call>()
 
@@ -83,8 +83,11 @@ public class Mocker {
                 }
                 @Suppress("UNCHECKED_CAST")
                 constraints.forEachIndexed { i, constraint -> (constraint.capture as MutableList<Any?>?)?.add(call.arguments[i]) }
+                if (call.returnValue.isFailure) {
+                    throw MockerVerificationThrownAssertionError(call.returnValue.exceptionOrNull()!!) { methodName(receiver, method) }
+                }
                 @Suppress("UNCHECKED_CAST")
-                return ProcessResult.Value(call.returnValue as R)
+                return ProcessResult.Value(call.returnValue.getOrNull()!! as R)
             }
             null -> {
                 @Suppress("UNCHECKED_CAST")
@@ -108,9 +111,9 @@ public class Mocker {
                     pair != null -> {
                         val (constraints, every) = pair
                         args.forEachIndexed { i, a -> (constraints[i].capture as? MutableList<Any?>)?.add(a) }
-                        val ret = every.run(args)
+                        val ret = kotlin.runCatching { every.run(args) }
                         calls.addLast(Call(receiver, method, args, ret))
-                        ret as R
+                        ret.getOrThrow() as R
                     }
                     default != null -> default()
                     else -> {
@@ -183,7 +186,7 @@ public class Mocker {
     public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)
 
     // This will be inlined twice: once for regular functions, and once for suspend functions.
-    private inline fun verifyImpl(exhaustive: Boolean, inOrder: Boolean, block: ArgConstraintsBuilder.() -> Unit) {
+    private inline fun verifyImpl(exhaustive: Boolean, inOrder: Boolean, block: VerificationBuilder.() -> Unit) {
         if (specialMode != null) error("Cannot be inside a definition block AND a verification block")
         val mode = SpecialMode.VERIFICATION(exhaustive, inOrder, references)
         specialMode = mode
@@ -200,10 +203,10 @@ public class Mocker {
         }
     }
 
-    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
+    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: VerificationBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
-    public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
+    public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend VerificationBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
     public fun useReference(r: Any) {
