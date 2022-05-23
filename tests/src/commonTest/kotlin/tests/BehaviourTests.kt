@@ -67,4 +67,14 @@ class BehaviourTests {
         val ex = assertFailsWith<IllegalStateException> { bar.doNothing() }
         assertEquals("This is a test!", ex.message)
     }
+
+    @Test
+    fun returnsNull() {
+        val foo = MockFoo<Bar>(mocker)
+        mocker.every { foo.newStringNullable() } returns null
+
+        assertNull(foo.newStringNullable())
+
+        mocker.verify { assertNull(foo.newStringNullable()) }
+    }
 }

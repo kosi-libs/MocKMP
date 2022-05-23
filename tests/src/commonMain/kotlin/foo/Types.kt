@@ -23,6 +23,7 @@ interface Foo<out T : Any> {
     fun doMap(m: FooMap)
     fun newInt(): Int
     fun newString(): String
+    fun newStringNullable(): String?
     fun newT(): T
     val defaultT: T
     val map: FooMap

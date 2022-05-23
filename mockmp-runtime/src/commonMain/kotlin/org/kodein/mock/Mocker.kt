@@ -87,7 +87,7 @@ public class Mocker {
                     throw MockerVerificationThrownAssertionError(call.returnValue.exceptionOrNull()!!) { methodName(receiver, method) }
                 }
                 @Suppress("UNCHECKED_CAST")
-                return ProcessResult.Value(call.returnValue.getOrNull()!! as R)
+                return ProcessResult.Value(call.returnValue.getOrNull() as R)
             }
             null -> {
                 @Suppress("UNCHECKED_CAST")
