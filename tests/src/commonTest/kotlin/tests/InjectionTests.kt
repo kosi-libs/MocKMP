@@ -39,10 +39,14 @@ class InjectionTests : TestsWithMocks() {
         assertEquals(
             Data(
                 SubData("", 0),
-                SubData("", 0),
+                SubData(0, 0),
+                SubData(emptyMap(), 0),
                 null,
                 SomeDirection(Direction.LEFT),
-                Instant.fromEpochSeconds(0)
+                SomeDirection(Direction.LEFT),
+                Instant.fromEpochSeconds(0),
+                emptyList(),
+                emptyMap()
             ),
             data
         )

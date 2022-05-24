@@ -2,8 +2,8 @@ package data
 
 import kotlinx.datetime.Instant
 
-data class SubData(
-    val string: String,
+data class SubData<T>(
+    val data: T,
     val int: Int
 )
 
@@ -13,16 +13,22 @@ data class SomeDirection(
     val dir: Direction
 )
 
+typealias NamesMap<K> = Map<K, Set<String>>
+
 data class Data(
-    val sub1: SubData,
-    val sub2: SubData,
+    val sub1: SubData<String>,
+    val sub2: SubData<Int>,
+    val sub3: SubData<Map<String, Set<String>>>,
     val nullDir: SomeDirection?,
-    val dir: SomeDirection,
-    val special: Instant
+    val dir1: SomeDirection,
+    val dir2: SomeDirection,
+    val special: Instant,
+    val list: List<String>,
+    val map: NamesMap<Int>
 )
 
 class Funs(
     val cb: (String) -> Unit,
-    val data: () -> SubData,
-    val combo: (String) -> SubData
+    val data: () -> SubData<String>,
+    val combo: (String) -> SubData<String>
 )

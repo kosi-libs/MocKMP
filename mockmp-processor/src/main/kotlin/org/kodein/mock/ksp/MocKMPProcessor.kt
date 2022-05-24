@@ -74,7 +74,7 @@ public class MocKMPProcessor(
     private fun privateProcess(resolver: Resolver): List<KSAnnotated> {
         val toInject = HashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
         val toMock = HashMap<KSClassDeclaration, ToProcess>()
-        val toFake = HashMap<KSClassDeclaration, ToProcess>()
+        val toFake = HashMap<KSType, ToProcess>()
 
         fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode) {
             if (type.isFunctionType) return
@@ -87,14 +87,15 @@ public class MocKMPProcessor(
         }
 
         fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode) {
-            val decl = type.declaration
+            val decl = type.realDeclaration()
+
             if (
                 decl !is KSClassDeclaration || decl.isAbstract() ||
                 decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS)
             ) {
                 error(node, "Cannot generate fake for non concrete class ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
             }
-            toFake.getOrPut(decl) { ToProcess() } .let {
+            toFake.getOrPut(type) { ToProcess() } .let {
                 it.files.addAll(files)
                 it.references.add(node)
             }
@@ -133,14 +134,15 @@ public class MocKMPProcessor(
         lookUpUses("org.kodein.mock.UsesFakes", ::addFake)
 
         val providedFakes = run {
-            val provided = HashMap<KSClassDeclaration, KSFunctionDeclaration>()
+            val provided = HashMap<KSType, KSFunctionDeclaration>()
             resolver.getSymbolsWithAnnotation("org.kodein.mock.FakeProvider").forEach {
                 if (it !is KSFunctionDeclaration || it.parent !is KSFile) error(it, "Only top-level functions can be annotated with @FakeProvider")
-                val typeDeclaration = it.returnType?.resolve()?.declaration
+                val type = it.returnType!!.resolve()
+                val typeDeclaration = type.declaration
                 if (typeDeclaration !is KSClassDeclaration) error(it, "@FakeProvider functions must return class types.")
-                if (typeDeclaration in provided) error(it, "Only one @FakeProvider function must exist for this type (other is ${provided[typeDeclaration]!!.asString()}).")
-                toFake.remove(typeDeclaration)
-                provided[typeDeclaration] = it
+                if (type in provided) error(it, "Only one @FakeProvider function must exist for this type (other is ${provided[type]!!.asString()}).")
+                toFake.remove(type)
+                provided[type] = it
             }
             provided
         }
@@ -148,16 +150,18 @@ public class MocKMPProcessor(
         run {
             val toExplore = ArrayDeque(toFake.map { it.toPair() })
             while (toExplore.isNotEmpty()) {
-                val (cls, process) = toExplore.removeFirst()
+                val (type, process) = toExplore.removeFirst()
+                val cls = type.realDeclaration() as KSClassDeclaration
                 cls.firstPublicConstructor()?.parameters?.forEach { param ->
                     if (!param.hasDefault) {
-                        val paramType = param.type.resolve()
+                        val paramTypeRef = param.type
+                        val paramType = paramTypeRef.resolve()
                         if (paramType.nullability == Nullability.NOT_NULL) {
-                            val fakeType = if (paramType.isAnyFunctionType) paramType.arguments.last().type!!.resolve() else paramType
-                            val fakeDecl = fakeType.declaration
-                            if (fakeDecl.qualifiedName!!.asString() !in builtins && fakeDecl !in providedFakes && fakeDecl !in toFake) {
+                            val fakeTypeRef = if (paramType.isAnyFunctionType) paramType.arguments.last().type!! else paramTypeRef
+                            val fakeType = fakeTypeRef.resolve()
+                            if (fakeTypeRef.toRealTypeName(cls.typeParameters.toTypeParameterResolver()).qualified() !in builtins && fakeType !in providedFakes && fakeType !in toFake) {
                                 addFake(fakeType, process.files, param)
-                                toExplore.add((fakeDecl as KSClassDeclaration) to process)
+                                toExplore.add(fakeType to process)
                             }
                         }
                     }
@@ -245,12 +249,18 @@ public class MocKMPProcessor(
             gFile.build().writeTo(codeGenerator, Dependencies(true, *process.files.toTypedArray()))
         }
 
-        toFake.forEach { (vCls, process) ->
+        fun KSType.toFunName(): String =
+            if (arguments.isEmpty()) declaration.simpleName.asString()
+            else "${declaration.simpleName.asString()}X${arguments.joinToString("_") { it.type!!.resolve().toFunName() } }X"
+
+        toFake.forEach { (vType, process) ->
+            val vCls = vType.realDeclaration() as KSClassDeclaration
             val filesDeps = HashSet(process.files)
-            val mockFunName = "fake${vCls.simpleName.asString()}"
+            val mockFunName = "fake${vType.toFunName()}"
             val gFile = FileSpec.builder(vCls.packageName.asString(), mockFunName)
             val gFun = FunSpec.builder(mockFunName)
                 .addModifiers(KModifier.INTERNAL)
+                .returns(vType.toRealTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when (vCls.classKind) {
                 ClassKind.CLASS -> {
                     val vCstr = vCls.firstPublicConstructor()
@@ -258,20 +268,29 @@ public class MocKMPProcessor(
                     val args = ArrayList<Pair<String, Any>>()
                     vCstr.parameters.forEach { vParam ->
                         if (!vParam.hasDefault) {
-                            val vParamType = vParam.type.resolve()
+                            var vParamType = vParam.type.resolve()
+                            val vParamTypeDecl = vParamType.declaration
+                            if (vParamTypeDecl is KSTypeParameter) {
+                                val index = vCls.typeParameters.indexOf(vParamTypeDecl)
+                                vParamType = vType.arguments[index].type!!.resolve()
+                            }
                             if (vParamType.nullability != Nullability.NOT_NULL) {
                                 args.add("${vParam.name!!.asString()} = %L" to "null")
                             } else {
-                                val vParamTypeDecl = if (vParamType.isAnyFunctionType) vParamType.arguments.last().type!!.resolve().declaration else vParamType.declaration
-                                val builtIn = builtins[vParamTypeDecl.qualifiedName!!.asString()]
+                                val vParamTypeToFake = if (vParamType.isAnyFunctionType) vParamType.arguments.last().type!!.resolve() else vParamType
+                                var vParamTypeToFakeDecl = vParamTypeToFake.declaration
+                                while (vParamTypeToFakeDecl is KSTypeAlias) {
+                                    vParamTypeToFakeDecl = vParamTypeToFakeDecl.type.resolve().declaration
+                                }
+                                val builtIn = builtins[vParamTypeToFakeDecl.qualifiedName!!.asString()]
                                 val (template, value) = when {
                                     builtIn != null -> builtIn
-                                    vParamTypeDecl in providedFakes -> {
-                                        val f = providedFakes[vParamTypeDecl]!!
+                                    vParamTypeToFake in providedFakes -> {
+                                        val f = providedFakes[vParamTypeToFake]!!
                                         f.containingFile?.let { filesDeps += it }
                                         "%M()" to MemberName(f.packageName.asString(), f.simpleName.asString())
                                     }
-                                    else -> "%M()" to MemberName(vParamTypeDecl.packageName.asString(), "fake${vParamTypeDecl.simpleName.asString()}")
+                                    else -> "%M()" to MemberName(vParamTypeToFakeDecl.packageName.asString(), "fake${vParamTypeToFake.toFunName()}")
                                 }
                                 if (vParamType.isAnyFunctionType) {
                                     args.add("${vParam.name!!.asString()} = { ${"_, ".repeat(vParamType.arguments.size - 1)}-> $template }" to value)
@@ -331,12 +350,12 @@ public class MocKMPProcessor(
                         val builtIn = builtins[vPropTypeDecl.qualifiedName!!.asString()]
                         val (template, value) = when {
                             builtIn != null -> builtIn
-                            vPropTypeDecl in providedFakes -> {
-                                val f = providedFakes[vPropTypeDecl]!!
+                            vPropType in providedFakes -> {
+                                val f = providedFakes[vPropType]!!
                                 f.containingFile?.let { filesDeps += it }
                                 "%M()" to MemberName(f.packageName.asString(), f.simpleName.asString())
                             }
-                            else -> "%M()" to MemberName(vPropTypeDecl.packageName.asString(), "fake${vPropTypeDecl.simpleName.asString()}")
+                            else -> "%M()" to MemberName(vPropTypeDecl.packageName.asString(), "fake${vPropType.toFunName()}")
                         }
                         gFun.addStatement(
                             "this.%N = $template",
