@@ -38,3 +38,14 @@ jobs:
       - name: Check
         run: ./gradlew --stacktrace check
         shell: bash
+      - name: Publish To Maven Local
+        run: ./gradlew --stacktrace publishToMavenLocal
+        shell: bash
+      - name: Check plugin with JVM
+        run: ./gradlew --stacktrace check
+        shell: bash
+        working-directory: tests-Jvm
+      - name: Check plugin with Android
+        run: ./gradlew --stacktrace check
+        shell: bash
+        working-directory: tests-Android

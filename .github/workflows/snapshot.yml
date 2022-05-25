@@ -56,6 +56,20 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace check
         shell: bash
+      - name: Publish To Maven Local (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: ./gradlew --stacktrace publishToMavenLocal
+        shell: bash
+      - name: Check plugin with JVM (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: ./gradlew --stacktrace check
+        shell: bash
+        working-directory: tests-Jvm (ubuntu)
+      - name: Check plugin with Android
+        if: matrix.os == 'ubuntu-latest'
+        run: ./gradlew --stacktrace check
+        shell: bash
+        working-directory: tests-Android
       - name: Upload (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace publishAllPublicationsToOssrhStagingRepository -PgitRef=${{ github.ref }} -Psnapshot=true

@@ -27,10 +27,12 @@ kodein {
         targets.all {
             compilations.all {
                 kotlinOptions {
-                    freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn"
                     allWarningsAsErrors = true
                 }
             }
+        }
+        sourceSets.all {
+            languageSettings.optIn("kotlin.RequiresOptIn")
         }
     }
 }
