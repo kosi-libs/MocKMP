@@ -2,6 +2,7 @@ package org.kodein.mock.tests
 
 import org.kodein.mock.ArgConstraintsBuilder
 import org.kodein.mock.Mocker
+import org.kodein.mock.VerificationBuilder
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 import kotlin.test.BeforeTest
@@ -43,7 +44,6 @@ public abstract class TestsWithMocks {
     @BeforeTest
     public fun setUpMocksBeforeTest() {
         mocker.reset()
-        @Suppress("UNCHECKED_CAST")
         setUpMocks()
         initDeferred()
     }
@@ -55,8 +55,8 @@ public abstract class TestsWithMocks {
     public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T) : Mocker.EverySuspend<T> =
         mocker.everySuspending(block)
 
-    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: ArgConstraintsBuilder.() -> Unit): Unit =
+    public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: VerificationBuilder.() -> Unit): Unit =
         mocker.verify(exhaustive = exhaustive, inOrder = inOrder, block)
-    public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend ArgConstraintsBuilder.() -> Unit): Unit =
+    public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend VerificationBuilder.() -> Unit): Unit =
         mocker.verifyWithSuspend(exhaustive = exhaustive, inOrder = inOrder, block)
 }
