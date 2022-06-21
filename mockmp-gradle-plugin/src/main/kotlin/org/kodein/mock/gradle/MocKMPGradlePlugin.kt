@@ -10,6 +10,8 @@ import org.gradle.kotlin.dsl.getByName
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmAndroidCompilation
 
 
 // The entire purpose of this Gradle plugin is to get around https://github.com/google/ksp/issues/567
@@ -28,27 +30,28 @@ class MocKMPGradlePlugin : Plugin<Project> {
         target.afterEvaluate {
             val kotlin = extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
 
-            val jvmTarget = kotlin.targets.first { it.preset?.name == "jvm" || it.preset?.name == "android" }
+            val jvmTarget = kotlin.targets.firstOrNull { it.preset?.name == "jvm" || it.preset?.name == "android" }
+                ?: throw GradleException("Could not find JVM or Android target")
 
             dependencies {
                 // Running KSP for JVM only
-                "ksp${jvmTarget.name.capitalize()}Test"("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
+                when (jvmTarget.preset!!.name) {
+                    "jvm" -> "ksp${jvmTarget.name.capitalize()}Test"("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
+                    "android" -> "ksp${jvmTarget.name.capitalize()}TestDebug"("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
+                }
             }
 
             afterEvaluate {
-                val testComps = jvmTarget.compilations.mapNotNull {
-                    val compilation = it.compileKotlinTask
-                    val ksp = tasks.findByName("ksp${it.name.capitalize()}Kotlin${jvmTarget.name.capitalize()}") as? KspTask
-                    if ((it.name == "test" || it.name.endsWith("Test")) && ksp != null) {
-                        Triple(it.name, compilation, ksp)
-                    } else null
-                }.takeIf { it.isNotEmpty() } ?: error("Could not find test configuration with associated KSP on target ${jvmTarget.name}")
-
                 // Adding KSP JVM result to COMMON source set
                 kotlin.sourceSets.getByName("commonTest") {
-                    this.kotlin.srcDirs(
-                        testComps.map { (name, _, _) -> "$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}${name.capitalize()}/kotlin" }
-                    )
+                    when (jvmTarget.preset!!.name) {
+                        "jvm" -> this.kotlin.srcDir("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
+                        "android" -> {
+                            println("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
+                            this.kotlin.srcDir("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
+                        }
+                    }
+
                     dependencies {
                         implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
                         if (ext.usesHelper) {
@@ -62,22 +65,11 @@ class MocKMPGradlePlugin : Plugin<Project> {
 
                 // Adding KSP JVM as a dependency to all Kotlin compilations
                 tasks.withType<KotlinCompile<*>>().all {
-                    if (name.startsWith("compileTestKotlin")) {
-                        val (name, _, _) = testComps.first()
-                        dependsOn("ksp${name.capitalize()}Kotlin${jvmTarget.name.capitalize()}")
-                    }
-                }
-
-                // Each KSP test generation needs to delete the result of other KSP test generations (because they are all considered source set, they would collide).
-                // Furthermore, to prevent race condition in case multiple test compilation are run, each KSP generation needs to happen *after* the previous compilations.
-                testComps.forEachIndexed { index, (_, _, ksp) ->
-                    ksp.doFirst {
-                        testComps.filterIndexed { i, _ -> i != index } .forEach { (name, _, _) ->
-                            delete("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}${name.capitalize()}/kotlin")
+                    if (name.startsWith("compile") && name.contains("TestKotlin")) {
+                        when (jvmTarget.preset!!.name) {
+                            "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.capitalize()}")
+                            "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}")
                         }
-                    }
-                    testComps.subList(0, index).forEach { (_, compile, _) ->
-                        ksp.mustRunAfter(compile)
                     }
                 }
             }

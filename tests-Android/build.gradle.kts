@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library") version "7.3.0-beta01"
-    kotlin("multiplatform") version "1.6.21"
+    kotlin("multiplatform") version "1.7.0"
     id("org.kodein.mock.mockmp")
 }
 
@@ -35,13 +35,13 @@ kotlin {
         val commonMain by getting {
             kotlin.srcDir("$rootDir/../tests/src/commonMain/kotlin")
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.2")
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.3")
             }
         }
         val commonTest by getting {
             kotlin.srcDir("$rootDir/../tests/src/commonTest/kotlin")
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.3")
             }
         }
 
