@@ -6,7 +6,7 @@ plugins {
 kodein {
     kotlin {
         common.main.dependencies {
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.3")
         }
 
         common.test {
@@ -14,7 +14,7 @@ kodein {
                 implementation(kotlin("test"))
                 implementation(project(":mockmp-runtime"))
                 implementation(project(":mockmp-test-helper"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.3")
             }
             // Adding KSP JVM result to COMMON source set
             kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin")

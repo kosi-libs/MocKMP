@@ -27,4 +27,4 @@ public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, inte
 
 internal fun <T> ArgConstraint<T>.isValid(arg: T): Boolean = test(arg) is ArgConstraint.Result.Success
 
-internal fun <T> ArgConstraint<T>.assert(name: String, arg: T) { (test(arg) as? ArgConstraint.Result.Failure)?.let { throw MockerVerificationAssertionError { "$name: ${it.error()}" } } }
+internal fun <T> ArgConstraint<T>.assert(name: String, arg: T) { (test(arg) as? ArgConstraint.Result.Failure)?.let { throw MockerVerificationLazyAssertionError { "$name: ${it.error()}" } } }

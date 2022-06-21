@@ -13,10 +13,10 @@ public class VerificationBuilder internal constructor(references: References) : 
             block()
         } catch (ex: MockerVerificationThrownAssertionError) {
             val cause = ex.cause
-            if (cause !is E) throw MockerVerificationAssertionError { "Expected ${E::class.simpleName} exception to be thrown, but was ${cause::class.simpleName}" }
+            if (cause !is E) throw MockerVerificationLazyAssertionError { "Expected ${E::class.simpleName} exception to be thrown, but was ${cause::class.simpleName}" }
             return cause
         }
-        throw MockerVerificationAssertionError { "No exception was thrown" }
+        throw MockerVerificationLazyAssertionError { "No exception was thrown" }
     }
 
     public inline fun <T> called(block: () -> T): Result<T> = runCatching(block)

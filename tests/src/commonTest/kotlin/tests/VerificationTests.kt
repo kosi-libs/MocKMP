@@ -466,11 +466,11 @@ class VerificationTests {
 
         assertFails { bar.doNothing() }
 
-        mocker.verify {
-            val ex = assertFailsWith<MockerVerificationAssertionError> {
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify {
                 threw<IllegalArgumentException> { bar.doNothing() }
             }
-            assertEquals("Expected IllegalArgumentException exception to be thrown, but was IllegalStateException", ex.message)
         }
+        assertEquals("Expected IllegalArgumentException exception to be thrown, but was IllegalStateException", ex.message)
     }
 }

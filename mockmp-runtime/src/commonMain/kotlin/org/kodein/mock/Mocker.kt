@@ -52,20 +52,20 @@ public class Mocker {
                 regs[receiver to method] ?: throw MockingException("Cannot verify ${methodName(receiver, method)} as it has not been mocked")
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
-                        ?: throw MockerVerificationAssertionError { "Expected a call to ${methodName(receiver, method)} but call list was empty" }
+                        ?: throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)} but call list was empty" }
                     if (method != call.method || receiver !== receiver)
-                        throw MockerVerificationAssertionError { "Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}" }
+                        throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}" }
                     if (constraints.size != call.arguments.size)
-                        throw MockerVerificationAssertionError { "Expected ${constraints.size} arguments to ${methodName(receiver, method)} but got ${call.arguments.size}" }
+                        throw MockerVerificationLazyAssertionError { "Expected ${constraints.size} arguments to ${methodName(receiver, method)} but got ${call.arguments.size}" }
                     @Suppress("UNCHECKED_CAST")
                     constraints.forEachIndexed { i, constraint -> (constraint as ArgConstraint<Any?>).assert("Argument ${i + 1}", call.arguments[i]) }
                     call
                 } else {
                     val callIndices = (
                             calls.indices.filter { calls[it].receiver == receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
-                                ?: throw MockerVerificationAssertionError { "Could not find a call to ${methodName(receiver, method)}" }
+                                ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)}" }
                             ).filter { calls[it].arguments.size == constraints.size } .takeIf { it.isNotEmpty() }
-                                ?: throw MockerVerificationAssertionError { "Could not find a call to ${methodName(receiver, method)} with ${constraints.size} arguments" }
+                                ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)} with ${constraints.size} arguments" }
                     val callIndex = if (callIndices.size == 1) {
                         val call = calls[callIndices.single()]
                         @Suppress("UNCHECKED_CAST")
@@ -74,7 +74,7 @@ public class Mocker {
                     } else {
                         @Suppress("UNCHECKED_CAST")
                         callIndices.firstOrNull { callIndex -> constraints.indices.all { (constraints[it] as ArgConstraint<Any?>).isValid(calls[callIndex].arguments[it]) } }
-                            ?: throw MockerVerificationAssertionError { "Found ${callIndices.size} calls to ${methodName(receiver, method)}, but none that validates the constraints" }
+                            ?: throw MockerVerificationLazyAssertionError { "Found ${callIndices.size} calls to ${methodName(receiver, method)}, but none that validates the constraints" }
                     }
                     val call = calls[callIndex]
                     if (mode.inOrder) repeat(callIndex + 1) { calls.removeFirst() }
@@ -191,15 +191,19 @@ public class Mocker {
         val mode = SpecialMode.VERIFICATION(exhaustive, inOrder, references)
         specialMode = mode
         try {
-            mode.builder.block()
-            if (exhaustive && calls.isNotEmpty()) {
-                val call = calls.first()
-                throw MockerVerificationAssertionError { "Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}" }
-            } else {
-                calls.clear()
+            try {
+                mode.builder.block()
+                if (exhaustive && calls.isNotEmpty()) {
+                    val call = calls.first()
+                    throw MockerVerificationLazyAssertionError { "Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}" }
+                } else {
+                    calls.clear()
+                }
+            } finally {
+                specialMode = null
             }
-        } finally {
-            specialMode = null
+        } catch (e: MockerVerificationLazyAssertionError) {
+            throw MockerVerificationAssertionError(e.lazyMessage)
         }
     }
 

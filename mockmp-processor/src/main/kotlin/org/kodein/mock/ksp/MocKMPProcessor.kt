@@ -70,7 +70,6 @@ public class MocKMPProcessor(
         val references = HashSet<KSNode>()
     }
 
-    @OptIn(KotlinPoetKspPreview::class)
     private fun privateProcess(resolver: Resolver): List<KSAnnotated> {
         val toInject = HashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
         val toMock = HashMap<KSClassDeclaration, ToProcess>()

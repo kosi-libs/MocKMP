@@ -4,7 +4,6 @@ import com.google.devtools.ksp.getConstructors
 import com.google.devtools.ksp.isPublic
 import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
-import com.squareup.kotlinpoet.ksp.KotlinPoetKspPreview
 import com.squareup.kotlinpoet.ksp.TypeParameterResolver
 import com.squareup.kotlinpoet.ksp.toTypeName
 import com.squareup.kotlinpoet.ksp.toTypeParameterResolver
@@ -15,7 +14,6 @@ internal fun String.withNonEmptyPrefix(p: String) = if (isEmpty()) "" else "$p$t
 internal fun KSClassDeclaration.firstPublicConstructor() = (sequenceOf(primaryConstructor) + getConstructors()).firstOrNull { it?.isPublic() ?: false }
 
 
-@KotlinPoetKspPreview
 internal fun KSTypeReference.toRealTypeName(typeParamResolver: TypeParameterResolver = TypeParameterResolver.EMPTY): TypeName {
 
     val type = resolve()
@@ -28,7 +26,6 @@ internal fun KSTypeReference.toRealTypeName(typeParamResolver: TypeParameterReso
     return toTypeName(typeParamResolver)
 }
 
-@KotlinPoetKspPreview
 internal fun KSType.toRealTypeName(typeParamResolver: TypeParameterResolver = TypeParameterResolver.EMPTY): TypeName {
 
     val decl = declaration
