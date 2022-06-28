@@ -53,7 +53,7 @@ public class Mocker {
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
                         ?: throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)} but call list was empty" }
-                    if (method != call.method || receiver !== receiver)
+                    if (method != call.method || receiver !== call.receiver)
                         throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}" }
                     if (constraints.size != call.arguments.size)
                         throw MockerVerificationLazyAssertionError { "Expected ${constraints.size} arguments to ${methodName(receiver, method)} but got ${call.arguments.size}" }
