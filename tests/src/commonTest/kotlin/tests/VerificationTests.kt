@@ -100,6 +100,32 @@ class VerificationTests {
     }
 
     @Test
+    fun testOrderedMultipleMocks() {
+        val foo1 = MockFoo<Bar>(mocker)
+        val foo2 = MockFoo<Bar>(mocker)
+        mocker.every { foo1.doInt(isAny()) } returns Unit
+        mocker.every { foo1.newString() } returns ""
+        mocker.every { foo2.doInt(isAny()) } returns Unit
+        mocker.every { foo2.newString() } returns ""
+
+        foo1.doInt(42)
+        foo2.doInt(42)
+        foo1.newString()
+        foo2.newString()
+
+        val ex = assertFailsWith<AssertionError> {
+            mocker.verify(inOrder = true) {
+                foo1.doInt(42)
+                foo2.doInt(42)
+                // Same method but different receiver order
+                foo2.newString()
+                foo1.newString()
+            }
+        }
+        assertEquals("Expected a call to MockFoo.newString(), but was a call to MockFoo.newString()", ex.message)
+    }
+
+    @Test
     fun testNonOrdered() {
         val foo = MockFoo<Bar>(mocker)
         mocker.every { foo.doInt(isAny()) } returns Unit
