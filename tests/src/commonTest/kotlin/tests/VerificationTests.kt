@@ -113,16 +113,19 @@ class VerificationTests {
         foo1.newString()
         foo2.newString()
 
+        var firstHalfPassed = false
         val ex = assertFailsWith<AssertionError> {
             mocker.verify(inOrder = true) {
                 foo1.doInt(42)
                 foo2.doInt(42)
+                firstHalfPassed = true
                 // Same method but different receiver order
                 foo2.newString()
                 foo1.newString()
             }
         }
-        assertEquals("Expected a call to MockFoo.newString(), but was a call to MockFoo.newString()", ex.message)
+        assertTrue(firstHalfPassed)
+        assertEquals("Got a call to MockFoo.newString(), but expected a different MockFoo receiver", ex.message)
     }
 
     @Test

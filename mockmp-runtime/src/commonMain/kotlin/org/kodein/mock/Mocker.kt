@@ -53,8 +53,14 @@ public class Mocker {
                 val call = if (mode.exhaustive && mode.inOrder) {
                     val call = calls.removeFirstOrNull()
                         ?: throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)} but call list was empty" }
-                    if (method != call.method || receiver !== call.receiver)
+                    if (method != call.method)
                         throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}" }
+                    if (receiver !== call.receiver) {
+                        if (receiver != null && call.receiver != null && receiver::class == call.receiver::class) {
+                            throw MockerVerificationLazyAssertionError { "Got a call to ${methodName(receiver, method)}, but expected a different ${receiver::class.simpleName} receiver" }
+                        }
+                        throw MockerVerificationLazyAssertionError { "Expected a call to ${methodName(receiver, method)}, but was a call to ${methodName(call.receiver, call.method)}" }
+                    }
                     if (constraints.size != call.arguments.size)
                         throw MockerVerificationLazyAssertionError { "Expected ${constraints.size} arguments to ${methodName(receiver, method)} but got ${call.arguments.size}" }
                     @Suppress("UNCHECKED_CAST")
