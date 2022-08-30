@@ -79,8 +79,7 @@ public class MocKMPProcessor(
             if (type.isFunctionType) return
             val decl = type.declaration
             if (decl !is KSClassDeclaration
-                || decl.classKind != ClassKind.INTERFACE
-                && !decl.modifiers.contains(Modifier.OPEN)
+                || (decl.classKind != ClassKind.INTERFACE && !decl.isOpen())
             ) error(node, "Cannot generate mock for non interface $decl (${decl.modifiers}: ${!decl.modifiers.contains(Modifier.OPEN)})")
             toMock.getOrPut(decl) { ToProcess() } .let {
                 it.files.addAll(files)
