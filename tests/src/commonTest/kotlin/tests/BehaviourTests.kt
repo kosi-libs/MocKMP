@@ -1,7 +1,6 @@
 package tests
 
-import foo.Bar
-import foo.Foo
+import foo.*
 import foo.MockBar
 import foo.MockFoo
 import org.kodein.mock.Mocker
@@ -9,7 +8,7 @@ import org.kodein.mock.UsesMocks
 import kotlin.test.*
 
 
-@UsesMocks(Foo::class, Bar::class)
+@UsesMocks(Foo::class, Bar::class, OpenClass::class)
 class BehaviourTests {
 
     val mocker = Mocker()
@@ -76,5 +75,14 @@ class BehaviourTests {
         assertNull(foo.newStringNullable())
 
         mocker.verify { assertNull(foo.newStringNullable()) }
+    }
+
+    @Test
+    fun testOpenClassAndFun() {
+        val openClass = MockOpenClass(mocker)
+
+        mocker.every { openClass.openFun() } returns "openFun replaced"
+
+        assertEquals("openFun replaced", openClass.openFun())
     }
 }
