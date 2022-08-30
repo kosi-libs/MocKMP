@@ -73,3 +73,9 @@ sealed interface SItf {
         override fun toString(): String = "O"
     }
 }
+
+open class OpenClass {
+    open fun openFun(): String {
+        return "openFun"
+    }
+}

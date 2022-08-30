@@ -78,7 +78,10 @@ public class MocKMPProcessor(
         fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode) {
             if (type.isFunctionType) return
             val decl = type.declaration
-            if (decl !is KSClassDeclaration || decl.classKind != ClassKind.INTERFACE) error(node, "Cannot generate mock for non interface $decl")
+            if (decl !is KSClassDeclaration
+                || decl.classKind != ClassKind.INTERFACE
+                && !decl.modifiers.contains(Modifier.OPEN)
+            ) error(node, "Cannot generate mock for non interface $decl (${decl.modifiers}: ${!decl.modifiers.contains(Modifier.OPEN)})")
             toMock.getOrPut(decl) { ToProcess() } .let {
                 it.files.addAll(files)
                 it.references.add(node)
@@ -172,19 +175,28 @@ public class MocKMPProcessor(
             val mockClassName = "Mock${vItf.simpleName.asString()}"
             val gFile = FileSpec.builder(vItf.packageName.asString(), mockClassName)
             val gCls = TypeSpec.classBuilder(mockClassName)
-                .addSuperinterface(
-                    if (vItf.typeParameters.isEmpty()) vItf.toClassName()
-                    else vItf.toClassName().parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
-                )
+                .run {
+                    val superType = if (vItf.typeParameters.isEmpty()) {
+                        vItf.toClassName()
+                    } else {
+                        vItf.toClassName()
+                            .parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
+                    }
+                    if (vItf.classKind == ClassKind.CLASS) {
+                        superclass(superType)
+                    } else {
+                        addSuperinterface(superType)
+                    }
+                }
                 .addModifiers(KModifier.INTERNAL)
             vItf.typeParameters.forEach { vParam ->
                 gCls.addTypeVariable(vParam.toTypeVariableName())
             }
             gCls.primaryConstructor(
-                    FunSpec.constructorBuilder()
-                        .addParameter("mocker", mockerTypeName)
-                        .build()
-                )
+                FunSpec.constructorBuilder()
+                    .addParameter("mocker", mockerTypeName)
+                    .build()
+            )
             val mocker = PropertySpec.builder("mocker", mockerTypeName)
                 .initializer("mocker")
                 .addModifiers(KModifier.PRIVATE)
@@ -217,7 +229,8 @@ public class MocKMPProcessor(
                     gCls.addProperty(gProp.build())
                 }
             vItf.getAllFunctions()
-                .filter { it.simpleName.asString() !in listOf("equals", "hashCode") }
+                .filter { it.simpleName.asString() !in listOf("equals", "hashCode", "<init>")
+                        && it.isOpen()}
                 .forEach { vFun ->
                     val gFun = FunSpec.builder(vFun.simpleName.asString())
                         .addModifiers(KModifier.OVERRIDE)
