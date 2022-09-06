@@ -4,6 +4,8 @@ plugins {
     id("com.github.gmazzo.buildconfig") version "3.0.3"
 }
 
+apply(from = "../maven-publishing-setup.kts")
+
 val kspVersion: String by rootProject.extra
 
 dependencies {

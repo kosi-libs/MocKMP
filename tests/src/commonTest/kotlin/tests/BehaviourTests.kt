@@ -3,11 +3,14 @@ package tests
 import foo.*
 import foo.MockBar
 import foo.MockFoo
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Mocker
 import org.kodein.mock.UsesMocks
 import kotlin.test.*
 
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @UsesMocks(Foo::class, Bar::class, OpenClass::class)
 class BehaviourTests {
 
@@ -78,10 +81,12 @@ class BehaviourTests {
     }
 
     @Test
-    fun testOpenClassAndFun() {
+    fun testOpenClassAndFun() = runTest {
         val openClass = MockOpenClass(mocker)
 
         mocker.every { openClass.openFun() } returns "openFun replaced"
+
+        mocker.everySuspending { openClass.openSuspendFun() } returns "openFun replaced"
 
         assertEquals("openFun replaced", openClass.openFun())
     }

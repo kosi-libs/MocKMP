@@ -1,6 +1,7 @@
 package foo
 
 import data.Data
+import data.Date
 import data.Direction
 
 
@@ -74,8 +75,17 @@ sealed interface SItf {
     }
 }
 
-open class OpenClass {
+
+open class OpenClass(
+    val foo: Foo<String>,
+    val bar: Bar,
+    val date: Date,
+) {
     open fun openFun(): String {
+        return "openFun"
+    }
+
+    open suspend fun openSuspendFun(): String {
         return "openFun"
     }
 }

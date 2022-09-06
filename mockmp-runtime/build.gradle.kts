@@ -2,6 +2,8 @@ plugins {
     id("org.kodein.library.mpp")
 }
 
+apply(from = "../maven-publishing-setup.kts")
+
 val kspVersion: String by extra
 
 kodein {

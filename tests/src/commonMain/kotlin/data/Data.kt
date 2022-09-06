@@ -2,6 +2,7 @@ package data
 
 import kotlinx.datetime.Instant
 
+expect class Date()
 data class SubData<T>(
     val data: T,
     val int: Int
@@ -23,6 +24,7 @@ data class Data(
     val dir1: SomeDirection,
     val dir2: SomeDirection,
     val special: Instant,
+    val special2: Date,
     val list: List<String>,
     val map: NamesMap<Int>
 )

@@ -45,6 +45,7 @@ class InjectionTests : TestsWithMocks() {
                 SomeDirection(Direction.LEFT),
                 SomeDirection(Direction.LEFT),
                 Instant.fromEpochSeconds(0),
+                Date(),
                 emptyList(),
                 emptyMap()
             ),

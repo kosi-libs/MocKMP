@@ -140,7 +140,7 @@ public class MocKMPProcessor(
                 if (it !is KSFunctionDeclaration || it.parent !is KSFile) error(it, "Only top-level functions can be annotated with @FakeProvider")
                 val type = it.returnType!!.resolve()
                 val typeDeclaration = type.declaration
-                if (typeDeclaration !is KSClassDeclaration) error(it, "@FakeProvider functions must return class types.")
+                if (typeDeclaration !is KSClassDeclaration && typeDeclaration !is KSTypeAlias) error(it, "@FakeProvider functions must return class types.")
                 if (type in provided) error(it, "Only one @FakeProvider function must exist for this type (other is ${provided[type]!!.asString()}).")
                 toFake.remove(type)
                 provided[type] = it
@@ -182,6 +182,39 @@ public class MocKMPProcessor(
                             .parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
                     }
                     if (vItf.classKind == ClassKind.CLASS) {
+                        vItf.primaryConstructor?.parameters?.forEach {
+                            var typeQualified: String
+                            it.type.toRealTypeName().also { parameterTypeName ->
+                                val matchingFake =
+                                    providedFakes.firstNotNullOfOrNull { entry ->
+                                        if (parameterTypeName == entry.key.toRealTypeName()) entry.value else null
+                                    }
+
+                                if (matchingFake != null) {
+                                    val functionNameQualified =
+                                        MemberName(matchingFake.packageName.asString(), matchingFake.simpleName.asString())
+                                    addSuperclassConstructorParameter("""
+                                $functionNameQualified() /*${it.type.toRealTypeName()}*/
+                            """.trimIndent())
+                                } else {
+                                    val split =
+                                        parameterTypeName.qualified().split(".").toMutableList()
+                                    val last = split.removeLast()
+                                    typeQualified =
+                                        split.joinToString(".") + "." + "Mock" + last
+
+                                    val mockType = if (parameterTypeName is ParameterizedTypeName) {
+                                        ClassName.bestGuess(typeQualified)
+                                            .parameterizedBy(parameterTypeName.typeArguments)
+                                    } else {
+                                        ClassName.bestGuess(typeQualified)
+                                    }
+                                    addSuperclassConstructorParameter("""
+                                $mockType(mocker) /*${it.type.toRealTypeName()}*/
+                            """.trimIndent())
+                                }
+                            }
+                        }
                         superclass(superType)
                     } else {
                         addSuperinterface(superType)
@@ -243,12 +276,19 @@ public class MocKMPProcessor(
                         gFun.addAnnotation(it.toAnnotationSpec())
                     }
                     vFun.parameters.forEach { vParam ->
-                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toRealTypeName(typeParamResolver))
+                        val modifiers = mutableListOf<KModifier>().apply {
+                            if (vParam.isVararg) add(KModifier.VARARG)
+                        }
+                        gFun.addParameter(
+                            vParam.name!!.asString(),
+                            vParam.type.toRealTypeName(typeParamResolver),
+                            modifiers
+                        )
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString { it.name!!.asString() }
                     val register = if (Modifier.SUSPEND in vFun.modifiers) "registerSuspend" else "register"
-                    val default = if (vFun.isAbstract) "" else "default = { super.${vFun.simpleName.asString()}($paramsCall) }"
+                    val default = if (vFun.isAbstract || vFun.modifiers.contains(Modifier.SUSPEND)) "" else "default = { super.${vFun.simpleName.asString()}($paramsCall) }"
                     gFun.addStatement(
                         "return this.%N.$register(this, %S${paramsCall.withNonEmptyPrefix(", ")}${default.withNonEmptyPrefix(", ")})",
                         mocker,

@@ -2,6 +2,8 @@ plugins {
     id("org.kodein.library.jvm")
 }
 
+apply(from = "../maven-publishing-setup.kts")
+
 val kspVersion: String by rootProject.extra
 
 dependencies {
