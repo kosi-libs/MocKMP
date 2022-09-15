@@ -27,8 +27,20 @@ public class MocKMPProcessor(
             "kotlin.Double" to ("%L" to "0.0"),
             "kotlin.String" to ("%L" to "\"\""),
             "kotlin.collections.List" to ("%M()" to MemberName("kotlin.collections", "emptyList")),
+            "kotlin.collections.ArrayList" to ("%M()" to MemberName("kotlin.collections", "ArrayList")),
+            "java.util.ArrayList" to ("%M()" to MemberName("kotlin.collections", "ArrayList")),
+            "kotlin.collections.ArrayDeque" to ("%M()" to MemberName("kotlin.collections", "ArrayDeque")),
             "kotlin.collections.Set" to ("%M()" to MemberName("kotlin.collections", "emptySet")),
+            "kotlin.collections.HashSet" to ("%M()" to MemberName("kotlin.collections", "HashSet")),
+            "java.util.HashSet" to ("%M()" to MemberName("kotlin.collections", "HashSet")),
+            "kotlin.collections.LinkedHashSet" to ("%M()" to MemberName("kotlin.collections", "LinkedHashSet")),
+            "java.util.LinkedHashSet" to ("%M()" to MemberName("kotlin.collections", "LinkedHashSet")),
             "kotlin.collections.Map" to ("%M()" to MemberName("kotlin.collections", "emptyMap")),
+            "kotlin.collections.HashMap" to ("%M()" to MemberName("kotlin.collections", "HashMap")),
+            "java.util.HashMap" to ("%M()" to MemberName("kotlin.collections", "HashMap")),
+            "kotlin.collections.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
+            "java.util.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
+            "kotlin.Array" to ("%M()" to MemberName("kotlin", "emptyArray"))
         )
     }
 
@@ -56,7 +68,6 @@ public class MocKMPProcessor(
         else -> (parent?.let { it.asString() + "." } ?: "") + toString()
     }
 
-    @Suppress("NOTHING_TO_INLINE")
     private fun error(node: KSNode, message: String): Nothing {
         val prefix = when (val loc = node.location) {
             is FileLocation -> "$node (${loc.filePath}:${loc.lineNumber})"
@@ -256,7 +267,10 @@ public class MocKMPProcessor(
             val vCls = vType.realDeclaration() as KSClassDeclaration
             val filesDeps = HashSet(process.files)
             val mockFunName = "fake${vType.toFunName()}"
-            val gFile = FileSpec.builder(vCls.packageName.asString(), mockFunName)
+            val mockPkg =
+                if (vCls.packageName.isKotlinStdlib()) "fake." + vCls.packageName.asString()
+                else vCls.packageName.asString()
+            val gFile = FileSpec.builder(mockPkg, mockFunName)
             val gFun = FunSpec.builder(mockFunName)
                 .addModifiers(KModifier.INTERNAL)
                 .returns(vType.toRealTypeName(vCls.typeParameters.toTypeParameterResolver()))
@@ -289,7 +303,12 @@ public class MocKMPProcessor(
                                         f.containingFile?.let { filesDeps += it }
                                         "%M()" to MemberName(f.packageName.asString(), f.simpleName.asString())
                                     }
-                                    else -> "%M()" to MemberName(vParamTypeToFakeDecl.packageName.asString(), "fake${vParamTypeToFake.toFunName()}")
+                                    else -> {
+                                        val pkg =
+                                            if (vParamTypeToFakeDecl.packageName.isKotlinStdlib()) "fake." + vParamTypeToFakeDecl.packageName.asString()
+                                            else vParamTypeToFakeDecl.packageName.asString()
+                                        "%M()" to MemberName(pkg, "fake${vParamTypeToFake.toFunName()}")
+                                    }
                                 }
                                 if (vParamType.isAnyFunctionType) {
                                     args.add("${vParam.name!!.asString()} = { ${"_, ".repeat(vParamType.arguments.size - 1)}-> $template }" to value)

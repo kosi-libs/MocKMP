@@ -24,7 +24,19 @@ data class Data(
     val dir2: SomeDirection,
     val special: Instant,
     val list: List<String>,
-    val map: NamesMap<Int>
+    val arrayList: ArrayList<String>,
+    val arrayDeque: ArrayDeque<String>,
+    val set: Set<String>,
+    val hashSet: HashSet<String>,
+    val linkedHashSet: LinkedHashSet<String>,
+    val map: NamesMap<Int>,
+    val hashMap: HashMap<String, Long>,
+    val linkedHashMap: LinkedHashMap<String, Long>,
+)
+
+class Arrays(
+    val bytes: ByteArray,
+    val strings: Array<String>
 )
 
 class Funs(

@@ -11,7 +11,11 @@ import com.squareup.kotlinpoet.ksp.toTypeParameterResolver
 
 internal fun String.withNonEmptyPrefix(p: String) = if (isEmpty()) "" else "$p$this"
 
-internal fun KSClassDeclaration.firstPublicConstructor() = (sequenceOf(primaryConstructor) + getConstructors()).firstOrNull { it?.isPublic() ?: false }
+internal fun KSClassDeclaration.firstPublicConstructor() = (sequenceOf(primaryConstructor) + getConstructors())
+    .filterNotNull()
+    .filter { it.isPublic() }
+    .sortedBy { it.parameters.size }
+    .firstOrNull()
 
 
 internal fun KSTypeReference.toRealTypeName(typeParamResolver: TypeParameterResolver = TypeParameterResolver.EMPTY): TypeName {
@@ -51,3 +55,5 @@ internal fun KSType.realDeclaration(): KSDeclaration {
         else -> decl
     }
 }
+
+internal fun KSName.isKotlinStdlib() = asString().let { it == "kotlin" || it.startsWith("kotlin.") }

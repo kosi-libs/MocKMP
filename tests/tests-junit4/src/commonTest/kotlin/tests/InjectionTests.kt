@@ -20,6 +20,9 @@ class InjectionTests : TestsWithMocks() {
     lateinit var data: Data
 
     @Fake
+    lateinit var arrays: Arrays
+
+    @Fake
     lateinit var funs: Funs
 
     @Mock
@@ -35,7 +38,7 @@ class InjectionTests : TestsWithMocks() {
     }
 
     @Test
-    fun testFake() {
+    fun testFakeData() {
         assertEquals(
             Data(
                 SubData("", 0),
@@ -46,10 +49,23 @@ class InjectionTests : TestsWithMocks() {
                 SomeDirection(Direction.LEFT),
                 Instant.fromEpochSeconds(0),
                 emptyList(),
-                emptyMap()
+                ArrayList(),
+                ArrayDeque(),
+                emptySet(),
+                HashSet(),
+                LinkedHashSet(),
+                emptyMap(),
+                HashMap(),
+                LinkedHashMap(),
             ),
             data
         )
+    }
+
+    @Test
+    fun testFakeArray() {
+        assertEquals(0, arrays.bytes.size)
+        assertEquals(0, arrays.strings.size)
     }
 
     @Test
