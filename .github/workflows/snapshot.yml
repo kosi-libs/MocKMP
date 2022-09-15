@@ -64,12 +64,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-Jvm
+        working-directory: tests-projects/tests-Jvm
       - name: Check plugin with Android (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-Android
+        working-directory: tests-projects/tests-Android
       - name: Upload (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace publishAllPublicationsToOssrhStagingRepository -PgitRef=${{ github.ref }} -Psnapshot=true

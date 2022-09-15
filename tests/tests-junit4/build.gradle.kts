@@ -11,9 +11,8 @@ kodein {
 
         common.test {
             dependencies {
-                implementation(kotlin("test"))
                 implementation(project(":mockmp-runtime"))
-                implementation(project(":mockmp-test-helper"))
+                implementation(project(":test-helper:mockmp-test-helper"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.3")
             }
             // Adding KSP JVM result to COMMON source set
@@ -30,9 +29,6 @@ kodein {
                     allWarningsAsErrors = true
                 }
             }
-        }
-        sourceSets.all {
-            languageSettings.optIn("kotlin.RequiresOptIn")
         }
     }
 }

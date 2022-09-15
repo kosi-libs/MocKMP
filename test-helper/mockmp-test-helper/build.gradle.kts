@@ -11,7 +11,6 @@ kodein {
         add(kodeinTargets.jvm.jvm) {
             main.dependencies {
                 implementation(kotlin("test-junit"))
-                implementation("junit:junit:4.13.2")
             }
         }
         add(kodeinTargets.native.all)

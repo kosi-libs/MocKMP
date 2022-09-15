@@ -44,8 +44,8 @@ jobs:
       - name: Check plugin with JVM
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-Jvm
+        working-directory: tests-projects/tests-Jvm
       - name: Check plugin with Android
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-Android
+        working-directory: tests-projects/tests-Android

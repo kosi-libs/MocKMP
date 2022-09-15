@@ -4,7 +4,7 @@ buildscript {
         maven(url = "https://raw.githubusercontent.com/kosi-libs/kodein-internal-gradle-plugin/mvn-repo")
     }
     dependencies {
-        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:6.18.0")
+        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:6.20.1")
     }
 }
 
@@ -15,7 +15,9 @@ rootProject.name = "MocKMP"
 include(
     ":mockmp-runtime",
     ":mockmp-processor",
-    ":mockmp-test-helper",
+    ":test-helper:mockmp-test-helper",
+    ":test-helper:mockmp-test-helper-junit5",
     ":mockmp-gradle-plugin",
-    ":tests",
+    ":tests:tests-junit4",
+    ":tests:tests-junit5",
 )

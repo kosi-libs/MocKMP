@@ -10,12 +10,6 @@ dependencies {
     implementation(project(":mockmp-runtime"))
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn"
-    }
-}
-
 kodeinUpload {
     name = "mockmp-processor"
     description = "MocKMP KSP processor"
