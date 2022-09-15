@@ -14,6 +14,7 @@ kodein {
                 implementation(project(":mockmp-runtime"))
                 implementation(project(":test-helper:mockmp-test-helper"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.3")
+                implementation(kotlin("test-junit"))
             }
             // Adding KSP JVM result to COMMON source set
             kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin")

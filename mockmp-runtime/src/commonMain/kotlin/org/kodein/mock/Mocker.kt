@@ -103,7 +103,7 @@ public class Mocker {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private inline fun <E, R> registerImpl(isSuspend: Boolean, regs: RegistrationMap<E>, run: E.(Array<*>) -> Any?, receiver: Any?, method: String, args: Array<*>, @Suppress("UNUSED_PARAMETER") noinline default: (() -> R)?): R {
+    private inline fun <E, R> registerImpl(isSuspend: Boolean, regs: RegistrationMap<E>, run: E.(Array<*>) -> Any?, receiver: Any?, method: String, args: Array<*>, hasDefault: Boolean, default: () -> R): R {
         when (val result = process<E, R>(isSuspend, receiver, method, args, regs)) {
             is ProcessResult.Value<R> -> return result.value
             is ProcessResult.FromRegistration -> {
@@ -121,7 +121,7 @@ public class Mocker {
                         calls.addLast(Call(receiver, method, args, ret))
                         ret.getOrThrow() as R
                     }
-                    default != null -> default()
+                    hasDefault -> default()
                     else -> {
                         if (list != null) {
                             throw MockingException(
@@ -138,10 +138,10 @@ public class Mocker {
     }
 
     public fun <R> register(receiver: Any?, method: String, vararg args: Any?, default: (() -> R)? = null): R =
-        registerImpl(false, regFuns, { mocked(it) }, receiver, method, args, default)
+        registerImpl(false, regFuns, { mocked(it) }, receiver, method, args, default != null, { default!!() })
 
-    public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?, default: (() -> R)? = null): R =
-        registerImpl(true, regSuspendFuns, { mocked(it) }, receiver, method, args, default)
+    public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?, default: (suspend () -> R)? = null): R =
+        registerImpl(true, regSuspendFuns, { mocked(it) }, receiver, method, args, default != null, { default!!() })
 
     public inner class Every<T> internal constructor(receiver: Any?, method: String) {
         internal var mocked: (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }

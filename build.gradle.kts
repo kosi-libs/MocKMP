@@ -7,5 +7,5 @@ val kspVersion by extra { "1.7.10-1.0.6" }
 
 allprojects {
     group = "org.kodein.mock"
-    version = "1.10.0"
+    version = "1.9.0"
 }
