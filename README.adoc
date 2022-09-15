@@ -123,6 +123,45 @@ everyApiGetUserById42 returns null
 ----
 
 
+==== Mocking properties
+
+You can mock property getters & setters much like regular methods:
+
+[source,kotlin]
+----
+@UsesMocks(User::class)
+class MyTests {
+    @Test fun myUnitTest() {
+        val mocker = Mocker()
+        val user = MockUser(mocker)
+
+        // Mocking a val property:
+        mocker.every { user.id } returns 1
+
+        // Mocking a var property:
+        mocker.every { user.name = isAny() } returns Unit //<1>
+        mocker.every { user.name } returns "John Doe"
+    }
+}
+----
+<1> A setter always returns `Unit`.
+
+A var (read & write) property can be "backed" by the mocker:
+
+[source,kotlin]
+----
+@UsesMocks(User::class)
+class MyTests {
+    @Test fun myUnitTest() {
+        val mocker = Mocker()
+        val user = MockUser(mocker)
+
+        mocker.backProperty(user, User::rwString, default = "")
+    }
+}
+----
+
+
 ==== Defining suspending behaviour
 
 You can define the behaviour of a suspending function with `everySuspending`:

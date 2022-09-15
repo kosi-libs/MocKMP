@@ -32,8 +32,6 @@ kodein {
                 }
             }
             test.dependencies {
-//                implementation("org.junit.jupiter:junit-jupiter-api:5.9.0")
-//                implementation("org.junit.jupiter:junit-jupiter-engine:5.9.0")
                 implementation(kotlin("test-junit5"))
             }
         }

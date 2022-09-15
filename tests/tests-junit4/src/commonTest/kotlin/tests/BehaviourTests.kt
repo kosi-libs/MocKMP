@@ -20,7 +20,7 @@ class BehaviourTests {
     }
 
     @Test
-    fun lambdaCaptureAtDefinition() {
+    fun testLambdaCaptureAtDefinition() {
         val bar = MockBar(mocker)
         val captures = ArrayList<(String) -> Int>()
         mocker.every { bar.callback(isAny(captures)) } returns Unit
@@ -34,7 +34,7 @@ class BehaviourTests {
     }
 
     @Test
-    fun lambdaCaptureAtVerification() {
+    fun testLambdaCaptureAtVerification() {
         val bar = MockBar(mocker)
         mocker.every { bar.callback(isAny()) } returns Unit
 
@@ -50,7 +50,7 @@ class BehaviourTests {
     }
 
     @Test
-    fun changeBehaviour() {
+    fun testChangeBehaviour() {
         val foo = MockFoo<Bar>(mocker)
         val onNewInt = mocker.every { foo.newInt() }
         onNewInt returns 21
@@ -60,7 +60,7 @@ class BehaviourTests {
     }
 
     @Test
-    fun throws() {
+    fun testThrows() {
         val bar = MockBar(mocker)
         mocker.every { bar.doNothing() } runs { error("This is a test!") }
 
@@ -69,7 +69,7 @@ class BehaviourTests {
     }
 
     @Test
-    fun returnsNull() {
+    fun testReturnsNull() {
         val foo = MockFoo<Bar>(mocker)
         mocker.every { foo.newStringNullable() } returns null
 
@@ -77,4 +77,16 @@ class BehaviourTests {
 
         mocker.verify { assertNull(foo.newStringNullable()) }
     }
+
+    @Test
+    fun testProperty() {
+        val foo = MockFoo<Bar>(mocker)
+
+        mocker.backProperty(foo, Foo<Bar>::rwString, "")
+
+        assertEquals("", foo.rwString)
+        foo.rwString = "Test!"
+        assertEquals("Test!", foo.rwString)
+    }
+
 }

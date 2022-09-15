@@ -1,5 +1,10 @@
 package org.kodein.mock
 
+import kotlin.reflect.KMutableProperty
+import kotlin.reflect.KMutableProperty0
+import kotlin.reflect.KMutableProperty1
+import kotlin.reflect.KProperty
+
 
 private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, E>>>
 
@@ -187,6 +192,15 @@ public class Mocker {
 
     public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T): EverySuspend<T> =
         everyImpl(true, ::EverySuspend, regSuspendFuns) { block() }
+
+    public fun <R, T> backProperty(receiver: R, property: KMutableProperty1<R, T>, default: T) {
+        var value = default
+        every { register<Unit>(receiver, "set:${property.name}", isAny()) } runs {
+            @Suppress("UNCHECKED_CAST")
+            value = it[0] as T
+        }
+        every { register<T>(receiver, "get:${property.name}") } runs { value }
+    }
 
     @Deprecated("Renamed every", ReplaceWith("every(block)"), level = DeprecationLevel.ERROR)
     public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)

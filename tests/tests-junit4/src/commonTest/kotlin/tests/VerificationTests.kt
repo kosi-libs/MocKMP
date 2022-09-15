@@ -502,4 +502,35 @@ class VerificationTests {
         }
         assertEquals("Expected IllegalArgumentException exception to be thrown, but was IllegalStateException", ex.message)
     }
+
+    @Test
+    fun testPropertyVerification() {
+        val foo = MockFoo<Bar>(mocker)
+
+        mocker.backProperty(foo, Foo<Bar>::rwString, "")
+
+        assertEquals("", foo.rwString)
+        foo.rwString = "Test!"
+        assertEquals("Test!", foo.rwString)
+
+        mocker.verify {
+            foo.rwString
+            foo.rwString = "Test!"
+            foo.rwString
+        }
+    }
+
+    @Test
+    fun testPropertyWrong() {
+        val foo = MockFoo<Bar>(mocker)
+
+        mocker.backProperty(foo, Foo<Bar>::rwString, "")
+
+        foo.rwString = "Test!"
+
+        mocker.verify {
+            assertFailsWith<MockerVerificationAssertionError> { foo.rwString = "Ouch!" }
+        }
+    }
+
 }
