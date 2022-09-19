@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library") version "7.3.0-beta01"
-    kotlin("multiplatform") version "1.7.0"
+    kotlin("multiplatform") version "1.7.20-RC"
     id("org.kodein.mock.mockmp")
 }
 
