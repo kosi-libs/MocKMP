@@ -2,8 +2,8 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.6.0
-:ksp-version: 1.6.21-1.0.5
+:version: 1.10.0
+:ksp-version: 1.7.20-1.0.6
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
