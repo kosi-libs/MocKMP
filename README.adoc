@@ -725,3 +725,24 @@ tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
 <3> Use KSP generated JVM sources on all targets.
 <4> Apply the processor only on the JVM target.
 <5> Make compilation of all targets dependant on the JVM KSP processor.
+
+
+=== Generated classes & functions visibility
+
+By default, every generated class or function is *`internal`*.
+
+If you wish to have it *`public`* (because you need to share it accross modules), then you can configure the processor to generate public classes & functions:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+// When using the MocKMP plugin:
+mockmp {
+    public = true
+}
+
+// When using KSP directly:
+ksp {
+    arg("org.kodein.mock.visibility", "public")
+}
+----

@@ -11,7 +11,8 @@ import com.squareup.kotlinpoet.ksp.*
 public class MocKMPProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
-    private val throwErrors: Boolean
+    private val throwErrors: Boolean,
+    public: Boolean
 ) : SymbolProcessor {
 
     private companion object {
@@ -45,6 +46,8 @@ public class MocKMPProcessor(
     }
 
     private val KSType.isAnyFunctionType get() = isFunctionType || isSuspendFunctionType
+
+    private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
     private class Error(message: String, val node: KSNode) : Exception(message)
 
@@ -187,7 +190,7 @@ public class MocKMPProcessor(
                     if (vItf.typeParameters.isEmpty()) vItf.toClassName()
                     else vItf.toClassName().parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
                 )
-                .addModifiers(KModifier.INTERNAL)
+                .addModifiers(visibilityModifier)
             vItf.typeParameters.forEach { vParam ->
                 gCls.addTypeVariable(vParam.toTypeVariableName())
             }
@@ -272,7 +275,7 @@ public class MocKMPProcessor(
                 else vCls.packageName.asString()
             val gFile = FileSpec.builder(mockPkg, mockFunName)
             val gFun = FunSpec.builder(mockFunName)
-                .addModifiers(KModifier.INTERNAL)
+                .addModifiers(visibilityModifier)
                 .returns(vType.toRealTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when (vCls.classKind) {
                 ClassKind.CLASS -> {
@@ -336,7 +339,7 @@ public class MocKMPProcessor(
 
             val gFile = FileSpec.builder(vCls.packageName.asString(), "${vCls.simpleName.asString()}_injectMocks")
             val gFun = FunSpec.builder("injectMocks")
-                .addModifiers(KModifier.INTERNAL)
+                .addModifiers(visibilityModifier)
                 .receiver(vCls.toClassName())
                 .addParameter("mocker", mockerTypeName)
             vProps.forEach { (anno, vProp) ->

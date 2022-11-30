@@ -10,6 +10,7 @@ public class MocKMPProcessorProvider : SymbolProcessorProvider {
         MocKMPProcessor(
             environment.codeGenerator,
             environment.logger,
-            environment.options["org.kodein.mock.errors"] == "throw"
+            environment.options["org.kodein.mock.errors"] == "throw",
+            environment.options["org.kodein.mock.visibility"] == "public"
         )
 }

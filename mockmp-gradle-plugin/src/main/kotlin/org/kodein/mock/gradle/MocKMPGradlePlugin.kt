@@ -19,7 +19,11 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmAndroidCompilation
 // Common Google, having KSP work in multiplatform correctly must be very important!
 class MocKMPGradlePlugin : Plugin<Project> {
 
-    class Extension(var usesHelper: Boolean = false, val throwErrors: Boolean = false)
+    class Extension(
+        var usesHelper: Boolean = false,
+        var throwErrors: Boolean = false,
+        var public: Boolean = false
+    )
 
     override fun apply(target: Project) {
         target.plugins.apply("com.google.devtools.ksp")
@@ -58,8 +62,12 @@ class MocKMPGradlePlugin : Plugin<Project> {
                         if (ext.usesHelper) {
                             implementation("org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}")
                         }
+                        val ksp = target.extensions.getByName<com.google.devtools.ksp.gradle.KspExtension>("ksp")
                         if (ext.throwErrors) {
-                            target.extensions.getByName<com.google.devtools.ksp.gradle.KspExtension>("ksp").arg("org.kodein.mock.errors", "throw")
+                            ksp.arg("org.kodein.mock.errors", "throw")
+                        }
+                        if (ext.public) {
+                            ksp.arg("org.kodein.mock.visibility", "public")
                         }
                     }
                 }
