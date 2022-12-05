@@ -2,8 +2,8 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.10.0
-:ksp-version: 1.7.20-1.0.6
+:version: 1.11.0
+:ksp-version: 1.7.22-1.0.8
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
@@ -731,7 +731,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
 
 By default, every generated class or function is *`internal`*.
 
-If you wish to have it *`public`* (because you need to share it accross modules), then you can configure the processor to generate public classes & functions:
+If you wish to have it *`public`* (because you need to share it across modules), then you can configure the processor to generate public classes & functions:
 
 [source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts
