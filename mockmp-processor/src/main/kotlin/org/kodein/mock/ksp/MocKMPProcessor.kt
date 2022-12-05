@@ -100,13 +100,13 @@ public class MocKMPProcessor(
         }
 
         fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode) {
-            val decl = type.realDeclaration()
+            val decl = type.declaration
 
-            if (
-                decl !is KSClassDeclaration || decl.isAbstract() ||
-                decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS)
-            ) {
-                error(node, "Cannot generate fake for non concrete class ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
+            if (decl !is KSClassDeclaration) {
+                error(node, "Cannot generate fake for ${decl.javaClass.simpleName} ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
+            }
+            if (decl.isAbstract() || decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS)) {
+                error(node, "Cannot generate fake for ${if (decl.isAbstract()) "abstract " else ""}${decl.classKind.type} ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
             }
             toFake.getOrPut(type) { ToProcess() } .let {
                 it.files.addAll(files)
@@ -164,7 +164,7 @@ public class MocKMPProcessor(
             val toExplore = ArrayDeque(toFake.map { it.toPair() })
             while (toExplore.isNotEmpty()) {
                 val (type, process) = toExplore.removeFirst()
-                val cls = type.realDeclaration() as KSClassDeclaration
+                val cls = type.declaration as KSClassDeclaration
                 cls.firstPublicConstructor()?.parameters?.forEach { param ->
                     if (!param.hasDefault) {
                         val paramTypeRef = param.type
@@ -207,8 +207,8 @@ public class MocKMPProcessor(
             vItf.getAllProperties()
                 .filter { it.isAbstract() }
                 .forEach { vProp ->
-                    val typeParamResolver = vItf.typeParameters.toTypeParameterResolver()
-                    val gPropType = vProp.type.toRealTypeName(typeParamResolver)
+                    val typeParamResolver = vProp.typeParameters.toTypeParameterResolver(vItf.typeParameters.toTypeParameterResolver())
+                    val gPropType = vProp.type.toTypeName(typeParamResolver)
                     val gProp = PropertySpec.builder(vProp.simpleName.asString(), gPropType)
                         .addModifiers(KModifier.OVERRIDE)
                         .getter(
@@ -240,12 +240,12 @@ public class MocKMPProcessor(
                         gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver))
                     }
                     gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
-                    gFun.returns(vFun.returnType!!.toRealTypeName(typeParamResolver))
+                    gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
                     vFun.annotations.forEach {
                         gFun.addAnnotation(it.toAnnotationSpec())
                     }
                     vFun.parameters.forEach { vParam ->
-                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toRealTypeName(typeParamResolver))
+                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))
                     }
                     val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString { it.name!!.asString() }
@@ -267,7 +267,7 @@ public class MocKMPProcessor(
             else "${declaration.simpleName.asString()}X${arguments.joinToString("_") { it.type!!.resolve().toFunName() } }X"
 
         toFake.forEach { (vType, process) ->
-            val vCls = vType.realDeclaration() as KSClassDeclaration
+            val vCls = vType.declaration as KSClassDeclaration
             val filesDeps = HashSet(process.files)
             val mockFunName = "fake${vType.toFunName()}"
             val mockPkg =
@@ -276,7 +276,7 @@ public class MocKMPProcessor(
             val gFile = FileSpec.builder(mockPkg, mockFunName)
             val gFun = FunSpec.builder(mockFunName)
                 .addModifiers(visibilityModifier)
-                .returns(vType.toRealTypeName(vCls.typeParameters.toTypeParameterResolver()))
+                .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when (vCls.classKind) {
                 ClassKind.CLASS -> {
                     val vCstr = vCls.firstPublicConstructor()

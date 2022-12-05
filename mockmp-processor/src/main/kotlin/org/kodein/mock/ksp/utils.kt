@@ -30,30 +30,11 @@ internal fun KSTypeReference.toRealTypeName(typeParamResolver: TypeParameterReso
     return toTypeName(typeParamResolver)
 }
 
-internal fun KSType.toRealTypeName(typeParamResolver: TypeParameterResolver = TypeParameterResolver.EMPTY): TypeName {
-
-    val decl = declaration
-
-    if (decl is KSTypeAlias) {
-        return decl.type.toRealTypeName(decl.typeParameters.toTypeParameterResolver(typeParamResolver))
-    }
-
-    return toTypeName(typeParamResolver)
-}
-
 internal fun TypeName.qualified(): String =
     when (this) {
         is ClassName -> canonicalName
         is ParameterizedTypeName -> rawType.canonicalName
         else -> error("Unsupported type: $this")
     }
-
-internal fun KSType.realDeclaration(): KSDeclaration {
-    val decl = declaration
-    return when (decl) {
-        is KSTypeAlias -> decl.type.resolve().realDeclaration()
-        else -> decl
-    }
-}
 
 internal fun KSName.isKotlinStdlib() = asString().let { it == "kotlin" || it.startsWith("kotlin.") }
