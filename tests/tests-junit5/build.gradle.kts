@@ -36,7 +36,7 @@ kodein {
             }
         }
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
-        add(kodeinTargets.js.js)
+        add(kodeinTargets.js.ir.js)
 
         val copySrc by tasks.creating(Sync::class) {
             from("$projectDir/../tests-junit4/src")

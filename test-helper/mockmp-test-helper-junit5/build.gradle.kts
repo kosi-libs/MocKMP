@@ -17,7 +17,7 @@ kodein {
             }
         }
         add(kodeinTargets.native.all)
-        add(kodeinTargets.js.js)
+        add(kodeinTargets.js.ir.js)
 
         val copySrc by tasks.creating(Sync::class) {
             from("$projectDir/../mockmp-test-helper/src")

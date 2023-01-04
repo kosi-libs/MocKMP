@@ -14,7 +14,7 @@ kodein {
             }
         }
         add(kodeinTargets.native.all)
-        add(kodeinTargets.js.js)
+        add(kodeinTargets.js.ir.js)
     }
 }
 

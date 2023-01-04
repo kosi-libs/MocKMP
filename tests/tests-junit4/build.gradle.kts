@@ -22,7 +22,7 @@ kodein {
 
         add(kodeinTargets.jvm.jvm)
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
-        add(kodeinTargets.js.js)
+        add(kodeinTargets.js.ir.js)
 
         targets.all {
             compilations.all {
