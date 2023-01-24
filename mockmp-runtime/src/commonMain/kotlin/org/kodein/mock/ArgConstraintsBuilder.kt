@@ -1,6 +1,7 @@
 package org.kodein.mock
 
 import kotlin.reflect.KClass
+import kotlin.reflect.typeOf
 
 
 public open class ArgConstraintsBuilder internal constructor(private val references: References) {

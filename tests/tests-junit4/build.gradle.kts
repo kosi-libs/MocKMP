@@ -1,6 +1,6 @@
 plugins {
     id("org.kodein.mpp")
-    id("com.google.devtools.ksp")
+    alias(libs.plugins.ksp)
 }
 
 kodein {
@@ -22,7 +22,7 @@ kodein {
 
         add(kodeinTargets.jvm.jvm)
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
-        add(kodeinTargets.js.ir.js)
+        add(kodeinTargets.js.js)
 
         targets.all {
             compilations.all {

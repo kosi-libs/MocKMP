@@ -1,8 +1,6 @@
-import com.android.build.gradle.internal.tasks.factory.dependsOn
-
 plugins {
     id("org.kodein.mpp")
-    id("com.google.devtools.ksp")
+    alias(libs.plugins.ksp)
 }
 
 kodein {
@@ -36,7 +34,7 @@ kodein {
             }
         }
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
-        add(kodeinTargets.js.ir.js)
+        add(kodeinTargets.js.js)
 
         val copySrc by tasks.creating(Sync::class) {
             from("$projectDir/../tests-junit4/src")

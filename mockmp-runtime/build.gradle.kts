@@ -2,18 +2,16 @@ plugins {
     id("org.kodein.library.mpp")
 }
 
-val kspVersion: String by extra
-
 kodein {
     kotlin {
         add(kodeinTargets.jvm.jvm) {
             main.dependencies {
-                implementation("org.objenesis:objenesis:3.2")
-                implementation("org.javassist:javassist:3.28.0-GA")
+                implementation(libs.objenesis)
+                implementation(libs.javassist)
             }
         }
         add(kodeinTargets.native.all)
-        add(kodeinTargets.js.ir.js)
+        add(kodeinTargets.js.js)
     }
 }
 

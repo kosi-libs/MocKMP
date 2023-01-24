@@ -5,16 +5,16 @@ plugins {
 kodein {
     kotlin {
         common.main.dependencies {
-            api(project(":mockmp-runtime"))
-            implementation(kotlin("test"))
+            api(projects.mockmpRuntime)
+            implementation(kodeinGlobals.kotlin.test)
         }
         add(kodeinTargets.jvm.jvm) {
             main.dependencies {
-                implementation(kotlin("test-junit"))
+                implementation(kodeinGlobals.kotlin.test.junit)
             }
         }
         add(kodeinTargets.native.all)
-        add(kodeinTargets.js.ir.js)
+        add(kodeinTargets.js.js)
     }
 }
 
