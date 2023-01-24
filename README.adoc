@@ -2,7 +2,7 @@
 :toc: preamble
 :toclevels: 3
 :icons: font
-:version: 1.11.0
+:version: 1.12.0
 :ksp-version: 1.7.22-1.0.8
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
@@ -671,6 +671,18 @@ The plugin takes care of:
 ** Using Android if the Android plugin is applied
 ** Using the JVM otherwise
 
+[WARNING]
+====
+If you are not using the same Kotlin version than the plugin, then you'll need to manually apply the KSP plugin *before* applying MocKMP:
+
+[source,kotlin]
+----
+plugins {
+    id("com.google.devtools.ksp") version "1.7.22-1.0.8"
+    id("org.kodein.mock.mockmp") version "{version}"
+}
+----
+====
 
 === With KSP and its incomplete multiplatform support
 
