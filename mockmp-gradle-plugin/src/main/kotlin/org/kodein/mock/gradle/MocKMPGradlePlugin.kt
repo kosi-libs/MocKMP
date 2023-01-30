@@ -14,18 +14,21 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 // Come on Google, having KSP work in multiplatform correctly must be very important!
 class MocKMPGradlePlugin : Plugin<Project> {
 
+    @Suppress("EnumEntryName")
+    enum class SourceSetTarget {
+        CommonMain,
+        CommonTest_Via_JVM
+    }
+
     @Suppress("PropertyName")
     class Extension(
         var usesHelper: Boolean = false,
         var throwErrors: Boolean = false,
         var public: Boolean = false,
-        var sourceSet: SourceSet = SourceSet.CommonTest_Via_JVM
+        var targetSourceSet: SourceSetTarget = SourceSetTarget.CommonTest_Via_JVM
     ) {
-        @Suppress("ClassName")
-        sealed class SourceSet {
-            object CommonMain : SourceSet()
-            object CommonTest_Via_JVM : SourceSet()
-        }
+        val CommonMain get() = SourceSetTarget.CommonMain
+        val CommonTest_Via_JVM get() = SourceSetTarget.CommonTest_Via_JVM
     }
 
     private val Project.kotlinExtension get() = project.extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
@@ -105,9 +108,9 @@ class MocKMPGradlePlugin : Plugin<Project> {
         target.extensions.add("mockmp", ext)
 
         target.afterEvaluate {
-            when (ext.sourceSet) {
-                Extension.SourceSet.CommonMain -> executeOnMain(target, ext)
-                Extension.SourceSet.CommonTest_Via_JVM -> executeOnTests(target, ext)
+            when (ext.targetSourceSet) {
+                SourceSetTarget.CommonMain -> executeOnMain(target, ext)
+                SourceSetTarget.CommonTest_Via_JVM -> executeOnTests(target, ext)
             }
 
         }

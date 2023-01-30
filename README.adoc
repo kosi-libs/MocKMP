@@ -684,6 +684,19 @@ plugins {
 ----
 ====
 
+==== Applying to main source sets
+
+In some cases, you may need to apply the processor to the common-main source-set instead of common-test.
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+mockmp {
+    targetSourceSet = CommonMain
+}
+----
+
+
 === With KSP and its incomplete multiplatform support
 
 KSP for multiplatform is in beta, and *https://github.com/google/ksp/issues/567[KSP for common tests is not supported]* (yet).
