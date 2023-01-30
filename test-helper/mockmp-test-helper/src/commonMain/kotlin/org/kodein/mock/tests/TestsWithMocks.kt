@@ -10,7 +10,7 @@ import kotlin.test.BeforeTest
 
 public abstract class TestsWithMocks {
 
-    public class Deferred<T>(private val create: () -> T) : ReadWriteProperty<Any, T> {
+    public class Deferred<T : Any>(private val create: () -> T) : ReadWriteProperty<Any, T> {
         private var value: T? = null
         internal fun init() {
             if (value == null) value = create()
@@ -20,7 +20,7 @@ public abstract class TestsWithMocks {
         }
         override fun getValue(thisRef: Any, property: KProperty<*>): T {
             init()
-            return value!!
+            return value ?: error("Null value")
         }
         override fun setValue(thisRef: Any, property: KProperty<*>, value: T) {
             this.value = value
@@ -39,7 +39,7 @@ public abstract class TestsWithMocks {
         defs.forEach { it.clear() }
     }
 
-    protected fun <T> withMocks(create: () -> T): Deferred<T> = Deferred(create)
+    protected fun <T : Any> withMocks(create: () -> T): Deferred<T> = Deferred(create)
 
     @BeforeTest
     public fun setUpMocksBeforeTest() {
