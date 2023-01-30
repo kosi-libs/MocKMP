@@ -1,29 +1,102 @@
 package org.kodein.mock.gradle
 
-import com.google.devtools.ksp.gradle.KspTask
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.kotlin.dsl.dependencies
-import org.gradle.kotlin.dsl.findByType
-import org.gradle.kotlin.dsl.getByName
-import org.gradle.kotlin.dsl.withType
+import org.gradle.kotlin.dsl.*
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
-import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
-import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinJvmAndroidCompilation
+import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 
 
 // The entire purpose of this Gradle plugin is to get around https://github.com/google/ksp/issues/567
 // This issue is scheduled to be fixed in KSP 1.1 (according to milestone defined in the issue).
-// Common Google, having KSP work in multiplatform correctly must be very important!
+// Come on Google, having KSP work in multiplatform correctly must be very important!
 class MocKMPGradlePlugin : Plugin<Project> {
 
+    @Suppress("PropertyName")
     class Extension(
         var usesHelper: Boolean = false,
         var throwErrors: Boolean = false,
-        var public: Boolean = false
-    )
+        var public: Boolean = false,
+        var sourceSet: SourceSet = SourceSet.CommonTest_Via_JVM
+    ) {
+        @Suppress("ClassName")
+        sealed class SourceSet {
+            object CommonMain : SourceSet()
+            object CommonTest_Via_JVM : SourceSet()
+        }
+    }
+
+    private val Project.kotlinExtension get() = project.extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
+
+    private fun addKSPDependency(project: Project, kspConfiguration: String) {
+        project.dependencies {
+            kspConfiguration("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
+        }
+    }
+
+    private fun addRuntimeDependencies(sourceSet: KotlinSourceSet, ext: Extension) {
+        sourceSet.dependencies {
+            implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
+            if (ext.usesHelper) {
+                implementation("org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}")
+            }
+        }
+    }
+
+    private fun configureKsp(project: Project, ext: Extension) {
+        val ksp = project.extensions.getByName<com.google.devtools.ksp.gradle.KspExtension>("ksp")
+        if (ext.throwErrors) {
+            ksp.arg("org.kodein.mock.errors", "throw")
+        }
+        if (ext.public) {
+            ksp.arg("org.kodein.mock.visibility", "public")
+        }
+    }
+
+    private fun executeOnTests(project: Project, ext: Extension) {
+        val kotlin = project.kotlinExtension
+
+        val jvmTarget = kotlin.targets.firstOrNull { it.preset?.name == "jvm" }
+            ?: kotlin.targets.firstOrNull { it.preset?.name == "android" }
+            ?: throw GradleException("Could not find JVM or Android target")
+
+        when (jvmTarget.preset!!.name) {
+            "jvm" -> addKSPDependency(project, "ksp${jvmTarget.name.capitalize()}Test")
+            "android" -> addKSPDependency(project, "ksp${jvmTarget.name.capitalize()}TestDebug")
+        }
+
+        project.afterEvaluate {
+            val commonTest = kotlin.sourceSets.getByName("commonTest")
+
+            addRuntimeDependencies(commonTest, ext)
+
+            // Adding KSP JVM result to COMMON source set
+            when (jvmTarget.preset!!.name) {
+                "jvm" -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
+                "android" -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
+            }
+
+            configureKsp(project, ext)
+
+            // Adding KSP JVM as a dependency to all Kotlin compilations
+            project.tasks.withType<KotlinCompile<*>>().all {
+                if (name.startsWith("compile") && name.contains("TestKotlin")) {
+                    when (jvmTarget.preset!!.name) {
+                        "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.capitalize()}")
+                        "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun executeOnMain(project: Project, ext: Extension) {
+        addKSPDependency(project, "kspCommonMainMetadata")
+        addRuntimeDependencies(project.kotlinExtension.sourceSets["commonMain"], ext)
+        configureKsp(project, ext)
+    }
 
     override fun apply(target: Project) {
         target.plugins.apply("com.google.devtools.ksp")
@@ -32,56 +105,11 @@ class MocKMPGradlePlugin : Plugin<Project> {
         target.extensions.add("mockmp", ext)
 
         target.afterEvaluate {
-            val kotlin = extensions.findByType<KotlinMultiplatformExtension>() ?: throw GradleException("Could not find Kotlin/Multiplatform plugin")
-
-            val jvmTarget = kotlin.targets.firstOrNull { it.preset?.name == "jvm" }
-                ?: kotlin.targets.firstOrNull { it.preset?.name == "android" }
-                ?: throw GradleException("Could not find JVM or Android target")
-
-            dependencies {
-                // Running KSP for JVM only
-                when (jvmTarget.preset!!.name) {
-                    "jvm" -> "ksp${jvmTarget.name.capitalize()}Test"("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
-                    "android" -> "ksp${jvmTarget.name.capitalize()}TestDebug"("org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}")
-                }
+            when (ext.sourceSet) {
+                Extension.SourceSet.CommonMain -> executeOnMain(target, ext)
+                Extension.SourceSet.CommonTest_Via_JVM -> executeOnTests(target, ext)
             }
 
-            afterEvaluate {
-                // Adding KSP JVM result to COMMON source set
-                kotlin.sourceSets.getByName("commonTest") {
-                    when (jvmTarget.preset!!.name) {
-                        "jvm" -> this.kotlin.srcDir("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
-                        "android" -> {
-                            println("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
-                            this.kotlin.srcDir("$buildDir/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
-                        }
-                    }
-
-                    dependencies {
-                        implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
-                        if (ext.usesHelper) {
-                            implementation("org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}")
-                        }
-                        val ksp = target.extensions.getByName<com.google.devtools.ksp.gradle.KspExtension>("ksp")
-                        if (ext.throwErrors) {
-                            ksp.arg("org.kodein.mock.errors", "throw")
-                        }
-                        if (ext.public) {
-                            ksp.arg("org.kodein.mock.visibility", "public")
-                        }
-                    }
-                }
-
-                // Adding KSP JVM as a dependency to all Kotlin compilations
-                tasks.withType<KotlinCompile<*>>().all {
-                    if (name.startsWith("compile") && name.contains("TestKotlin")) {
-                        when (jvmTarget.preset!!.name) {
-                            "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.capitalize()}")
-                            "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}")
-                        }
-                    }
-                }
-            }
         }
     }
 

@@ -1,14 +1,7 @@
 buildscript {
     repositories {
         mavenLocal()
-        maven(url = "https://maven.pkg.github.com/kosi-libs/kodein-internal-gradle-plugin") {
-            credentials {
-                username = extra["github.username"]?.toString()
-                    ?: error("Please set github.username in ~/.gradle/gradle.properties")
-                password = extra["github.personalAccessToken"]?.toString()
-                    ?: error("Please set github.personalAccessToken in ~/.gradle/gradle.properties")
-            }
-        }
+        maven(url = "https://raw.githubusercontent.com/kosi-libs/kodein-internal-gradle-plugin/mvn-repo")
     }
     dependencies {
         classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:7.0.0")

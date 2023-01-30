@@ -17,3 +17,27 @@ pluginManagement {
         }
     }
 }
+
+@Suppress("UnstableApiUsage")
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven(url = "https://raw.githubusercontent.com/kosi-libs/kodein-internal-gradle-plugin/mvn-repo")
+    }
+
+    versionCatalogs {
+        create("kodeinGlobals") {
+            val rx = Regex("classpath\\(\"org.kodein.internal.gradle:kodein-internal-gradle-settings:(.+)\"\\)")
+            val match = file("$rootDir/../../settings.gradle.kts").useLines { lines ->
+                lines.mapNotNull { rx.matchEntire(it.trim()) }.firstOrNull()
+            } ?: error("Could not find parent KIGP version")
+            val kigpVersion = match.groupValues[1]
+
+            from("org.kodein.internal.gradle:kodein-internal-gradle-version-catalog:$kigpVersion")
+        }
+        create("libs") {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}

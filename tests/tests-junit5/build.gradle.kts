@@ -8,16 +8,16 @@ kodein {
         common.main {
             kotlin.srcDir("$buildDir/src/commonMain/kotlin")
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.3.3")
+                implementation(libs.datetime)
             }
         }
 
         common.test {
             kotlin.srcDir("$buildDir/src/commonTest/kotlin")
             dependencies {
-                implementation(project(":mockmp-runtime"))
-                implementation(project(":test-helper:mockmp-test-helper-junit5"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.3")
+                implementation(projects.mockmpRuntime)
+                implementation(projects.testHelper.mockmpTestHelperJunit5)
+                implementation(libs.coroutines.test)
             }
             // Adding KSP JVM result to COMMON source set
             kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin")
@@ -30,7 +30,7 @@ kodein {
                 }
             }
             test.dependencies {
-                implementation(kotlin("test-junit5"))
+                implementation(kodeinGlobals.kotlin.test.junit5)
             }
         }
         add(kodeinTargets.native.allDarwin + kodeinTargets.native.allDesktop)
@@ -58,7 +58,7 @@ ksp {
 
 dependencies {
     // Running KSP for JVM only
-    "kspJvmTest"(project(":mockmp-processor"))
+    "kspJvmTest"(projects.mockmpProcessor)
 }
 
 // Adding KSP JVM as a dependency to all Kotlin compilations
