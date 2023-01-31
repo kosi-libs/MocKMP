@@ -3,10 +3,12 @@ package org.kodein.mock.gradle
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.internal.tasks.testing.junitplatform.JUnitPlatformTestFramework
 import org.gradle.kotlin.dsl.*
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
+import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
 
 
 // The entire purpose of this Gradle plugin is to get around https://github.com/google/ksp/issues/567
@@ -39,11 +41,15 @@ class MocKMPGradlePlugin : Plugin<Project> {
         }
     }
 
-    private fun addRuntimeDependencies(sourceSet: KotlinSourceSet, ext: Extension) {
+    private fun addRuntimeDependencies(project: Project, sourceSet: KotlinSourceSet, ext: Extension) {
         sourceSet.dependencies {
             implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
             if (ext.usesHelper) {
-                implementation("org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}")
+                implementation(project.provider {
+                    val isJunit5 = project.tasks.withType<KotlinJvmTest>().any { it.testFramework is JUnitPlatformTestFramework }
+                    if (isJunit5) "org.kodein.mock:mockmp-test-helper-junit5:${BuildConfig.VERSION}"
+                    else "org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}"
+                })
             }
         }
     }
@@ -73,7 +79,7 @@ class MocKMPGradlePlugin : Plugin<Project> {
         project.afterEvaluate {
             val commonTest = kotlin.sourceSets.getByName("commonTest")
 
-            addRuntimeDependencies(commonTest, ext)
+            addRuntimeDependencies(project, commonTest, ext)
 
             // Adding KSP JVM result to COMMON source set
             when (jvmTarget.preset!!.name) {
@@ -97,7 +103,7 @@ class MocKMPGradlePlugin : Plugin<Project> {
 
     private fun executeOnMain(project: Project, ext: Extension) {
         addKSPDependency(project, "kspCommonMainMetadata")
-        addRuntimeDependencies(project.kotlinExtension.sourceSets["commonMain"], ext)
+        addRuntimeDependencies(project, project.kotlinExtension.sourceSets["commonMain"], ext)
         configureKsp(project, ext)
     }
 

@@ -68,16 +68,21 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace publishToMavenLocal
         shell: bash
-      - name: Check plugin with JVM (ubuntu)
+      - name: Check plugin with JVM JUnit4 (ubuntu)
         if: matrix.os == 'ubuntu-latest'
+        working-directory: tests-projects/tests-jvm-junit4
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-projects/tests-Jvm
+      - name: Check plugin with JVM JUnit5 (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: tests-projects/tests-jvm-junit5
+        run: ./gradlew --stacktrace check
+        shell: bash
       - name: Check plugin with Android (ubuntu)
         if: matrix.os == 'ubuntu-latest'
+        working-directory: tests-projects/tests-android
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-projects/tests-Android
       - name: Upload (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace publishAllPublicationsToOssrhStagingRepository -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository_id }}

@@ -41,11 +41,15 @@ jobs:
       - name: Publish To Maven Local
         run: ./gradlew --stacktrace publishToMavenLocal
         shell: bash
-      - name: Check plugin with JVM
+      - name: Check plugin with JVM JUnit4
+        working-directory: tests-projects/tests-jvm-junit4
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-projects/tests-Jvm
+      - name: Check plugin with JVM JUnit5
+        working-directory: tests-projects/tests-jvm-junit5
+        run: ./gradlew --stacktrace check
+        shell: bash
       - name: Check plugin with Android
+        working-directory: tests-projects/tests-android
         run: ./gradlew --stacktrace check
         shell: bash
-        working-directory: tests-projects/tests-Android
