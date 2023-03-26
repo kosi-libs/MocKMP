@@ -4,5 +4,5 @@ plugins {
 
 allprojects {
     group = "org.kodein.mock"
-    version = "1.12.0"
+    version = "1.13.0"
 }
