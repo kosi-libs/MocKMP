@@ -245,9 +245,14 @@ public class MocKMPProcessor(
                         gFun.addAnnotation(it.toAnnotationSpec())
                     }
                     vFun.parameters.forEach { vParam ->
-                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver))
+                        gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver), if (vParam.isVararg) listOf(KModifier.VARARG) else emptyList())
                     }
-                    val paramsDescription = vFun.parameters.joinToString { (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString() ?: "?" }
+                    val paramsDescription = vFun.parameters.joinToString {
+                        (it.type.resolve().declaration as? KSClassDeclaration)?.qualifiedName?.asString()?.let { str ->
+                            if (it.isVararg) "vararg $str" else str
+                        }
+                            ?: "?"
+                    }
                     val paramsCall = if (vFun.parameters.isEmpty()) "" else vFun.parameters.joinToString { it.name!!.asString() }
                     val register = if (Modifier.SUSPEND in vFun.modifiers) "registerSuspend" else "register"
                     val default = if (vFun.isAbstract) "" else "default = { super.${vFun.simpleName.asString()}($paramsCall) }"
