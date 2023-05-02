@@ -4,13 +4,13 @@ buildscript {
         maven(url = "https://raw.githubusercontent.com/kosi-libs/kodein-internal-gradle-plugin/mvn-repo")
     }
     dependencies {
-        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:7.0.5")
+        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:8.0.2")
     }
 }
 
 apply { plugin("org.kodein.settings") }
 
-rootProject.name = "MocKMP"
+rootProject.name = "Kosi-MocKMP"
 
 include(
     ":mockmp-runtime",

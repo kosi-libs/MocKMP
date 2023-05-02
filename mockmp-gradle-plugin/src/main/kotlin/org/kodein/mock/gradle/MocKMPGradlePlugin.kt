@@ -72,8 +72,8 @@ class MocKMPGradlePlugin : Plugin<Project> {
             ?: throw GradleException("Could not find JVM or Android target")
 
         when (jvmTarget.preset!!.name) {
-            "jvm" -> addKSPDependency(project, "ksp${jvmTarget.name.capitalize()}Test")
-            "android" -> addKSPDependency(project, "ksp${jvmTarget.name.capitalize()}TestDebug")
+            "jvm" -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}Test")
+            "android" -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}TestDebug")
         }
 
         project.afterEvaluate {
@@ -93,8 +93,8 @@ class MocKMPGradlePlugin : Plugin<Project> {
             project.tasks.withType<KotlinCompile<*>>().all {
                 if (name.startsWith("compile") && name.contains("TestKotlin")) {
                     when (jvmTarget.preset!!.name) {
-                        "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.capitalize()}")
-                        "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.capitalize()}")
+                        "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                        "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
                     }
                 }
             }

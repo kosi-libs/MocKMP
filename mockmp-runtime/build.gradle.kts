@@ -1,17 +1,14 @@
 plugins {
-    id("org.kodein.library.mpp")
+    kodein.library.mpp
 }
 
-kodein {
-    kotlin {
-        add(kodeinTargets.jvm.jvm) {
-            main.dependencies {
-                implementation(libs.objenesis)
-                implementation(libs.javassist)
-            }
+kotlin.kodein {
+    all()
+    jvm {
+        sources.mainDependencies {
+            implementation(libs.objenesis)
+            implementation(libs.javassist)
         }
-        add(kodeinTargets.native.all)
-        add(kodeinTargets.js.js)
     }
 }
 

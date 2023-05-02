@@ -1,5 +1,5 @@
 plugins {
-    id("org.kodein.gradle-plugin")
+    kodein.gradlePlugin
     `kotlin-dsl`
     alias(libs.plugins.buildConfig)
 }
@@ -9,16 +9,15 @@ dependencies {
     implementation(kodeinGlobals.kotlin.gradlePlugin)
 }
 
-gradlePlugin.plugins.register("mockmp") {
-    id = "org.kodein.mock.mockmp"
-    implementationClass = "org.kodein.mock.gradle.MocKMPGradlePlugin"
-    displayName = "MocKMP"
-    description = "Applies the MocKMP symbol processor to a Kotlin/Multiplatform project"
-}
-
-pluginBundle {
-    description = "Applies the MocKMP symbol processor to a Kotlin/Multiplatform project"
-    tags = listOf("kotlin", "mock", "test")
+gradlePlugin {
+    plugins.register("mockmp") {
+        id = "org.kodein.mock.mockmp"
+        implementationClass = "org.kodein.mock.gradle.MocKMPGradlePlugin"
+        displayName = "MocKMP"
+        description = "Applies the MocKMP symbol processor to a Kotlin/Multiplatform project"
+        @Suppress("UnstableApiUsage")
+        tags.set(listOf("kotlin", "mock", "test"))
+    }
 }
 
 buildConfig {
@@ -26,9 +25,9 @@ buildConfig {
     buildConfigField("String", "VERSION", "\"${project.version}\"")
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs = freeCompilerArgs + "-Xsuppress-version-warnings"
+kotlin.target.compilations.all {
+    compileTaskProvider.configure {
+        compilerOptions.freeCompilerArgs.add("-Xsuppress-version-warnings")
     }
 }
 

@@ -7,7 +7,7 @@ import data.Direction
 @RequiresOptIn
 annotation class ExperimentalTest
 
-typealias FooMap = Map<String, List<Pair<Int, Set<String>>>>
+typealias FooMap<T> = Map<T, List<Pair<Int, Set<String>>>>
 
 interface Foo<out T : Any> {
     val roString: String
@@ -20,13 +20,13 @@ interface Foo<out T : Any> {
     fun doAbstract(abs: Abs)
     fun doSealedClass(s: SCls)
     fun doSealedInterface(s: SItf)
-    fun doMap(m: FooMap)
+    fun doMap(m: FooMap<String>)
     fun newInt(): Int
     fun newString(): String
     fun newStringNullable(): String?
     fun newT(): T
     val defaultT: T
-    val map: FooMap
+    val map: FooMap<String>
     val list: List<Set<Int>>
 
     @Deprecated("This is a test")

@@ -1,8 +1,8 @@
 plugins {
-    id("org.kodein.root")
+    kodein.root
 }
 
 allprojects {
     group = "org.kodein.mock"
-    version = "1.13.0"
+    version = "1.14.0"
 }

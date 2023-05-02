@@ -1,20 +1,17 @@
 plugins {
-    id("org.kodein.library.mpp")
+    kodein.library.mpp
 }
 
-kodein {
-    kotlin {
-        common.main.dependencies {
-            api(projects.mockmpRuntime)
-            implementation(kodeinGlobals.kotlin.test)
+kotlin.kodein {
+    all()
+    common.mainDependencies {
+        api(projects.mockmpRuntime)
+        implementation(kodeinGlobals.kotlin.test)
+    }
+    jvm {
+        sources.mainDependencies {
+            implementation(kodeinGlobals.kotlin.test.junit)
         }
-        add(kodeinTargets.jvm.jvm) {
-            main.dependencies {
-                implementation(kodeinGlobals.kotlin.test.junit)
-            }
-        }
-        add(kodeinTargets.native.all)
-        add(kodeinTargets.js.js)
     }
 }
 
