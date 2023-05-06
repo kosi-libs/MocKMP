@@ -40,6 +40,10 @@ interface Foo<out T : Any> {
 
     @ExperimentalTest
     fun experimentalMethod()
+
+    interface Sub {
+        fun doOp()
+    }
 }
 
 typealias BarCB = (String) -> Int
@@ -56,6 +60,10 @@ interface Bar : Foo<Bar> {
     fun taCallback(cb: BarCB)
     fun suspendCallback(cb: suspend (String) -> Int)
     fun <T: Comparable<T>> order(c: Iterable<T>) : List<T>
+
+    interface Sub {
+        fun doOp()
+    }
 }
 
 abstract class Abs(val i: Int)

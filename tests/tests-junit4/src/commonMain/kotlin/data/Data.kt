@@ -2,23 +2,24 @@ package data
 
 import kotlinx.datetime.Instant
 
-data class SubData<T>(
-    val data: T,
-    val int: Int
-)
-
 enum class Direction { LEFT, RIGHT }
 
 data class SomeDirection(
-    val dir: Direction
-)
+    val dir: Direction,
+    val data: SubData
+) {
+    data class SubData(
+        val nDir: Direction?,
+    )
+}
 
 typealias NamesMap<K> = Map<K, Set<String>>
 
 data class Data(
-    val sub1: SubData<String>,
-    val sub2: SubData<Int>,
-    val sub3: SubData<Map<String, Set<String>>>,
+    val gen1: GenData<String>,
+    val gen2: GenData<Int>,
+    val gen3: GenData<Map<String, Set<String>>>,
+    val sub: SubData,
     val nullDir: SomeDirection?,
     val dir1: SomeDirection,
     val dir2: SomeDirection,
@@ -32,6 +33,15 @@ data class Data(
     val map: NamesMap<Int>,
     val hashMap: HashMap<String, Long>,
     val linkedHashMap: LinkedHashMap<String, Long>,
+) {
+    data class SubData(
+        val nStr: String?,
+    )
+}
+
+data class GenData<T>(
+    val data: T,
+    val int: Int
 )
 
 class Arrays(
@@ -41,6 +51,6 @@ class Arrays(
 
 class Funs(
     val cb: (String) -> Unit,
-    val data: () -> SubData<String>,
-    val combo: (String) -> SubData<String>
+    val data: () -> GenData<String>,
+    val combo: (String) -> GenData<String>
 )

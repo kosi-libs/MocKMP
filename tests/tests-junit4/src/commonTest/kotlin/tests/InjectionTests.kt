@@ -2,14 +2,13 @@ package tests
 
 import data.*
 import foo.Bar
+import foo.Foo
 import foo.MockBar
 import kotlinx.datetime.Instant
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
 import org.kodein.mock.tests.TestsWithMocks
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
+import kotlin.test.*
 
 class InjectionTests : TestsWithMocks() {
 
@@ -28,6 +27,12 @@ class InjectionTests : TestsWithMocks() {
     @Mock
     lateinit var callback: (Boolean, Int) -> String
 
+    @Mock
+    lateinit var s1: Foo.Sub
+
+    @Mock
+    lateinit var s2: Bar.Sub
+
     val control by withMocks { Control(bar, data) }
 
     override fun setUpMocks() = injectMocks(mocker)
@@ -41,12 +46,13 @@ class InjectionTests : TestsWithMocks() {
     fun testFakeData() {
         assertEquals(
             Data(
-                SubData("", 0),
-                SubData(0, 0),
-                SubData(emptyMap(), 0),
+                GenData("", 0),
+                GenData(0, 0),
+                GenData(emptyMap(), 0),
+                Data.SubData(null),
                 null,
-                SomeDirection(Direction.LEFT),
-                SomeDirection(Direction.LEFT),
+                SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
+                SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 Instant.fromEpochSeconds(0),
                 emptyList(),
                 ArrayList(),
@@ -85,7 +91,23 @@ class InjectionTests : TestsWithMocks() {
     @Test
     fun testFakeFunctions() {
         funs.cb("foo")
-        assertEquals(SubData("", 0), funs.data())
-        assertEquals(SubData("", 0), funs.combo("foo"))
+        assertEquals(GenData("", 0), funs.data())
+        assertEquals(GenData("", 0), funs.combo("foo"))
+    }
+
+    @Test
+    fun testSameName() {
+        var r1 = false
+        var r2 = false
+        every { s1.doOp() } runs { r1 = true }
+        every { s2.doOp() } runs { r2 = true }
+        assertFalse(r1 || r2)
+        s1.doOp()
+        verify { s1.doOp() }
+        assertTrue(r1)
+        assertFalse(r2)
+        s2.doOp()
+        verify { s2.doOp() }
+        assertTrue(r2)
     }
 }

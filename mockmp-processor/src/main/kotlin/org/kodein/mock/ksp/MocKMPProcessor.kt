@@ -51,15 +51,14 @@ public class MocKMPProcessor(
 
     private class Error(message: String, val node: KSNode) : Exception(message)
 
-    override fun process(resolver: Resolver): List<KSAnnotated> {
+    override fun process(resolver: Resolver): List<KSAnnotated> =
         try {
-            return privateProcess(resolver)
+            privateProcess(resolver)
         } catch (e: Error) {
             logger.error("MocKMP: ${e.message}", e.node)
             if (throwErrors) throw e
-            return emptyList()
+            emptyList()
         }
-    }
 
     private fun KSNode.asString(): String = when (this) {
         is KSValueParameter -> {
@@ -82,6 +81,32 @@ public class MocKMPProcessor(
     private class ToProcess {
         val files = HashSet<KSFile>()
         val references = HashSet<KSNode>()
+    }
+
+    private fun KSType.toFunName(): String {
+        val prefix = buildString {
+            var pDecl = declaration.parentDeclaration
+            while (pDecl != null) {
+                append(pDecl.simpleName.asString())
+                append("_")
+                pDecl = pDecl.parentDeclaration
+            }
+        }
+        return prefix +
+                if (arguments.isEmpty()) declaration.simpleName.asString()
+                else "${declaration.simpleName.asString()}X${arguments.joinToString("_") { it.type!!.resolve().toFunName() } }X"
+    }
+
+    private fun KSDeclaration.toMockName(): String {
+        val prefix = buildString {
+            var pDecl = parentDeclaration
+            while (pDecl != null) {
+                append(pDecl.simpleName.asString())
+                append("_")
+                pDecl = pDecl.parentDeclaration
+            }
+        }
+        return "Mock" + prefix + simpleName.asString()
     }
 
     private fun privateProcess(resolver: Resolver): List<KSAnnotated> {
@@ -183,7 +208,7 @@ public class MocKMPProcessor(
         }
 
         toMock.forEach { (vItf, process) ->
-            val mockClassName = "Mock${vItf.simpleName.asString()}"
+            val mockClassName = vItf.toMockName()
             val gFile = FileSpec.builder(vItf.packageName.asString(), mockClassName)
             val gCls = TypeSpec.classBuilder(mockClassName)
                 .addSuperinterface(
@@ -266,10 +291,6 @@ public class MocKMPProcessor(
             gFile.addType(gCls.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *process.files.toTypedArray()))
         }
-
-        fun KSType.toFunName(): String =
-            if (arguments.isEmpty()) declaration.simpleName.asString()
-            else "${declaration.simpleName.asString()}X${arguments.joinToString("_") { it.type!!.resolve().toFunName() } }X"
 
         toFake.forEach { (vType, process) ->
             val vCls = vType.declaration as KSClassDeclaration
@@ -367,7 +388,7 @@ public class MocKMPProcessor(
                             gFun.addStatement(
                                 "this.%N = %T(%N)",
                                 vProp.simpleName.asString(),
-                                ClassName(vPropTypeDecl.packageName.asString(), "Mock${vPropTypeDecl.simpleName.asString()}"),
+                                ClassName(vPropTypeDecl.packageName.asString(), vPropTypeDecl.toMockName()),
                                 "mocker"
                             )
                         }
