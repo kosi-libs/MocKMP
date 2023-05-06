@@ -617,6 +617,21 @@ class MyTests : TestsWithMocks() { //<1>
 
 NOTE: Properties delegated to `withMocks` will be (re)initialized *before each tests*, after the mocks have been (re)injected.
 
+[CAUTION]
+====
+Because of https://youtrack.jetbrains.com/issue/KT-54932[this issue], you cannot consider that the mocks have been initialized in yout `@BeforeTest` methods.
+You can override `initMocksBeforeTest` if you need to initialize your mocks before each test:
+
+[source,kotlin]
+----
+class MyTests : TestsWithMocks() {
+    override fun initMocksBeforeTest() {
+        // Access all injected values:
+        // mocks, fakes & withMocks properties
+    }
+}
+----
+====
 
 == Setup
 

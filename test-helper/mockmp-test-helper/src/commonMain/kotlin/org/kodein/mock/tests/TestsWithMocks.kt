@@ -42,11 +42,14 @@ public abstract class TestsWithMocks {
     protected fun <T : Any> withMocks(create: () -> T): Deferred<T> = Deferred(create)
 
     @BeforeTest
-    public fun setUpMocksBeforeTest() {
+    public fun injectMocksBeforeTest() {
         mocker.reset()
         setUpMocks()
         initDeferred()
+        initMocksBeforeTest()
     }
+
+    public open fun initMocksBeforeTest() {}
 
     protected abstract fun setUpMocks()
 
