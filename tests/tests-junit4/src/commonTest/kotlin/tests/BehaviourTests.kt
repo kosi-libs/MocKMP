@@ -6,6 +6,7 @@ import foo.MockBar
 import foo.MockFoo
 import org.kodein.mock.Mocker
 import org.kodein.mock.UsesMocks
+import org.kodein.mock.mockFunction0
 import kotlin.test.*
 
 
@@ -87,6 +88,14 @@ class BehaviourTests {
         assertEquals("", foo.rwString)
         foo.rwString = "Test!"
         assertEquals("Test!", foo.rwString)
+    }
+
+    @Test
+    fun test() {
+        val f1: () -> Int = mockFunction0(mocker) { 1 }
+        val f2: () -> Int = mockFunction0(mocker) { 2 }
+        assertEquals(1 , f1.invoke())
+        assertEquals(2 , f2.invoke())
     }
 
 }
