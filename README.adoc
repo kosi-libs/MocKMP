@@ -572,6 +572,7 @@ As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `T.in
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
 
+
 [[test-helper]]
 === Using the test class helper
 
@@ -632,6 +633,24 @@ class MyTests : TestsWithMocks() {
 }
 ----
 ====
+
+In case your test class already extends another class, you can use the `ITestsWithMocks` interface instead:
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests : MySuperAbstractTests(), ITestsWithMocks { //<1>
+
+    override val mocksState = ITestsWithMocks.State() //<2>
+
+    override fun setUpMocks() = injectMocks(mocker)
+
+    // ...your tests...
+}
+----
+<1> The class implements the `ITestsWithMocks` interface, which provides all helper methods.
+<2> The class needs to provide an `ITestsWithMocks.State` (since the interface cannot provide one).
+
 
 == Setup
 
