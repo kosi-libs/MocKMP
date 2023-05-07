@@ -71,6 +71,11 @@ jobs:
         working-directory: tests-projects/tests-android-old
         run: ../../gradlew --stacktrace check
         shell: bash
+      - name: Check plugin with Android new layout (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: tests-projects/tests-android-new
+        run: ../../gradlew --stacktrace check
+        shell: bash
       - name: Upload (macos / windows)
         if: matrix.os != 'ubuntu-latest'
         run: ./gradlew --stacktrace hostOnlyPublish -PgitRef=${{ github.ref }} -Psnapshot=true

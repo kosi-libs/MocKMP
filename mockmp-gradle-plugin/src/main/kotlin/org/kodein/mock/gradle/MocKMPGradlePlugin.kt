@@ -84,7 +84,10 @@ class MocKMPGradlePlugin : Plugin<Project> {
             // Adding KSP JVM result to COMMON source set
             when (jvmTarget.preset!!.name) {
                 "jvm" -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
-                "android" -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
+                "android" -> {
+                    commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
+                    commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}UnitTestDebug/kotlin")
+                }
             }
 
             configureKsp(project, ext)
