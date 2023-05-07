@@ -28,11 +28,21 @@ internal class References {
         map[r::class] = r
     }
 
-    fun getReference(cls: KClass<*>): Any = map.getOrPut(cls) {
-        for (ref in references) {
-            if (cls.isInstance(ref)) return@getOrPut ref
+    fun tryGetReference(cls: KClass<*>): Any? {
+        map[cls]?.let { return it }
+        var ref: Any? = null
+        references.forEach {
+            if (cls.isInstance(it)) ref = it
         }
-        unsafeValue(cls)
+        if (ref == null) ref = unsafeValue(cls)
+        return ref
     }
 
+    fun getReference(cls: KClass<*>): Any {
+        val r = runCatching { tryGetReference(cls) }
+        if (r.isFailure || r.getOrThrow() == null) {
+            throw IllegalStateException("Could not create an instance of ${cls.bestName()}. Please use mocker.useReference(${cls.simpleName}) to set a reference.", r.exceptionOrNull())
+        }
+        return r.getOrNull()!!
+    }
 }

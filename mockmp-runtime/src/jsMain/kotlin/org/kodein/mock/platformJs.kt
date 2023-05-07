@@ -5,7 +5,7 @@ import kotlin.reflect.KClass
 
 private object UnsafeValue
 
-internal actual fun <T> References.unsafeValue(cls: KClass<*>): T = UnsafeValue.unsafeCast<T>()
+internal actual fun References.unsafeValue(cls: KClass<*>): Any? = UnsafeValue.unsafeCast<Any?>()
 
 @PublishedApi
 internal actual fun KClass<*>.bestName(): String = simpleName ?: "Unknown"

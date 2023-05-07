@@ -7,12 +7,17 @@ val copySrc by tasks.creating(Sync::class) {
     into("$buildDir/src")
 }
 
-kotlin.kodein {
-    all {
-        compilations.all {
-            compileTaskProvider.configure { dependsOn(copySrc) }
-        }
+afterEvaluate {
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>> {
+        dependsOn(copySrc)
     }
+    tasks.withType<org.gradle.jvm.tasks.Jar> {
+        dependsOn(copySrc)
+    }
+}
+
+kotlin.kodein {
+    all()
     common.main {
         kotlin.srcDir("$buildDir/src/commonMain/kotlin")
         dependencies {

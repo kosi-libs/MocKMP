@@ -38,18 +38,22 @@ jobs:
       - name: Check
         run: ./gradlew --stacktrace check
         shell: bash
-      - name: Publish To Maven Local
+      - name: Publish To Maven Local (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         run: ./gradlew --stacktrace publishToMavenLocal
         shell: bash
-      - name: Check plugin with JVM JUnit4
+      - name: Check plugin with JVM JUnit4 (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         working-directory: tests-projects/tests-jvm-junit4
-        run: ./gradlew --stacktrace check
+        run: ../../gradlew --stacktrace check
         shell: bash
-      - name: Check plugin with JVM JUnit5
+      - name: Check plugin with JVM JUnit5 (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         working-directory: tests-projects/tests-jvm-junit5
-        run: ./gradlew --stacktrace check
+        run: ../../gradlew --stacktrace check
         shell: bash
-      - name: Check plugin with Android
-        working-directory: tests-projects/tests-android
-        run: ./gradlew --stacktrace check
+      - name: Check plugin with Android old layout (ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: tests-projects/tests-android-old
+        run: ../../gradlew --stacktrace check
         shell: bash

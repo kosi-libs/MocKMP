@@ -47,10 +47,6 @@ jobs:
         if: matrix.os != 'ubuntu-latest'
         run: ./gradlew --stacktrace hostOnlyTest
         shell: bash
-      - name: Upload (macos / windows)
-        if: matrix.os != 'ubuntu-latest'
-        run: ./gradlew --stacktrace hostOnlyPublish -PgitRef=${{ github.ref }} -Psnapshot=true
-        shell: bash
       # Linux / JVM / JS
       - name: Check (ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -63,17 +59,21 @@ jobs:
       - name: Check plugin with JVM JUnit4 (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         working-directory: tests-projects/tests-jvm-junit4
-        run: ./gradlew --stacktrace check
+        run: ../../gradlew --stacktrace check
         shell: bash
       - name: Check plugin with JVM JUnit5 (ubuntu)
         if: matrix.os == 'ubuntu-latest'
         working-directory: tests-projects/tests-jvm-junit5
-        run: ./gradlew --stacktrace check
+        run: ../../gradlew --stacktrace check
         shell: bash
-      - name: Check plugin with Android (ubuntu)
+      - name: Check plugin with Android old layout (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        working-directory: tests-projects/tests-android
-        run: ./gradlew --stacktrace check
+        working-directory: tests-projects/tests-android-old
+        run: ../../gradlew --stacktrace check
+        shell: bash
+      - name: Upload (macos / windows)
+        if: matrix.os != 'ubuntu-latest'
+        run: ./gradlew --stacktrace hostOnlyPublish -PgitRef=${{ github.ref }} -Psnapshot=true
         shell: bash
       - name: Upload (ubuntu)
         if: matrix.os == 'ubuntu-latest'
