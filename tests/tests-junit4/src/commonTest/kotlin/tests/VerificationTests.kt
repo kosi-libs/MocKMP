@@ -544,4 +544,19 @@ class VerificationTests {
         }
     }
 
+    @Test
+    fun testInline() {
+        val foo = MockFoo<Bar>(mocker)
+
+        mocker.every {
+            val i = isAny<InlineString>()
+            foo.doSomethingInline(i)
+        } returns Unit
+
+        foo.doSomethingInline(InlineString("hello"))
+
+        mocker.verify {
+            foo.doSomethingInline(isAny())
+        }
+    }
 }

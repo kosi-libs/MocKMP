@@ -2,12 +2,16 @@ package foo
 
 import data.Data
 import data.Direction
+import kotlin.jvm.JvmInline
 
 
 @RequiresOptIn
 annotation class ExperimentalTest
 
 typealias FooMap<T> = Map<T, List<Pair<Int, Set<String>>>>
+
+@JvmInline
+value class InlineString(val value: String)
 
 interface Foo<out T : Any> {
     val roString: String
@@ -40,6 +44,8 @@ interface Foo<out T : Any> {
 
     @ExperimentalTest
     fun experimentalMethod()
+
+    fun doSomethingInline(param: InlineString)
 
     interface Sub {
         fun doOp()

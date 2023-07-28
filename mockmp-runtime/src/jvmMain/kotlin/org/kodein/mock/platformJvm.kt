@@ -28,12 +28,22 @@ internal actual fun References.unsafeValue(cls: KClass<*>): Any? {
 
         Modifier.isAbstract(cls.java.modifiers) -> {
             val constructor = cls.java.constructors.first()
-            constructor.parameterTypes
             val parameterValues = Array(constructor.parameterCount) { getReference(constructor.parameterTypes[it].kotlin) }
             return ProxyFactory().apply {
                 superclass = cls.java
                 isUseCache = true
             }.create(constructor.parameterTypes, parameterValues)
+        }
+
+        cls.java.isAnnotationPresent(JvmInline::class.java) -> {
+            val constructor = cls.java.declaredConstructors[0]
+            val parameter = getReference(constructor.parameterTypes[0].kotlin)
+            constructor.isAccessible = true
+            try {
+                return constructor.newInstance(parameter)
+            } finally {
+                constructor.isAccessible = false
+            }
         }
 
         else -> return ObjenesisStd(true).newInstance(cls.java)
