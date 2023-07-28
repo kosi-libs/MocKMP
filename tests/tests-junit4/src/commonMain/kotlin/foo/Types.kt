@@ -56,6 +56,7 @@ interface Bar : Foo<Bar> {
     fun doAll(string: String, int: Int, data: Data)
     suspend fun newData(): Data
     suspend fun doSomethingSuspend() { doNothing() }
+    suspend fun doSomethingSuspendWithString(str: String)
     fun callback(cb: (String) -> Int)
     fun taCallback(cb: BarCB)
     fun suspendCallback(cb: suspend (String) -> Int)

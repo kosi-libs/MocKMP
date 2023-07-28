@@ -1,6 +1,7 @@
 plugins {
     kodein.gradlePlugin
     `kotlin-dsl`
+    kotlin("plugin.sam.with.receiver") version kodeinGlobals.versions.kotlin.get()
     alias(libs.plugins.buildConfig)
 }
 

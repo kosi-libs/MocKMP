@@ -239,6 +239,17 @@ class VerificationTests {
     }
 
     @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendAny() = runTest {
+        val bar = MockBar(mocker)
+        mocker.everySuspending { bar.doSomethingSuspendWithString(isAny()) } returns Unit
+        bar.doSomethingSuspendWithString("coucou!")
+        mocker.verifyWithSuspend {
+            bar.doSomethingSuspendWithString(isAny())
+        }
+    }
+
+    @Test
     fun testAnyInterfaceArgument() {
         val foo = MockFoo<Bar>(mocker)
         mocker.every { foo.doInterface(isAny()) } returns Unit
