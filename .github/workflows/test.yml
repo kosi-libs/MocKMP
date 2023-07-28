@@ -52,13 +52,8 @@ jobs:
         working-directory: tests-projects/tests-jvm-junit5
         run: ../../gradlew --stacktrace check
         shell: bash
-      - name: Check plugin with Android old layout (ubuntu)
+      - name: Check plugin with Android (ubuntu)
         if: matrix.os == 'ubuntu-latest'
-        working-directory: tests-projects/tests-android-old
-        run: ../../gradlew --stacktrace check
-        shell: bash
-      - name: Check plugin with Android new layout (ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        working-directory: tests-projects/tests-android-new
+        working-directory: tests-projects/tests-android
         run: ../../gradlew --stacktrace check
         shell: bash

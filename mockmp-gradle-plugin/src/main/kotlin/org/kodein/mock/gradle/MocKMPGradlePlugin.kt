@@ -92,15 +92,19 @@ class MocKMPGradlePlugin : Plugin<Project> {
 
             configureKsp(project, ext)
 
-            // Adding KSP JVM as a dependency to all Kotlin compilations
-            project.tasks.withType<KotlinCompile<*>>().all {
-                if (name.startsWith("compile") && name.contains("TestKotlin")) {
-                    when (jvmTarget.preset!!.name) {
-                        "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
-                        "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+            // For some reason, the simple fact of calling `project.tasks.withType<KotlinCompile<*>>()`
+            // breaks KSP if not set in a deep level of afterEvaluate :(
+            afterEvaluate { afterEvaluate {
+                // Adding KSP JVM as a dependency to all Kotlin compilations
+                project.tasks.withType<KotlinCompile<*>>().all {
+                    if (name.startsWith("compile") && name.contains("TestKotlin")) {
+                        when (jvmTarget.preset!!.name) {
+                            "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                            "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                        }
                     }
                 }
-            }
+            } }
         }
     }
 
@@ -121,7 +125,6 @@ class MocKMPGradlePlugin : Plugin<Project> {
                 SourceSetTarget.CommonMain -> executeOnMain(target, ext)
                 SourceSetTarget.CommonTest_Via_JVM -> executeOnTests(target, ext)
             }
-
         }
     }
 

@@ -13,7 +13,6 @@ repositories {
 android {
     namespace = "org.kodein.mock.tests_android"
     compileSdk = 32
-    sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
 
     defaultConfig {
         minSdk = 21
@@ -28,7 +27,7 @@ android {
 }
 
 kotlin {
-    android()
+    androidTarget()
     ios()
 
     sourceSets {
@@ -45,7 +44,7 @@ kotlin {
             }
         }
 
-        val androidTest by getting {
+        val androidUnitTest by getting {
             dependencies {
                 implementation(kodeinGlobals.kotlin.test.junit)
             }
