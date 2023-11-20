@@ -7,6 +7,7 @@ import org.gradle.api.internal.tasks.testing.junitplatform.JUnitPlatformTestFram
 import org.gradle.kotlin.dsl.*
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
 
@@ -67,13 +68,14 @@ class MocKMPGradlePlugin : Plugin<Project> {
     private fun executeOnTests(project: Project, ext: Extension) {
         val kotlin = project.kotlinExtension
 
-        val jvmTarget = kotlin.targets.firstOrNull { it.preset?.name == "jvm" }
-            ?: kotlin.targets.firstOrNull { it.preset?.name == "android" }
+        val jvmTarget = kotlin.targets.firstOrNull { it.platformType == KotlinPlatformType.jvm }
+            ?: kotlin.targets.firstOrNull { it.platformType == KotlinPlatformType.androidJvm }
             ?: throw GradleException("Could not find JVM or Android target")
 
-        when (jvmTarget.preset!!.name) {
-            "jvm" -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}Test")
-            "android" -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}TestDebug")
+        when (jvmTarget.platformType) {
+            KotlinPlatformType.jvm -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}Test")
+            KotlinPlatformType.androidJvm -> addKSPDependency(project, "ksp${jvmTarget.name.replaceFirstChar { it.titlecase() }}TestDebug")
+            else -> error("Unsupported platform type ${jvmTarget.platformType}")
         }
 
         project.afterEvaluate {
@@ -82,12 +84,13 @@ class MocKMPGradlePlugin : Plugin<Project> {
             addRuntimeDependencies(project, commonTest, ext)
 
             // Adding KSP JVM result to COMMON source set
-            when (jvmTarget.preset!!.name) {
-                "jvm" -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
-                "android" -> {
+            when (jvmTarget.platformType) {
+                KotlinPlatformType.jvm -> commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin")
+                KotlinPlatformType.androidJvm -> {
                     commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin")
                     commonTest.kotlin.srcDir("${project.buildDir}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}UnitTestDebug/kotlin")
                 }
+                else -> error("Unsupported platform type ${jvmTarget.platformType}")
             }
 
             configureKsp(project, ext)
@@ -98,9 +101,10 @@ class MocKMPGradlePlugin : Plugin<Project> {
                 // Adding KSP JVM as a dependency to all Kotlin compilations
                 project.tasks.withType<KotlinCompile<*>>().all {
                     if (name.startsWith("compile") && name.contains("TestKotlin")) {
-                        when (jvmTarget.preset!!.name) {
-                            "jvm" -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
-                            "android" -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                        when (jvmTarget.platformType) {
+                            KotlinPlatformType.jvm -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                            KotlinPlatformType.androidJvm -> dependsOn("kspDebugUnitTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")
+                            else -> error("Unsupported platform type ${jvmTarget.platformType}")
                         }
                     }
                 }

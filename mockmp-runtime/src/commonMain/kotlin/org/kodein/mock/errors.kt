@@ -3,11 +3,11 @@ package org.kodein.mock
 
 public open class MockerVerificationAssertionError @PublishedApi internal constructor(message: String?) : AssertionError(message)
 
-// Needed because of https://youtrack.jetbrains.com/issue/KT-43490
-public expect class MockerVerificationLazyAssertionError
+public class MockerVerificationLazyAssertionError
 @PublishedApi internal constructor(messageBuilder: () -> String)
-: MockerVerificationAssertionError {
-    public val lazyMessage: String
+: MockerVerificationAssertionError(null) {
+    public val lazyMessage: String by lazy(messageBuilder)
+    override val message: String get() = lazyMessage
 }
 
 public class MockerVerificationThrownAssertionError internal constructor(override val cause: Throwable, methodName: () -> String)
