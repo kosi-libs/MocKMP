@@ -16,28 +16,37 @@ android {
 
     defaultConfig {
         minSdk = 21
-        targetSdk = 32
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 }
 
 kotlin {
-    androidTarget()
-    ios()
+    applyDefaultHierarchyTemplate()
+
+    androidTarget {
+        compilations.all {
+            kotlinOptions {
+               jvmTarget = "1.8"
+            }
+        }
+    }
+
+    iosSimulatorArm64()
+    iosX64()
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonMain/kotlin")
             dependencies {
                 implementation(libs.datetime)
             }
         }
-        val commonTest by getting {
+        commonTest {
             kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonTest/kotlin")
             dependencies {
                 implementation(libs.coroutines.test)
