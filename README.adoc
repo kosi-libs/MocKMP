@@ -22,11 +22,17 @@ Built in collaboration with https://www.deezer.com/[Deezer].
 [source,kotlin,subs="verbatim,attributes"]
 ----
 plugins {
+    kotlin("multiplatform")
     id("org.kodein.mock.mockmp") version "{version}"
+}
+
+kotlin {
+    // Your Koltin/Multiplatform configuration
 }
 
 mockmp {
     usesHelper = true
+    installWorkaround()
 }
 ----
 
@@ -672,11 +678,6 @@ repositories {
     mavenCentral()
 }
 
-mockmp {
-    // OPTIONAL!
-    usesHelper = true //<2>
-}
-
 kotlin {
     jvm()
     ios()
@@ -692,9 +693,18 @@ kotlin {
         }
     }
 }
+
+mockmp {
+    // OPTIONAL!
+    usesHelper = true //<2>
+
+    // REQUIRED!
+    installWorkaround() // <3>
+}
 ----
 <1> Applying the MocKMP plugin.
 <2> Requesting the *optional* `test-helper` dependency
+<3> *Must* be called *after* the `kotlin` configuration and *must be the last line* of the `mockmp` block.
 
 The plugin takes care of:
 

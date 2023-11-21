@@ -5,7 +5,7 @@ plugins {
 
 tasks.register<Sync>("copySrc") {
     from("$projectDir/../tests-junit4/src")
-    into("$buildDir/src")
+    into(layout.buildDirectory.map { "${it.asFile}/src" })
 }
 
 kotlin.kodein {
@@ -19,13 +19,13 @@ kotlin.kodein {
     }
 
     common.main {
-        kotlin.srcDir("$buildDir/src/commonMain/kotlin")
+        kotlin.srcDir(layout.buildDirectory.map { "${it.asFile}/src/commonMain/kotlin" })
         dependencies {
             implementation(libs.datetime)
         }
     }
     common.test {
-        kotlin.srcDir("$buildDir/src/commonTest/kotlin")
+        kotlin.srcDir(layout.buildDirectory.map { "${it.asFile}/src/commonTest/kotlin" })
         dependencies {
             implementation(projects.mockmpRuntime)
             implementation(projects.testHelper.mockmpTestHelperJunit5)

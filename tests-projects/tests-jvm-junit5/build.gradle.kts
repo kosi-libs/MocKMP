@@ -9,21 +9,30 @@ repositories {
 }
 
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     jvm {
         testRuns["test"].executionTask.configure {
             useJUnitPlatform()
         }
     }
-    ios()
+
+    iosSimulatorArm64()
+    iosX64()
+
+    js(IR) {
+        browser()
+        binaries.library()
+    }
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonMain/kotlin")
             dependencies {
                 implementation(libs.datetime)
             }
         }
-        val commonTest by getting {
+        commonTest {
             kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonTest/kotlin")
             dependencies {
                 implementation(libs.coroutines.test)
@@ -35,11 +44,18 @@ kotlin {
                 implementation(kodeinGlobals.kotlin.test.junit5)
             }
         }
+
+        val jsTest by getting {
+            dependencies {
+                implementation(kodeinGlobals.kotlin.test)
+            }
+        }
     }
 }
 
 mockmp {
     usesHelper = true
+    installWorkaround()
 }
 
 // Showing tests in Gradle command line

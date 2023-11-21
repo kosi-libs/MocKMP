@@ -63,6 +63,7 @@ kotlin {
 
 mockmp {
     usesHelper = true
+    installWorkaround()
 }
 
 // Showing tests in Gradle command line

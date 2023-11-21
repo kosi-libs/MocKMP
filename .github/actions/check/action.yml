@@ -1,4 +1,5 @@
-name: "Check Plugin"
+name: "Check"
+description: "Check runtime & plugin"
 runs:
   using: "composite"
   steps:
