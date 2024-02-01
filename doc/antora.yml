@@ -8,5 +8,4 @@ nav:
 asciidoc:
   attributes:
     version: '1.17.0'
-    kotlin: '1.9.22'
-    jdk: '11'
+    ksp-version: '1.9.22-1.0.17'
