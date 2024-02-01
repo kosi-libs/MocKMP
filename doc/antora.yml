@@ -4,6 +4,7 @@ version: '1.17'
 display_version: '1.17.0'
 nav:
   - modules/ROOT/nav.adoc
+  - modules/core/nav.adoc
 asciidoc:
   attributes:
     version: '1.17.0'
