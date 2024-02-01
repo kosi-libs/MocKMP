@@ -1,15 +1,7 @@
-= MocKMP
-:icons: font
-:version: 1.17.0
-:ksp-version: 1.0.0-1.0.12
+= Getting started
 
-A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
-
-Built in collaboration with https://www.deezer.com/[Deezer].
-
-
-== Installation
-
+1. Apply the Gradle plugin and activate the helper dependency:
++
 [source,kotlin,subs="verbatim,attributes"]
 ----
 plugins {
@@ -27,9 +19,8 @@ mockmp {
 }
 ----
 
-
-== Example
-
+2. Create a test class that declares injected mocks and fakes:
++
 [source,kotlin]
 ----
 class MyTest : TestsWithMocks() {
@@ -47,8 +38,6 @@ class MyTest : TestsWithMocks() {
     }
 }
 ----
-
-
-== Read more
-
-See https://kosi-libs.org/mockmp/[MocKMP Documentation].
+<1> This is mandatory and cannot be generated. You need to run the KSP generation at least once for your IDE to see the `injectMocks` generated function.
++
+NOTE: Every property annotated by `@Mock`, annotated by `@Fake` or delegated to `withMocks` will be reset fresh between each test.

@@ -1,0 +1,63 @@
+= Faking concrete classes
+
+CAUTION: Only *concrete trees* (concrete classes containing concrete classes) can be faked!
+
+*Data classes* are ideal candidates for faking.
+
+
+== Requesting generation
+
+You can declare that a class needs a specific faked data by using the `@UsesFakes` annotation.
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests
+----
+
+Once a type appears in `@UsesFakes`, the processor will generate a fake function for it.
+
+
+== Instantiating
+
+Once a class has been faked, you can get a new instance by calling its `fake*` corresponding function:
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests {
+    val user = fakeUser()
+}
+----
+
+Here are the rules the processor uses to generate fakes:
+
+* Nullable values are always `null`.
+* `Boolean` values are set to `false`.
+* Numeric values are set to `0`.
+* `String` values are set to empty `""`.
+* Other non-nullable non-primitive values are faked.
+
+[TIP]
+====
+By using a `data class`, you can easily tweak your fakes according to your needs:
+
+[source,kotlin]
+----
+val user = fakeUser().copy(id = 42)
+----
+====
+
+
+== Providing fake instances
+
+Classes that do not have a public constructor cannot be automatically faked.
+For these types, you need to provide your custom fake provider with `@FakeProvider`:
+
+[source,kotlin]
+----
+@FakeProvider
+fun provideFakeInstant() = Instant.fromEpochSeconds(0)
+----
+
+CAUTION: There can be only one provider per type, and it needs to be a top-level function.

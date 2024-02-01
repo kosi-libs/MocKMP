@@ -1,0 +1,37 @@
+= Injecting your test classes
+
+Instead of manually creating your own mocks & fakes, it can be useful to inject them in your test class, especially if you have multiple tests using them.
+
+[source,kotlin]
+----
+@UsesFakes(User::class)
+class MyTests {
+    @Mock lateinit var db: Database
+    @Mock lateinit var api: API
+
+    @Fake lateinit var user: User
+
+    lateinit var controller: Controller
+
+    val mocker = Mocker()
+
+    @BeforeTest fun setUp() {
+        mocker.reset() //<1>
+        this.injectMocks(mocker) //<2>
+        controller = ControllerImpl(db, api) //<3>
+    }
+
+    @Test fun controllerTest() {
+        mocker.every { view.render(isAny()) } returns true
+        controller.start()
+        mocker.verify { view.render(model) }
+    }
+}
+----
+<1> Resets the mocker before any test (which removes all mocked behaviour & logged calls), so that each test gets a "clean" mocker.
+<2> Injects mocks and fakes.
+<3> Create classes to be tested with injected mocks & fakes.
+
+As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `T.injectMocks(Mocker)` function will be created by the processor.
+
+IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!

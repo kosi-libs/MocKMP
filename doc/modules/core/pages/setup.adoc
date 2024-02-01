@@ -1,0 +1,157 @@
+= MocKMP Setup
+
+== Setup MocKMP with the official plugin
+
+The MocKMP Gradle plugin configures your project to use the Kotlin Symbol Processor using a workaround to a current KSP limitation.
+
+Once KSP properly supports hierarchical Multiplatform, this plugin will apply MocKMP "normally".
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("org.kodein.mock.mockmp") version "{version}" //<1>
+}
+
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvm()
+    ios()
+    js(IR) {
+        browser()
+    }
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+    }
+}
+
+mockmp {
+    // OPTIONAL!
+    usesHelper = true //<2>
+
+    // REQUIRED!
+    installWorkaround() // <3>
+}
+----
+<1> Applying the MocKMP plugin.
+<2> Requesting the *optional* `test-helper` dependency
+<3> *Must* be called *after* the `kotlin` configuration and *must be the last line* of the `mockmp` block.
+
+The plugin takes care of:
+
+* Applying the KSP Gradle plugin
+* Declaring the MocKMP KSP dependency
+* Declaring the MocKMP runtime dependencies
+* Applying the incomplete multiplatform support workaround:
+** Using Android if the Android plugin is applied
+** Using the JVM otherwise
+
+[WARNING]
+====
+If you are not using the same Kotlin version than the plugin, then you'll need to manually apply the KSP plugin *before* applying MocKMP:
+
+[source,kotlin]
+----
+plugins {
+    id("com.google.devtools.ksp") version "1.7.22-1.0.8"
+    id("org.kodein.mock.mockmp") version "{version}"
+}
+----
+====
+
+=== Applying to main source sets
+
+In some cases, you may need to apply the processor to the common-main source-set instead of common-test.
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+mockmp {
+    targetSourceSet = CommonMain
+}
+----
+
+
+== Setup MocKMP manually with KSP and its incomplete multiplatform support
+
+KSP for multiplatform is in beta, and *https://github.com/google/ksp/issues/567[KSP for common tests is not supported]* (yet).
+
+To have IDEA completion, here's a trick that you can use (in fact, that's what the MocKMP plugin does):
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("com.google.devtools.ksp") version "{ksp-version}" //<1>
+}
+
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvm()
+    ios()
+    js(IR) {
+        browser()
+    }
+
+    sourceSets {
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.kodein.mock:mockmp-runtime:{version}") //<2>
+                // OPTIONAL!
+                implementation("org.kodein.mock:mockmp-test-helper:{version}") //<2>
+            }
+            kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin") //<3>
+        }
+    }
+}
+
+dependencies {
+    "kspJvmTest"("org.kodein.mock:mockmp-processor:{version}") //<4>
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>>().all {
+    if (name.startsWith("compileTestKotlin")) {
+        dependsOn("kspTestKotlinJvm") //<5>
+    }
+}
+----
+<1> Applying the KSP plugin.
+<2> Adding the dependencies to the MocKMP runtime and the *optional* test helper.
+<3> Use KSP generated JVM sources on all targets.
+<4> Apply the processor only on the JVM target.
+<5> Make compilation of all targets dependant on the JVM KSP processor.
+
+
+== Generated classes & functions visibility
+
+By default, every generated class or function is *`internal`*.
+
+If you wish to have it *`public`* (because you need to share it across modules), then you can configure the processor to generate public classes & functions:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+// When using the MocKMP plugin:
+mockmp {
+    public = true
+}
+
+// When using KSP directly:
+ksp {
+    arg("org.kodein.mock.visibility", "public")
+}
+----

@@ -1,0 +1,11 @@
+name: mockmp
+title: MocKMP
+version: '1.17'
+display_version: '1.17.0'
+nav:
+  - modules/ROOT/nav.adoc
+asciidoc:
+  attributes:
+    version: '1.17.0'
+    kotlin: '1.9.22'
+    jdk: '11'
