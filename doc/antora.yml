@@ -8,4 +8,4 @@ nav:
 asciidoc:
   attributes:
     version: '1.17.0'
-    ksp-version: '1.9.22-1.0.17'
+    ksp-version: '2.0.21-1.0.27'

@@ -12,14 +12,13 @@ private val hasSealed by lazy {
     Class::class.java.methods.any { it.name == "isSealed" }
 }
 
-@Suppress("Since15")
 internal actual fun References.unsafeValue(cls: KClass<*>): Any? {
     when {
         cls.java.isArray -> return Array.newInstance(cls.java.componentType, 0)
 
-        hasSealed && cls.java.isSealed -> {
-            cls.java.permittedSubclasses.forEach { subCls ->
-                tryGetReference(subCls.kotlin)?.let { return it }
+        hasSealed && cls.isSealed -> {
+            cls.sealedSubclasses.forEach { subCls ->
+                tryGetReference(subCls)?.let { return it }
             }
             return null
         }

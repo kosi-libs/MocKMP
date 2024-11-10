@@ -4,7 +4,7 @@ coroutines = "1.7.3"
 datetime = "0.4.0"
 javassist = "3.29.2-GA"
 kotlinPoet = "1.15.1"
-ksp = "1.9.22-1.0.17"
+ksp = "2.0.21-1.0.27"
 objenesis = "3.2"
 
 [plugins]
@@ -19,3 +19,4 @@ kotlinPoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlin
 ksp-gradlePlugin = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 ksp-symbolProcessingApi = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 objenesis = { module = "org.objenesis:objenesis", version.ref = "objenesis" }
+reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }

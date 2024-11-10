@@ -17,3 +17,4 @@ out/
 # JS
 node_modules/
 package-lock.json
+.kotlin/

@@ -8,6 +8,7 @@ kotlin.kodein {
         sources.mainDependencies {
             implementation(libs.objenesis)
             implementation(libs.javassist)
+            implementation(libs.reflect)
         }
     }
 }
