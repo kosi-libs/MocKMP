@@ -5,11 +5,11 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.internal.tasks.testing.junitplatform.JUnitPlatformTestFramework
 import org.gradle.kotlin.dsl.*
-import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
 import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 
 // The entire purpose of this Gradle plugin is to get around https://github.com/google/ksp/issues/567
@@ -62,6 +62,11 @@ class MocKMPGradlePlugin : Plugin<Project> {
                     })
                 }
             }
+            sourceSet.kotlin.srcDir(
+                "build/generated/ksp/${
+                    sourceSet.name.removeSuffix("Test").removeSuffix("Main")
+                }/${sourceSet.name}Test/kotlin"
+            )
         }
 
         private fun configureKsp(project: Project, ext: Extension) {
@@ -92,23 +97,9 @@ class MocKMPGradlePlugin : Plugin<Project> {
 
                 addRuntimeDependencies(project, commonTest, ext)
 
-                val buildDir = project.layout.buildDirectory.asFile
-
-                // Adding KSP JVM result to COMMON source set
-                when (jvmTarget.platformType) {
-                    KotlinPlatformType.jvm -> {
-                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin" })
-                    }
-                    KotlinPlatformType.androidJvm -> {
-                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin" })
-                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}UnitTestDebug/kotlin" })
-                    }
-                    else -> error("Unsupported platform type ${jvmTarget.platformType}")
-                }
-
                 configureKsp(project, ext)
 
-                project.tasks.withType<KotlinCompile<*>>().all {
+                project.tasks.withType<KotlinCompilationTask<*>>().all {
                     if (name.startsWith("compile") && name.contains("TestKotlin")) {
                         when (jvmTarget.platformType) {
                             KotlinPlatformType.jvm -> dependsOn("kspTestKotlin${jvmTarget.name.replaceFirstChar { it.titlecase() }}")

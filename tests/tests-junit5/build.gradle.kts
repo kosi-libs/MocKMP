@@ -32,7 +32,7 @@ kotlin.kodein {
             implementation(libs.coroutines.test)
         }
         // Adding KSP JVM result to COMMON source set
-        kotlin.srcDir("build/generated/ksp/jvm/jvmTest/kotlin")
+        kotlin.srcDir("build/generated/ksp/common/commonTest/kotlin")
     }
 
     jvm {

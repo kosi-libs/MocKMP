@@ -6,6 +6,7 @@ import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.ksp.*
+import java.io.File
 
 
 public class MocKMPProcessor(
@@ -290,6 +291,7 @@ public class MocKMPProcessor(
                 }
             gFile.addType(gCls.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *process.files.toTypedArray()))
+            moveInCommonTest()
         }
 
         toFake.forEach { (vType, process) ->
@@ -358,6 +360,7 @@ public class MocKMPProcessor(
             }
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
+            moveInCommonTest()
         }
 
         toInject.forEach { (vCls, vProps) ->
@@ -414,8 +417,26 @@ public class MocKMPProcessor(
             }
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
+            moveInCommonTest()
         }
 
         return emptyList()
+    }
+
+    private fun moveInCommonTest() {
+        codeGenerator.generatedFile.forEach {
+            if (it.exists() && it.length() > 0) {
+                val file = if (it.absolutePath.contains("jvm"))
+                    File(it.absolutePath.replace("jvm", "common"))
+                else
+                    File(it.absolutePath.replace("android", "common"))// To be tested...
+                file.parentFile.mkdirs()
+                file.writeText(it.readText())
+                // Deleting the file means that incremental compilation algorithm in KSP will fail.
+                // Putting empty seems to do the trick. (Not elegant, but if it works...)
+                it.writeText("")
+                //it.delete()
+            }
+        }
     }
 }
