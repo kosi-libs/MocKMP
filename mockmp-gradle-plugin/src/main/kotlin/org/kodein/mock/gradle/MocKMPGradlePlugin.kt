@@ -97,11 +97,11 @@ class MocKMPGradlePlugin : Plugin<Project> {
                 // Adding KSP JVM result to COMMON source set
                 when (jvmTarget.platformType) {
                     KotlinPlatformType.jvm -> {
-                        commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin" })
+                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}Test/kotlin" })
                     }
                     KotlinPlatformType.androidJvm -> {
-                        commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin" })
-                        commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}UnitTestDebug/kotlin" })
+                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}DebugUnitTest/kotlin" })
+                        //commonTest.kotlin.srcDir(provider { "${buildDir.get()}/generated/ksp/${jvmTarget.name}/${jvmTarget.name}UnitTestDebug/kotlin" })
                     }
                     else -> error("Unsupported platform type ${jvmTarget.platformType}")
                 }

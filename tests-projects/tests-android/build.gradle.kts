@@ -41,13 +41,13 @@ kotlin {
 
     sourceSets {
         commonMain {
-            kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonMain/kotlin")
+            //kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonMain/kotlin")
             dependencies {
                 implementation(libs.datetime)
             }
         }
         commonTest {
-            kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonTest/kotlin")
+            //kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonTest/kotlin")
             dependencies {
                 implementation(libs.coroutines.test)
             }
