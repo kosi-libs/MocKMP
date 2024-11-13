@@ -426,10 +426,18 @@ public class MocKMPProcessor(
     private fun moveInCommonTest() {
         codeGenerator.generatedFile.forEach {
             if (it.exists() && it.length() > 0) {
-                val file = if (it.absolutePath.contains("jvm"))
+                val file = if (it.absolutePath.contains("jvm")) {
+                    // generated/ksp/jvm/jvmTest -> generated/ksp/common/commonTest
                     File(it.absolutePath.replace("jvm", "common"))
-                else
-                    File(it.absolutePath.replace("android", "common"))// To be tested...
+                } else {
+                    // generated/ksp/android/androidUnitTest[Debug|Release] -> generated/ksp/common/commonTest
+                    File(
+                        it.absolutePath
+                            .replace("androidUnitTestDebug", "commonTest")
+                            .replace("androidUnitTestRelease", "commonTest")
+                            .replaceFirst("android", "common")
+                    )
+                }
                 file.parentFile.mkdirs()
                 file.writeText(it.readText())
                 // Deleting the file means that incremental compilation algorithm in KSP will fail.
