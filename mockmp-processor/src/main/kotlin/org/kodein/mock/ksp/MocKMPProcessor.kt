@@ -180,7 +180,9 @@ public class MocKMPProcessor(
                 val type = it.returnType!!.resolve()
                 val typeDeclaration = type.declaration
                 if (typeDeclaration !is KSClassDeclaration) error(it, "@FakeProvider functions must return class types.")
-                if (type in provided) error(it, "Only one @FakeProvider function must exist for this type (other is ${provided[type]!!.asString()}).")
+                if (type in provided &&
+                    !it.modifiers.contains(Modifier.EXPECT) &&
+                    !it.modifiers.contains(Modifier.ACTUAL)) error(it, "Only one @FakeProvider function must exist for this type (other is ${provided[type]!!.asString()}).")
                 toFake.remove(type)
                 provided[type] = it
             }
