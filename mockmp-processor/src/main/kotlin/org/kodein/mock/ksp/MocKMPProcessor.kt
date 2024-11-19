@@ -1,6 +1,7 @@
 package org.kodein.mock.ksp
 
 import com.google.devtools.ksp.*
+import com.google.devtools.ksp.common.impl.CodeGeneratorImpl
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
@@ -291,7 +292,7 @@ public class MocKMPProcessor(
                 }
             gFile.addType(gCls.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *process.files.toTypedArray()))
-            moveInCommonTest()
+            moveInCommonTest(gFile.build(), process.files)
         }
 
         toFake.forEach { (vType, process) ->
@@ -360,7 +361,7 @@ public class MocKMPProcessor(
             }
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
-            moveInCommonTest()
+            moveInCommonTest(gFile.build(), filesDeps)
         }
 
         toInject.forEach { (vCls, vProps) ->
@@ -417,34 +418,47 @@ public class MocKMPProcessor(
             }
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
-            moveInCommonTest()
+            moveInCommonTest(gFile.build(), filesDeps)
         }
 
         return emptyList()
     }
 
-    private fun moveInCommonTest() {
-        codeGenerator.generatedFile.forEach {
-            if (it.exists() && it.length() > 0) {
-                val file = if (it.absolutePath.contains("jvm")) {
-                    // generated/ksp/jvm/jvmTest -> generated/ksp/common/commonTest
-                    File(it.absolutePath.replace("jvm", "common"))
-                } else {
-                    // generated/ksp/android/androidUnitTest[Debug|Release] -> generated/ksp/common/commonTest
-                    File(
-                        it.absolutePath
-                            .replace("androidUnitTestDebug", "commonTest")
-                            .replace("androidUnitTestRelease", "commonTest")
-                            .replaceFirst("android", "common")
-                    )
+    private fun moveInCommonTest(fileSpec: FileSpec, sources: java.util.HashSet<KSFile>) {
+        codeGenerator.generatedFile
+            .firstOrNull {
+                it.exists() && it.length() > 0 &&
+                        it.path.contains(fileSpec.packageName.replace(".", "/")) &&
+                        it.path.endsWith(fileSpec.name + ".kt")
+            }?.let {
+                if (it.exists() && it.length() > 0) {
+                        val commonTestFile = if (it.absolutePath.contains("jvm")) {
+                        // generated/ksp/jvm/jvmTest -> generated/ksp/common/commonTest
+                        File(it.absolutePath.replace("jvm", "common"))
+                    } else {
+                        // generated/ksp/android/androidUnitTest[Debug|Release] -> generated/ksp/common/commonTest
+                        File(
+                            it.absolutePath
+                                .replace("androidUnitTestDebug", "commonTest")
+                                .replace("androidUnitTestRelease", "commonTest")
+                                .replaceFirst("android", "common")
+                        )
+                    }
+                        commonTestFile.parentFile.mkdirs()
+                        commonTestFile.writeText(it.readText())
+
+                        // Playing with KSP CodeGeneratorImpl to declare the right file path as output:
+                        (codeGenerator as? CodeGeneratorImpl)?.let { cg ->
+                            cg.sourceToOutputs.put(
+                                commonTestFile,
+                                sources.map { kSFile -> File(kSFile.filePath) }.toMutableSet()
+                            )
+                        }
+                    // Deleting the file means that incremental compilation algorithm in KSP will fail.
+                    // Putting empty seems to do the trick. (Not elegant, but if it works...)
+                    it.writeText("")
+                    //it.delete()
                 }
-                file.parentFile.mkdirs()
-                file.writeText(it.readText())
-                // Deleting the file means that incremental compilation algorithm in KSP will fail.
-                // Putting empty seems to do the trick. (Not elegant, but if it works...)
-                it.writeText("")
-                //it.delete()
-            }
-        }
+            } ?: error("Compiler issue!")
     }
 }

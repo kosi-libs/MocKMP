@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     implementation(libs.ksp.symbolProcessingApi)
+    implementation(libs.ksp.symbolProcessing)
     implementation(libs.kotlinPoet.ksp)
     implementation(projects.mockmpRuntime)
 }
