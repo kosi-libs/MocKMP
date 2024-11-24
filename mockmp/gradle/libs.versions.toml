@@ -1,0 +1,21 @@
+[versions]
+buildConfig = "5.3.5"
+coroutines = "1.9.0-RC"
+datetime = "0.6.0"
+javassist = "3.30.2-GA"
+kotlinPoet = "1.17.0"
+ksp = "2.0.21-1.0.28"
+objenesis = "3.4"
+
+[plugins]
+buildConfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildConfig" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+[libraries]
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
+javassist = { module = "org.javassist:javassist", version.ref = "javassist" }
+kotlinPoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinPoet" }
+ksp-gradlePlugin = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
+ksp-symbolProcessingApi = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
+objenesis = { module = "org.objenesis:objenesis", version.ref = "objenesis" }

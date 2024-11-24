@@ -14,16 +14,17 @@ jobs:
     runs-on: macOS-latest
     env:
       SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-      SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+      SONATYPE_PASSWORD: ${{ secrets.SONATYPE_TOKEN_PASSWORD }}
       GPG_PRIVATE_KEY: ${{ secrets.PGP_SIGNING_KEY }}
       GPG_PRIVATE_PASSWORD: ${{ secrets.PGP_SIGNING_PASSWORD }}
     steps:
       - name: Setup
         uses: kosi-libs/kodein-internal-github-actions/setup@main
       - name: Check
-        uses: ./.github/actions/check
+        run: ./gradlew --stacktrace --scan :tests-projects:check
+        shell: bash
       - name: Upload
-        run: ./gradlew --stacktrace --scan publishAllPublicationsToOssrhStagingRepository -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository-id }}
+        run: ./gradlew --stacktrace --scan :mockmp:publishAllPublicationsToOssrhStagingRepository -Porg.kodein.sonatype.repositoryId=${{ needs.create-staging-repository.outputs.repository-id }}
         shell: bash
 
   drop-or-release-staging-repository:

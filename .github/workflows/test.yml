@@ -17,4 +17,5 @@ jobs:
       - name: Setup
         uses: kosi-libs/kodein-internal-github-actions/setup@main
       - name: Check
-        uses: ./.github/actions/check
+        run: ./gradlew --stacktrace --scan :tests-projects:check
+        shell: bash

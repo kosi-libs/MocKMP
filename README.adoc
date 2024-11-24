@@ -2,6 +2,9 @@
 :icons: font
 :version: 1.17.0
 
+WARNING: MocKMP is currently NOT compatible with Kotlin 2.x.
+         We are currently working on the new MocKMP version 2.0 that will be.
+
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
 Built in collaboration with https://www.deezer.com/[Deezer].

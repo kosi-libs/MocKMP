@@ -1,61 +1,48 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+
 plugins {
-    alias(kodeinGlobals.plugins.kotlin.multiplatform)
+    alias(kodeinGlobals.plugins.kotlin.jvm)
+    alias(libs.plugins.ksp)
     id("org.kodein.mock.mockmp")
 }
 
-repositories {
-    mavenLocal()
-    mavenCentral()
+tasks.test {
+    useJUnitPlatform()
 }
 
-kotlin {
-    applyDefaultHierarchyTemplate()
-
-    jvm {
-        testRuns["test"].executionTask.configure {
-            useJUnitPlatform()
+kotlin.sourceSets {
+    main {
+        kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
+        dependencies {
+            implementation(libs.datetime)
         }
     }
 
-    iosSimulatorArm64()
-    iosX64()
-
-    js(IR) {
-        browser()
-        binaries.library()
+    test {
+        kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
+        dependencies {
+            implementation(kodeinGlobals.kotlin.test)
+            implementation(libs.coroutines.test)
+            implementation(kodeinGlobals.kotlin.test.junit5)
+        }
     }
+}
 
-    sourceSets {
-        commonMain {
-            kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonMain/kotlin")
-            dependencies {
-                implementation(libs.datetime)
-            }
-        }
-        commonTest {
-            kotlin.srcDir("$rootDir/../../tests/tests-junit4/src/commonTest/kotlin")
-            dependencies {
-                implementation(libs.coroutines.test)
-            }
-        }
+val copySources = tasks.register<Sync>("copySources") {
+    from("$rootDir/tests-mp-junit4/src")
+    into("${layout.buildDirectory.get().asFile}/src")
+}
 
-        val jvmTest by getting {
-            dependencies {
-                implementation(kodeinGlobals.kotlin.test.junit5)
-            }
-        }
-
-        val jsTest by getting {
-            dependencies {
-                implementation(kodeinGlobals.kotlin.test)
-            }
-        }
+afterEvaluate {
+    project.tasks.withType<KotlinCompilationTask<*>>().configureEach {
+        dependsOn(copySources)
     }
 }
 
 mockmp {
-    usesHelper = true
-    installWorkaround()
+    onTest {
+        withHelper()
+    }
 }
 
 // Showing tests in Gradle command line
