@@ -9,15 +9,7 @@ A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes at c
 ====
 
 A Mock is an object implementing an interface whose behaviour is configurable at run-time, usually specifically for unit-tests. +
-A mocks can be used to validate that a method or property was (or wasn't) accessed a certain number of times.
+Mocks can be used to validate that a method or property was (or wasn't) accessed in specific conditions.
 
 A fake is a concrete class that contains bogus data: all nullables are null, all strings are empty, all numbers are 0. +
-A fake can be used when you need to instanciate a class to test an API but do not care about the data it contains.
-
-[NOTE]
-====
-MocKMP uses https://github.com/google/ksp[KSP], which has limited support for Kotlin/Multiplatform.
-In particular, https://github.com/google/ksp/issues/567[KSP does not support generating code for commonTest].
-
-In order to work on Kotlin/Multiplatform projects, the MocKMP plugin uses a trick that consist of only generating code for the JVM, and then using the generated code for all targets.
-====
+A fake can be used when you need to instantiate a class to test an API but do not care about the data it contains.

@@ -7,12 +7,17 @@ CAUTION: Only *concrete trees* (concrete classes containing concrete classes) ca
 
 == Requesting generation
 
-You can declare that a class needs a specific faked data by using the `@UsesFakes` annotation.
+You can declare that a class or function needs a specific faked data by using the `@UsesFakes` annotation.
 
 [source,kotlin]
 ----
 @UsesFakes(User::class)
 class MyTests
+
+// and
+
+@UsesFakes(User::class)
+fun testUser() {}
 ----
 
 Once a type appears in `@UsesFakes`, the processor will generate a fake function for it.
@@ -20,13 +25,13 @@ Once a type appears in `@UsesFakes`, the processor will generate a fake function
 
 == Instantiating
 
-Once a class has been faked, you can get a new instance by calling its `fake*` corresponding function:
+Once a class has been faked, you can get a new instance by the `fake` function:
 
 [source,kotlin]
 ----
 @UsesFakes(User::class)
 class MyTests {
-    val user = fakeUser()
+    val user = fake<User>()
 }
 ----
 
@@ -44,7 +49,7 @@ By using a `data class`, you can easily tweak your fakes according to your needs
 
 [source,kotlin]
 ----
-val user = fakeUser().copy(id = 42)
+val user = fake<User>().copy(id = 42)
 ----
 ====
 
@@ -61,3 +66,42 @@ fun provideFakeInstant() = Instant.fromEpochSeconds(0)
 ----
 
 CAUTION: There can be only one provider per type, and it needs to be a top-level function.
+
+
+== Generics
+
+You can fake a Star-projected generic type with `@UsesFakes`:
+
+[source,kotlin]
+----
+data class NullGenData<T>(val content: T)
+
+data class NonNullGenData<T : Any>(val content: T)
+
+@Test
+@UsesFakes(GenData::class)
+fun testGenericFake() {
+    val nullData = fake<NullGenData<*>>()
+    assertNull(nullData.content)
+
+    val nonNullData = fake<NonNullGenData<*>>()
+    assertNonNull(nonNullData.content) // is Any
+}
+----
+
+However, if you need a specific generic type to fake, you need to declare it in an xref:injection.adoc[injected class], even if you are never going to use that class.
+
+[source,kotlin]
+----
+data class GenData<T>(val content: T)
+
+class GenFakes {
+    @Fake lateinit var longData: GenData<String>
+}
+
+@Test
+fun testDataOfLong() {
+    val data = fake<GenData<String>>()
+    assertEquals("", data.content)
+}
+----

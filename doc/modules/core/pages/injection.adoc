@@ -1,10 +1,9 @@
 = Injecting your test classes
 
-Instead of manually creating your own mocks & fakes, it can be useful to inject them in your test class, especially if you have multiple tests using them.
+Instead of manually creating your own mocks & fakes, it can be useful to inject them in your test classes, especially if you have multiple tests using them.
 
 [source,kotlin]
 ----
-@UsesFakes(User::class)
 class MyTests {
     @Mock lateinit var db: Database
     @Mock lateinit var api: API
@@ -17,7 +16,7 @@ class MyTests {
 
     @BeforeTest fun setUp() {
         mocker.reset() //<1>
-        this.injectMocks(mocker) //<2>
+        mocker.injectMocks(this) //<2>
         controller = ControllerImpl(db, api) //<3>
     }
 
@@ -32,6 +31,21 @@ class MyTests {
 <2> Injects mocks and fakes.
 <3> Create classes to be tested with injected mocks & fakes.
 
-As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `T.injectMocks(Mocker)` function will be created by the processor.
+As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `Mocker.injectMocks(receiver: T)` function will be created by the processor.
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
+
+[TIP]
+====
+You can inject other classes than test classes:
+
+[source,kotlin]
+----
+class MyMocks {
+    @Mock lateinit var db: Database
+    @Mock lateinit var api: API
+}
+----
+
+...will generate the `Mocker.injectMocks(receiver: MyMocks)` function.
+====

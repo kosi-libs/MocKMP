@@ -5,26 +5,33 @@
 [source,kotlin,subs="verbatim,attributes"]
 ----
 plugins {
-    kotlin("multiplatform")
-    id("org.kodein.mock.mockmp") version "{version}"
+    kotlin("multiplatform") version "{kotlin-version}"
+    id("com.google.devtools.ksp") version "{ksp-version}" // <1>
+    id("org.kodein.mock.mockmp") version "{version}" // <2>
 }
 
 kotlin {
+    jvmToolchain(17)
     // Your Koltin/Multiplatform configuration
 }
 
-mockmp {
-    usesHelper = true
-    installWorkaround()
+mockmp { // <3>
+    onTest {
+        withHelper() // or withHelper(junit5)
+    }
 }
 ----
+<1> Apply the KSP plugin that corresponds to the Kotlin version you are using.
+<2> Apply the MocKMP plugin.
+<3> Apply MocKMP to your test source-sets (must be configured *after*  declaring `kotlin` targets).
 
 2. Create a test class that declares injected mocks and fakes:
 +
+--
 [source,kotlin]
 ----
-class MyTest : TestsWithMocks() {
-    override fun setUpMocks() = injectMocks(mocker) //<1>
+class MyTest : TestsWithMocks() { // <1>
+    override fun setUpMocks() = mocker.injectMocks(this) // <2>
 
     @Mock lateinit var view: View
     @Fake lateinit var model: Model
@@ -38,6 +45,8 @@ class MyTest : TestsWithMocks() {
     }
 }
 ----
-<1> This is mandatory and cannot be generated. You need to run the KSP generation at least once for your IDE to see the `injectMocks` generated function.
+<1> The `TestsWithMocks` super class eases the use of MocKMP in your tests, but is not mandatory.
+<2> This is mandatory and cannot be generated. You need to build your project at least once for your IDE to see the `injectMocks` function.
+--
 +
 NOTE: Every property annotated by `@Mock`, annotated by `@Fake` or delegated to `withMocks` will be reset fresh between each test.

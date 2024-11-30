@@ -8,19 +8,25 @@ The `TestWithMocks` helper class usage is recommended when possible (as it makes
 ====
 
 CAUTION: Only *interfaces* can be mocked!
+This is by design and is not likely to change.
 
 
 == Requesting generation
 
-You can declare that a class needs a specific mocked interface by using the `@UsesMocks` annotation.
+You can declare that a class or a function needs a specific mocked interface by using the `@UsesMocks` annotation.
 
 [source,kotlin]
 ----
 @UsesMocks(Database::class, API::class)
-class MyTests
+class DatabaseTests
+
+// and
+
+@UsesMocks(Database::class, API::class)
+fun testDatabase() {}
 ----
 
-Once a type appears in `@UsesMocks`, the processor will generate a mock class for it.
+Once an interface appears in `@UsesMocks`, the processor will generate a mock class for it.
 
 
 == Defining behaviour
@@ -31,21 +37,23 @@ You can then create mocked types and define their behaviour:
 [source,kotlin]
 ----
 @UsesMocks(Database::class, API::class)
-class MyTests {
-    @Test fun myUnitTest() {
+class DatabaseTests {
+    @Test fun test() {
         val mocker = Mocker()
-        val db = MockDatabase(mocker)
-        val api = MockAPI(mocker)
+        val db = mocker.mock<Database>()
+        val api = mocker.mock<API>()
 
         mocker.every { db.open(isAny()) } returns Unit //<1>
         mocker.every { api.getCurrentUser() } runs { fakeUser() } //<2>
+
+        //...
     }
 }
 ----
 <1> `returns` mocks the method to return the provided *instance*.
 <2> `runs` mocks the method to run and return the result of the provided *function*.
 
-Note that a method *must* be mocked to run without throwing an exception (there is no "relaxed" mode).
+NOTE: A method *must* be mocked to run without throwing an exception (there is no "relaxed" mode).
 
 You can mock methods according to specific argument constraints:
 
@@ -60,7 +68,7 @@ You can also keep the `Every` reference to change the behaviour over time:
 [source,kotlin]
 ----
 val everyApiGetUserById42 = mocker.every { api.getUserById(42) }
-everyApiGetUserById42 returns fakeUser()
+everyApiGetUserById42 returns fake<User>()
 // Do things...
 everyApiGetUserById42 returns null
 // Do other things...
@@ -77,14 +85,14 @@ You can mock property getters & setters much like regular methods:
 class MyTests {
     @Test fun myUnitTest() {
         val mocker = Mocker()
-        val user = MockUser(mocker)
+        val place = mocker.mock<Place>()
 
         // Mocking a val property:
-        mocker.every { user.id } returns 1
+        mocker.every { place.id } returns 1
 
         // Mocking a var property:
-        mocker.every { user.name = isAny() } returns Unit //<1>
-        mocker.every { user.name } returns "John Doe"
+        mocker.every { place.name = isAny() } returns Unit //<1>
+        mocker.every { place.name } returns "Machu Pichu"
     }
 }
 ----
@@ -98,9 +106,12 @@ A var (read & write) property can be "backed" by the mocker:
 class MyTests {
     @Test fun myUnitTest() {
         val mocker = Mocker()
-        val user = MockUser(mocker)
+        val place = mocker.mock<Place>()
 
-        mocker.backProperty(user, User::rwString, default = "")
+        mocker.backProperty(user, Place::name, default = "")
+
+        place.name = "Machu Pichu"
+        assertEquals("Machu Pichu", place.name)
     }
 }
 ----
@@ -134,19 +145,23 @@ Available constraints are:
 - `isSame` and `isNotSame` check identity.
 - `isInstanceOf` checks type.
 
-Note that passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
+[NOTE]
+====
+Passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
 
 [source,kotlin]
 ----
-mocker.every { api.getUserById(42) } returns fakeUser()
+mocker.every { api.getUserById(42) } returns fake<User>()
 ----
 
 is strictly equivalent to:
 
 [source,kotlin]
 ----
-mocker.every { api.getUserById(isEqual(42)) } returns fakeUser()
+mocker.every { api.getUserById(isEqual(42)) } returns fake<User>()
 ----
+====
+
 
 [WARNING]
 ====
@@ -169,11 +184,11 @@ mocker.every { api.registerCallback(isEqual(42), isAny()) } returns Unit
 
 == Verifying
 
-You can check that mock functions has been run in order with `verify`.
+You can check that mock functions have been run in order with `verify`.
 
 [source,kotlin]
 ----
-val fakeUser = fakeUser()
+val fakeUser = fake<User>()
 
 mocker.every { db.loadUser(isAny()) } returns null
 mocker.every { db.saveUser(isAny()) } returns Unit
@@ -210,7 +225,7 @@ mocker.verifyWithSuspend {
 }
 ----
 
-NOTE: You can check suspending *and* non suspending functions in `verifyWithSuspend`.
+TIP: You can check suspending *and* non suspending functions in `verifyWithSuspend`.
 Unlike `everySuspending`, all `verifyWithSuspend` does is running `verify` in a suspending context, which works for both regular and suspending functions.
 
 
@@ -225,7 +240,7 @@ mocker.every { db.saveUser(isAny()) } runs { error("DB is not accessible") }
 //...
 
 mocker.verify {
-    val ex = threw<IllegalStateException> { db.saveUser(isAny()) }
+    val ex = thre                              w<IllegalStateException> { db.saveUser(isAny()) }
     assertEquals("DB is not accessible", ex.message)
 }
 ----
@@ -294,7 +309,7 @@ This can be useful, for example, to capture delegates and call them.
 
 [source,kotlin]
 ----
-val delegate = MockDelegate()
+val delegate = mocker.mock<Delegate>()
 mocker.every { delegate.setSession(isAny()) } returns Unit
 
 val controller = Controller(delegate)
@@ -387,7 +402,7 @@ You can mock suspending functions with `mockSuspendFunctionX`.
 
 == Defining custom argument constraints
 
-You can define your own constraints:
+You can define your own constraints using `isValid`:
 
 [source,kotlin]
 ----
@@ -398,7 +413,7 @@ fun ArgConstraintsBuilder.isStrictlyPositive(capture: MutableList<Int>? = null):
     })
 ----
 
-You can then use your custom constraints in *definitions* or in *verifications*:
+You can then use your custom constraints in *definitions* and in *verifications*:
 
 [source,kotlin]
 ----
