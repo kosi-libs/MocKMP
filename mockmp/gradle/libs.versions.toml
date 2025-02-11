@@ -1,10 +1,10 @@
 [versions]
 buildConfig = "5.3.5"
-coroutines = "1.9.0-RC"
+coroutines = "1.10.1"
 datetime = "0.6.0"
 javassist = "3.30.2-GA"
 kotlinPoet = "1.17.0"
-ksp = "2.0.21-1.0.28"
+ksp = "2.1.0-1.0.29"
 objenesis = "3.4"
 
 [plugins]

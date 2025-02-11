@@ -5,8 +5,8 @@ buildscript {
         maven(url = "https://raw.githubusercontent.com/kosi-libs/kodein-internal-gradle-plugin/mvn-repo")
     }
     dependencies {
-        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:8.9.0")
-        classpath("org.gradle.toolchains:foojay-resolver:0.8.0")
+        classpath("org.kodein.internal.gradle:kodein-internal-gradle-settings:8.10.0")
+        classpath("org.gradle.toolchains:foojay-resolver:0.9.0")
     }
 }
 
