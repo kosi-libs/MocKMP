@@ -22,7 +22,7 @@ internal abstract class MocKMPExtractExpectKt : DefaultTask() {
     abstract val resource: Property<String>
 
     @TaskAction
-    private fun execute() {
+    internal fun execute() {
         val outputFile = outputDirectory.get().asFile.resolve("mockmp.expect.kt")
         outputFile.parentFile.mkdirs()
         outputFile.outputStream().writer().use { output ->
