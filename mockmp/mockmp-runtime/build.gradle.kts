@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.kosi.publish.module)
+    alias(libs.plugins.mavenPublish)
 }
 
 kotlin {
@@ -34,7 +34,9 @@ kotlin {
     explicitApi()
 }
 
-kosiPublish {
-    name = "mockmp-runtime"
-    description = "MocKMP runtime"
+mavenPublishing {
+    pom {
+        name = "mockmp-runtime"
+        description = "MocKMP runtime"
+    }
 }

@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kosi.publish.module)
+    alias(libs.plugins.mavenPublish)
 }
 
 dependencies {
@@ -9,7 +9,9 @@ dependencies {
     implementation(projects.mockmpRuntime)
 }
 
-kosiPublish {
-    name = "mockmp-processor"
-    description = "MocKMP KSP processor"
+mavenPublishing {
+    pom {
+        name = "mockmp-processor"
+        description = "MocKMP KSP processor"
+    }
 }

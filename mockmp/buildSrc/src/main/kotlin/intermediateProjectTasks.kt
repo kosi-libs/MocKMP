@@ -12,7 +12,7 @@ fun Project.intermediateProjectTasks() {
     afterEvaluate {
         listOf(
             "publishToMavenLocal" to "publishing",
-            "publishAllPublicationsToOssrhStagingRepository" to "release",
+            "publishAndReleaseToMavenCentral" to "publishing",
             "publishPlugins" to "plugin portal",
         ).forEach { (taskName, taskGroup) ->
             if (taskName !in project.tasks.names) {

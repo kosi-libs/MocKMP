@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.kosi.publish.module)
+    alias(libs.plugins.mavenPublish)
 }
 
 kotlin {
@@ -60,7 +60,9 @@ afterEvaluate {
 }
 
 
-kosiPublish {
-    name = "mockmp-test-helper-junit5"
-    description = "MocKMP test helper with JUnit5"
+mavenPublishing {
+    pom {
+        name = "mockmp-test-helper-junit5"
+        description = "MocKMP test helper with JUnit5"
+    }
 }

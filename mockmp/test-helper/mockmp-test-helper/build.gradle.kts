@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.kosi.publish.module)
+    alias(libs.plugins.mavenPublish)
 }
 
 kotlin {
@@ -42,7 +42,9 @@ kotlin {
     }
 }
 
-kosiPublish {
-    name = "mockmp-test-helper"
-    description = "MocKMP test helper"
+mavenPublishing {
+    pom {
+        name = "mockmp-test-helper"
+        description = "MocKMP test helper"
+    }
 }

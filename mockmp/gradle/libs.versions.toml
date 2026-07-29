@@ -4,21 +4,21 @@ buildConfig = "6.0.10"              # https://github.com/gmazzo/gradle-buildconf
 coroutines = "1.11.0"               # https://github.com/Kotlin/kotlinx.coroutines/releases
 datetime = "0.8.0"                  # https://github.com/Kotlin/kotlinx-datetime/releases
 gradle-pluginPublish = "2.1.1"      # https://plugins.gradle.org/plugin/com.gradle.plugin-publish
-kosi-publish = "1.0.0"
 kotlin = "2.3.21"                   # https://kotlinlang.org/docs/releases.html#release-history
 kotlinPoet = "2.3.0"                # https://github.com/square/kotlinpoet/releases
 ksp = "2.3.10"                      # https://github.com/google/ksp/releases
+mavenPublish = "0.37.0"             # https://github.com/vanniktech/gradle-maven-publish-plugin/releases
 
 [plugins]
 android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
 buildConfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildConfig" }
 gradle-pluginPublish = { id = "com.gradle.plugin-publish", version.ref = "gradle-pluginPublish" }
-kosi-publish-root = { id = "org.kodein.gradle.publish.root", version.ref = "kosi-publish" }
-kosi-publish-module = { id = "org.kodein.gradle.publish.module", version.ref = "kosi-publish" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-plugin-samWithReceiver = { id = "org.jetbrains.kotlin.plugin.sam.with.receiver", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }
 
 [libraries]
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "android-gradle-plugin" }
