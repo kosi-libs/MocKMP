@@ -19,6 +19,9 @@ class InjectionTests : TestsWithMocks() {
     lateinit var data: Data
 
     @Fake
+    lateinit var fooData: foo.Data
+
+    @Fake
     lateinit var arrays: Arrays
 
     @Fake
@@ -41,6 +44,7 @@ class InjectionTests : TestsWithMocks() {
     fun testMockInjection() {
         assertNotNull(bar)
         assertNotNull(data)
+        assertNotNull(fooData)
         assertNotNull(arrays)
         assertNotNull(funs)
         assertNotNull(callback)

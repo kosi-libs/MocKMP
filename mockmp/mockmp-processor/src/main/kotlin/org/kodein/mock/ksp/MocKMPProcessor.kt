@@ -159,14 +159,15 @@ public class MocKMPProcessor(
      * distinct type argument list (`fakeGenDataXIntX`, `fakeGenDataXStringX`, ...), nesting
      * (`fakeFakeTests_FakeAny` for a nested class `FakeAny` inside `FakeTests`) and nullability.
      */
-    private fun KSType.toFunName(): String {
-        val prefix = (if (isMarkedNullable) "Nul" else "") + declaration.parentPrefix()
+    private fun KSType.toFunName(includePackage: Boolean = false): String {
+        val packagePrefix = if (includePackage) declaration.packageName.asString().replace(".", "_") + "_" else ""
+        val prefix = packagePrefix + (if (isMarkedNullable) "Nul" else "") + declaration.parentPrefix()
         return prefix +
                 if (arguments.isEmpty()) declaration.simpleName.asString()
                 else "${declaration.simpleName.asString()}X${
                     arguments.joinToString("_") {
                         if (it.variance == Variance.STAR) "STAR"
-                        else it.type!!.resolve().toFunName()
+                        else it.type!!.resolve().toFunName(includePackage)
                     }
                 }X"
     }
@@ -989,13 +990,15 @@ public class MocKMPProcessor(
 
         /**
          * Generates the `fake(KType): T` dispatcher, with one `when` branch per faked type, keyed
-         * by a generated `private val type_Xxx: KType = typeOf<Xxx>()` (faked types can be generic,
-         * and `KType` equality — unlike [KClass] — accounts for type arguments):
+         * by a generated `private val type_pkg_Xxx: KType = typeOf<Xxx>()` (faked types can be
+         * generic, and `KType` equality — unlike [KClass] — accounts for type arguments). The
+         * package is included in the property name since all these properties live in the same
+         * generated file, and two distinct types can otherwise share a simple name:
          *
          * ```
-         * private val type_Foo: KType = typeOf<Foo>()
+         * private val type_foo_Foo: KType = typeOf<foo.Foo>()
          * internal actual fun <T : Any> fake(type: KType): T = when (type) {
-         *     type_Foo -> fakeFoo() as T
+         *     type_foo_Foo -> fakeFoo() as T
          *     else -> error("Could not find fake for type $type")
          * }
          * ```
@@ -1006,7 +1009,7 @@ public class MocKMPProcessor(
             val gFile = FileSpec.builder(accessorsPackage, "fakes")
             fakes.forEach { (type, _) ->
                 gFile.addProperty(
-                    PropertySpec.builder("type_${type.toFunName()}", KType::class)
+                    PropertySpec.builder("type_${type.toFunName(includePackage = true)}", KType::class)
                         .addModifiers(KModifier.PRIVATE)
                         .initializer("%M<%T>()", MemberName("kotlin.reflect", "typeOf"), type.toTypeName())
                         .build()
@@ -1020,7 +1023,7 @@ public class MocKMPProcessor(
 
             if (fakes.isNotEmpty()) {
                 gFun.beginControlFlow("return when (type)")
-                fakes.forEach { (type, fake) -> gFun.addStatement("type_${type.toFunName()} -> %M() as T", fake) }
+                fakes.forEach { (type, fake) -> gFun.addStatement("type_${type.toFunName(includePackage = true)} -> %M() as T", fake) }
                 gFun.addStatement("else -> error(\"Could not find fake for type \$type\")")
                 gFun.endControlFlow()
             } else {
