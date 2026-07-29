@@ -4,12 +4,10 @@ buildConfig = "6.0.10"              # https://github.com/gmazzo/gradle-buildconf
 coroutines = "1.11.0"               # https://github.com/Kotlin/kotlinx.coroutines/releases
 datetime = "0.8.0"                  # https://github.com/Kotlin/kotlinx-datetime/releases
 gradle-pluginPublish = "2.1.1"      # https://plugins.gradle.org/plugin/com.gradle.plugin-publish
-javassist = "3.32.0-GA"             # https://github.com/jboss-javassist/javassist/releases
 kosi-publish = "1.0.0"
 kotlin = "2.3.21"                   # https://kotlinlang.org/docs/releases.html#release-history
 kotlinPoet = "2.3.0"                # https://github.com/square/kotlinpoet/releases
 ksp = "2.3.10"                      # https://github.com/google/ksp/releases
-objenesis = "3.5"                   # https://github.com/easymock/objenesis/releases
 
 [plugins]
 android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
@@ -26,9 +24,7 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "android-gradle-plugin" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
-javassist = { module = "org.javassist:javassist", version.ref = "javassist" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlinPoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinPoet" }
 ksp-gradlePlugin = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
 ksp-symbolProcessingApi = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
-objenesis = { module = "org.objenesis:objenesis", version.ref = "objenesis" }

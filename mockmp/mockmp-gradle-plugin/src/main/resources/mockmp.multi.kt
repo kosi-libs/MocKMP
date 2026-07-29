@@ -12,3 +12,5 @@ import kotlin.reflect.typeOf
 {VISIBILITY} inline fun <reified T : Any> fake(): T = fake(typeOf<T>())
 
 {VISIBILITY} expect fun Mocker.injectMocks(receiver: Any)
+
+{VISIBILITY} expect fun providePlaceholder(cls: KClass<*>): Any

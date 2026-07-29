@@ -5,6 +5,14 @@ import kotlin.reflect.KClass
 
 internal class References {
 
+    /**
+     * Set by [Mocker.registerPlaceholderProvider], called automatically by every generated
+     * `MockXxx` class's constructor. Supplies a real, KSP-generated instance for a type that has
+     * no builtin and no user-registered reference, replacing the unsafe-cast placeholder this
+     * runtime used to construct itself.
+     */
+    internal var placeholderProvider: ((KClass<*>) -> Any)? = null
+
     private val references = ArrayList<Any>()
 
     @Suppress("RemoveRedundantCallsOfConversionMethods")
@@ -34,7 +42,7 @@ internal class References {
         references.forEach {
             if (cls.isInstance(it)) ref = it
         }
-        if (ref == null) ref = unsafeValue(cls)
+        if (ref == null) ref = placeholderProvider?.invoke(cls)
         if (ref != null) {
             map[cls] = ref
         }

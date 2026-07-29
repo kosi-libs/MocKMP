@@ -31,13 +31,6 @@ kotlin {
         nodejs()
     }
 
-    sourceSets {
-        jvmMain.dependencies {
-            implementation(libs.objenesis)
-            implementation(libs.javassist)
-        }
-    }
-
     explicitApi()
 }
 
