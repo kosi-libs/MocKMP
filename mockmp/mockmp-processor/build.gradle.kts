@@ -1,5 +1,6 @@
 plugins {
-    kodein.library.jvm
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kosi.publish.module)
 }
 
 dependencies {
@@ -8,7 +9,7 @@ dependencies {
     implementation(projects.mockmpRuntime)
 }
 
-kodeinUpload {
+kosiPublish {
     name = "mockmp-processor"
     description = "MocKMP KSP processor"
 }

@@ -1,14 +1,16 @@
 plugins {
-    kodein.gradlePlugin
     `kotlin-dsl`
-    kotlin("plugin.sam.with.receiver") version kodeinGlobals.versions.kotlin.get()
+    `java-gradle-plugin`
+    `maven-publish`
+    alias(libs.plugins.gradle.pluginPublish)
+    alias(libs.plugins.kotlin.plugin.samWithReceiver)
     alias(libs.plugins.buildConfig)
 }
 
 dependencies {
     implementation(libs.ksp.gradlePlugin)
-    implementation(kodeinGlobals.kotlin.gradlePlugin)
-    implementation(kodeinGlobals.android.gradlePlugin)
+    implementation(libs.kotlin.gradlePlugin)
+    implementation(libs.android.gradlePlugin)
 }
 
 gradlePlugin {
@@ -17,7 +19,6 @@ gradlePlugin {
         implementationClass = "org.kodein.mock.gradle.MocKMPGradlePlugin"
         displayName = "MocKMP"
         description = "Applies the MocKMP symbol processor to a Kotlin/Multiplatform project"
-        @Suppress("UnstableApiUsage")
         tags.set(listOf("kotlin", "mock", "test"))
     }
 }
@@ -27,15 +28,6 @@ buildConfig {
     buildConfigField("String", "VERSION", "\"${project.version}\"")
 }
 
-kotlin.target.compilations.all {
-    compileTaskProvider.configure {
-        compilerOptions.freeCompilerArgs.add("-Xsuppress-version-warnings")
-    }
-}
-
-kotlin.explicitApi()
-
-kodeinUpload {
-    name = "mockmp-gradle-plugin"
-    description = "MocKMP Gradle Plugin"
+kotlin {
+    explicitApi()
 }

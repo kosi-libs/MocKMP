@@ -3,12 +3,12 @@ package tests
 import data.*
 import foo.Bar
 import foo.Foo
-import kotlinx.datetime.Instant
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
 import org.kodein.mock.generated.injectMocks
 import org.kodein.mock.tests.TestsWithMocks
 import kotlin.test.*
+import kotlin.time.Instant
 
 class InjectionTests : TestsWithMocks() {
 

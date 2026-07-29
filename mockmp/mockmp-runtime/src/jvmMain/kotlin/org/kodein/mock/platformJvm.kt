@@ -12,7 +12,6 @@ private val hasSealed by lazy {
     Class::class.java.methods.any { it.name == "isSealed" }
 }
 
-@Suppress("Since15")
 internal actual fun References.unsafeValue(cls: KClass<*>): Any? {
     when {
         cls.java.isArray -> return Array.newInstance(cls.java.componentType, 0)

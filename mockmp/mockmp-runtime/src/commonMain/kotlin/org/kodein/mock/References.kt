@@ -16,7 +16,7 @@ internal class References {
         Short::class to 0.toShort(),
         Char::class to 0.toChar(),
         UInt::class to 0.toUInt(),
-        Int::class to 0.toInt(),
+        Int::class to 0,
         Float::class to 0.toFloat(),
         ULong::class to 0.toULong(),
         Long::class to 0.toLong(),
@@ -35,6 +35,9 @@ internal class References {
             if (cls.isInstance(it)) ref = it
         }
         if (ref == null) ref = unsafeValue(cls)
+        if (ref != null) {
+            map[cls] = ref
+        }
         return ref
     }
 

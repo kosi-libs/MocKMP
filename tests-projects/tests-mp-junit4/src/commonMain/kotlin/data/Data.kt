@@ -1,6 +1,6 @@
 package data
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 enum class Direction { LEFT, RIGHT }
 

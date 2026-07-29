@@ -1,7 +1,7 @@
 package tests
 
-import kotlinx.datetime.Instant
 import org.kodein.mock.FakeProvider
+import kotlin.time.Instant
 
 
 @FakeProvider

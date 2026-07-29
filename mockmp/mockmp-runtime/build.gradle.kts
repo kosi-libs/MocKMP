@@ -1,20 +1,47 @@
 plugins {
-    kodein.library.mpp
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kosi.publish.module)
 }
 
-kotlin.kodein {
-    all()
-    jvm {
-        sources.mainDependencies {
+kotlin {
+    jvm()
+    jvmToolchain(17)
+
+    iosSimulatorArm64()
+    iosArm64()
+    watchosArm32()
+    watchosArm64()
+    watchosDeviceArm64()
+    watchosSimulatorArm64()
+    tvosSimulatorArm64()
+    tvosArm64()
+
+    linuxArm64()
+    linuxX64()
+    macosArm64()
+    mingwX64()
+
+    js {
+        browser()
+        nodejs()
+    }
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+        nodejs()
+    }
+
+    sourceSets {
+        jvmMain.dependencies {
             implementation(libs.objenesis)
             implementation(libs.javassist)
         }
     }
+
+    explicitApi()
 }
 
-kotlin.jvmToolchain(17)
-
-kodeinUpload {
+kosiPublish {
     name = "mockmp-runtime"
     description = "MocKMP runtime"
 }
