@@ -1,5 +1,3 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.ksp)
@@ -8,7 +6,7 @@ plugins {
 
 kotlin {
     jvm()
-    jvmToolchain(17)
+    jvmToolchain(11)
 
     iosSimulatorArm64()
     iosArm64()

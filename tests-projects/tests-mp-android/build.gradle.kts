@@ -9,7 +9,7 @@ plugins {
 
 kotlin {
     jvm()
-    jvmToolchain(17)
+    jvmToolchain(11)
 
     androidTarget()
 

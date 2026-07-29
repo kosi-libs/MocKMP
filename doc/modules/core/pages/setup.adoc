@@ -26,11 +26,10 @@ For example:
 ----
 kotlin {
     androidTarget()
-    jvmToolchain(17)
+    jvmToolchain(11)
 
     iosArm64()
     iosSimulatorArm64()
-    iosX64()
 
     sourceSets {
         commonTest.dependencies {
