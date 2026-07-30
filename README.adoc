@@ -1,6 +1,5 @@
 = MocKMP
 :icons: font
-:version: 2.0.0
 
 A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 
