@@ -240,7 +240,7 @@ mocker.every { db.saveUser(isAny()) } runs { error("DB is not accessible") }
 //...
 
 mocker.verify {
-    val ex = thre                              w<IllegalStateException> { db.saveUser(isAny()) }
+    val ex = threw<IllegalStateException> { db.saveUser(isAny()) }
     assertEquals("DB is not accessible", ex.message)
 }
 ----
