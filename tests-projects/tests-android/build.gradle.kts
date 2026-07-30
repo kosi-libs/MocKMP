@@ -2,23 +2,21 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.ksp)
     id("org.kodein.mock.mockmp")
 }
 
 kotlin.jvmToolchain(11)
 
-kotlin.sourceSets {
-    main {
-        kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
+android.sourceSets {
+    named("main") {
+        kotlin.directories.add("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
         dependencies {
             implementation(libs.kotlinx.datetime)
         }
     }
-
-    test {
-        kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
+    named("test") {
+        kotlin.directories.add("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
         dependencies {
             implementation(libs.kotlin.test.junit)
             implementation(libs.kotlinx.coroutines.test)
@@ -50,6 +48,9 @@ val copySources = tasks.register<Sync>("copySources") {
 
 afterEvaluate {
     project.tasks.withType<KotlinCompilationTask<*>>().configureEach {
+        dependsOn(copySources)
+    }
+    project.tasks.preBuild.configure {
         dependsOn(copySources)
     }
 }

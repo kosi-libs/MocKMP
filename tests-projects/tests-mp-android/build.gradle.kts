@@ -2,16 +2,20 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.multiplatformLibrary)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.android.library)
     id("org.kodein.mock.mockmp")
 }
 
 kotlin {
-    jvm()
     jvmToolchain(11)
 
-    androidTarget()
+    android {
+        namespace = "org.kodein.mock.test.mp.android.junit4"
+        compileSdk = 36
+        minSdk = 24
+        withHostTest {}
+    }
 
     iosSimulatorArm64()
     iosArm64()
@@ -54,12 +58,6 @@ kotlin {
             }
         }
 
-        jvmTest {
-            dependencies {
-                implementation(libs.kotlin.test.junit)
-            }
-        }
-
         androidUnitTest {
             dependencies {
                 implementation(libs.kotlin.test.junit)
@@ -93,16 +91,5 @@ val copySources = tasks.register<Sync>("copySources") {
 afterEvaluate {
     project.tasks.withType<KotlinCompilationTask<*>>().configureEach {
         dependsOn(copySources)
-    }
-}
-
-android {
-    namespace = "org.kodein.mock.test.mp.android.junit4"
-
-    defaultConfig {
-        namespace = "com.example.myapplication"
-        minSdk = 24
-        compileSdk = 36
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 }
