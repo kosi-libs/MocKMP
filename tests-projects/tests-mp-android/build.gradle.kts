@@ -49,20 +49,20 @@ kotlin {
         commonTest {
             kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
             dependencies {
-                implementation(kotlin("test"))
+                implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
             }
         }
 
         jvmTest {
             dependencies {
-                implementation(kotlin("test-junit"))
+                implementation(libs.kotlin.test.junit)
             }
         }
 
         androidUnitTest {
             dependencies {
-                implementation(kotlin("test-junit"))
+                implementation(libs.kotlin.test.junit)
             }
         }
     }

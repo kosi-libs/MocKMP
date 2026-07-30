@@ -20,7 +20,7 @@ kotlin.sourceSets {
     test {
         kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
         dependencies {
-            implementation(kotlin("test-junit"))
+            implementation(libs.kotlin.test.junit)
             implementation(libs.kotlinx.coroutines.test)
         }
     }

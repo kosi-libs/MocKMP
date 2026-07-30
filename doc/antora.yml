@@ -9,5 +9,5 @@ nav:
 asciidoc:
   attributes:
     version: '2.1.0'
-    kotlin-version: '2.1.0'
-    ksp-version: '2.1.0-1.0.29'
+    kotlin-version: '2.3.0'
+    ksp-version: '2.3.10'

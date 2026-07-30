@@ -34,10 +34,10 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.mockmpRuntime)
-            implementation(kotlin("test"))
+            implementation(libs.kotlin.test)
         }
         jvmMain.dependencies {
-            implementation(kotlin("test-junit"))
+            implementation(libs.kotlin.test.junit)
         }
     }
 }

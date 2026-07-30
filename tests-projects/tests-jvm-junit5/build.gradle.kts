@@ -21,7 +21,7 @@ kotlin.sourceSets {
     test {
         kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
         dependencies {
-            implementation(kotlin("test-junit5"))
+            implementation(libs.kotlin.test.junit5)
             implementation(libs.kotlinx.coroutines.test)
         }
     }

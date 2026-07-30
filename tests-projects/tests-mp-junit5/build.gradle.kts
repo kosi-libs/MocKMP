@@ -50,14 +50,14 @@ kotlin {
         commonTest {
             kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
             dependencies {
-                implementation(kotlin("test"))
+                implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
             }
         }
 
         jvmTest {
             dependencies {
-                implementation(kotlin("test-junit5"))
+                implementation(libs.kotlin.test.junit5)
             }
         }
     }

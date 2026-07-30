@@ -36,11 +36,11 @@ kotlin {
             kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
             dependencies {
                 implementation(projects.mockmpRuntime)
-                implementation(kotlin("test"))
+                implementation(libs.kotlin.test)
             }
         }
         jvmMain.dependencies {
-            implementation(kotlin("test-junit5"))
+            implementation(libs.kotlin.test.junit5)
         }
     }
 }
