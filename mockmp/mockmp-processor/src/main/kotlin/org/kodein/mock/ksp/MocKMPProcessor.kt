@@ -154,13 +154,19 @@ public class MocKMPProcessor(
         }
     }
 
+    /** The `foo_bar_` prefix identifying [this] declaration's package, empty for the root package. */
+    private fun KSDeclaration.packagePrefix(): String =
+        packageName.asString().replace('.', '_').withNonEmptySuffix("_")
+
     /**
      * A name-safe identifier for the `fakeXxx()` function generated for [this] type: unique per
-     * distinct type argument list (`fakeGenDataXIntX`, `fakeGenDataXStringX`, ...), nesting
-     * (`fakeFakeTests_FakeAny` for a nested class `FakeAny` inside `FakeTests`) and nullability.
+     * package (`fakedata_Data` vs. `fakefoo_Data`, since both live in the same generated
+     * `fakes.kt`), distinct type argument list (`fakeGenDataXkotlin_IntX`, `fakeGenDataXkotlin_StringX`,
+     * ...), nesting (`fakeFakeTests_FakeAny` for a nested class `FakeAny` inside `FakeTests`) and
+     * nullability.
      */
     private fun KSType.toFunName(): String {
-        val prefix = (if (isMarkedNullable) "Nul" else "") + declaration.parentPrefix()
+        val prefix = declaration.packagePrefix() + (if (isMarkedNullable) "Nul" else "") + declaration.parentPrefix()
         return prefix +
                 if (arguments.isEmpty()) declaration.simpleName.asString()
                 else "${declaration.simpleName.asString()}X${
@@ -989,13 +995,16 @@ public class MocKMPProcessor(
 
         /**
          * Generates the `fake(KType): T` dispatcher, with one `when` branch per faked type, keyed
-         * by a generated `private val type_Xxx: KType = typeOf<Xxx>()` (faked types can be generic,
-         * and `KType` equality — unlike [KClass] — accounts for type arguments):
+         * by a generated `private val type_pkg_Xxx: KType = typeOf<Xxx>()` (faked types can be
+         * generic, and `KType` equality — unlike [KClass] — accounts for type arguments). The
+         * package is folded into the name (via [toFunName]) because every one of these properties
+         * lives in the same generated `fakes.kt` file, where a bare simple name is not unique
+         * (`foo.Data` and `bar.Data` would otherwise both want `type_Data`):
          *
          * ```
-         * private val type_Foo: KType = typeOf<Foo>()
+         * private val type_foo_Foo: KType = typeOf<foo.Foo>()
          * internal actual fun <T : Any> fake(type: KType): T = when (type) {
-         *     type_Foo -> fakeFoo() as T
+         *     type_foo_Foo -> fakefoo_Foo() as T
          *     else -> error("Could not find fake for type $type")
          * }
          * ```
