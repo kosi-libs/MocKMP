@@ -1,10 +1,14 @@
 package org.kodein.mock.gradle
 
-import com.android.build.api.dsl.TestedExtension
-import com.android.build.gradle.LibraryExtension
-import com.android.build.gradle.internal.dsl.BaseAppModuleExtension
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.CommonExtension
+import com.android.build.api.dsl.LibraryExtension
+import com.android.build.api.variant.AndroidComponentsExtension
+import com.android.build.api.variant.HasAndroidTest
+import com.android.build.api.variant.HasDeviceTests
+import com.android.build.api.variant.HasHostTests
+import com.android.build.api.variant.HasUnitTest
 import com.google.devtools.ksp.gradle.KspExtension
-import java.util.Locale
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -20,6 +24,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinSingleTargetExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet
+import java.util.*
 
 
 public class MocKMPGradlePlugin : Plugin<Project> {
@@ -64,11 +69,16 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             val kotlin =
                 project.extensions.findByName("kotlin") as? KotlinProjectExtension
                     ?: error("MocKMP could not find the Kotlin plugin")
-
-            val commonSourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonTest" else "test"]
+            val (sourceSetName, implementationConfigurationName) = if (kotlin is KotlinAndroidProjectExtension) {
+                val android = project.extensions.findByName("android") as CommonExtension
+                "test" to android.sourceSets["test"].implementationConfigurationName
+            } else {
+                val sourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonTest" else "test"]
+                sourceSet.name to sourceSet.implementationConfigurationName
+            }
 
             addRuntimeDependencies(
-                commonSourceSet = commonSourceSet,
+                implementationConfigurationName = implementationConfigurationName,
                 helper = options.helper,
                 canAutodetect = true
             )
@@ -84,23 +94,21 @@ public class MocKMPGradlePlugin : Plugin<Project> {
 
             val extract = registerExtractTask(
                 kotlin = kotlin,
-                commonSourceSet = commonSourceSet,
+                sourceSetName = sourceSetName,
                 options = options,
             )
             if (kotlin is KotlinAndroidProjectExtension) {
-                val android: TestedExtension = project.extensions.findByName("android") as? TestedExtension
+                val androidComponents = project.extensions.findByName("androidComponents") as? AndroidComponentsExtension<*, *, *>
                     ?: error("MocKMP could not find the Android plugin")
-                val variants = when (android) {
-                    is LibraryExtension -> android.libraryVariants
-                    is BaseAppModuleExtension -> android.applicationVariants
-                    else -> error("Unknown 'android' extension $android (neither library nor application)")
-                }
-                variants.all {
-                    testVariant?.registerJavaGeneratingTask(extract, extract.get().outputDirectory.get().asFile)
-                    unitTestVariant?.registerJavaGeneratingTask(extract, extract.get().outputDirectory.get().asFile)
+                androidComponents.onVariants {
+                    (it as? HasUnitTest)?.unitTest?.sources?.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory)
+                    (it as? HasAndroidTest)?.androidTest?.sources?.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory)
+                    (it as? HasHostTests)?.hostTests?.forEach { (_, test) -> test.sources.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory) }
+                    (it as? HasDeviceTests)?.deviceTests?.forEach { (_, test) -> test.sources.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory) }
                 }
             } else {
-                commonSourceSet.kotlin.srcDir(extract)
+                val sourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonTest" else "test"]
+                sourceSet.kotlin.srcDir(extract)
             }
 
             addKspDependencies(
@@ -119,10 +127,16 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 project.extensions.findByName("kotlin") as? KotlinProjectExtension
                     ?: error("MocKMP could not find the Kotlin plugin")
 
-            val commonSourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonMain" else "main"]
+            val (sourceSetName, implementationConfigurationName) = if (kotlin is KotlinAndroidProjectExtension) {
+                val android = project.extensions.findByName("android") as CommonExtension
+                "main" to android.sourceSets["main"].implementationConfigurationName
+            } else {
+                val sourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonMain" else "main"]
+                sourceSet.name to sourceSet.implementationConfigurationName
+            }
 
             addRuntimeDependencies(
-                commonSourceSet = commonSourceSet,
+                implementationConfigurationName = implementationConfigurationName,
                 helper = options.helper,
                 canAutodetect = false
             )
@@ -138,22 +152,18 @@ public class MocKMPGradlePlugin : Plugin<Project> {
 
             val extract = registerExtractTask(
                 kotlin = kotlin,
-                commonSourceSet = commonSourceSet,
+                sourceSetName = sourceSetName,
                 options = options,
             )
             if (kotlin is KotlinAndroidProjectExtension) {
-                val android: TestedExtension = project.extensions.findByName("android") as? TestedExtension
+                val androidComponents = project.extensions.findByName("androidComponents") as? AndroidComponentsExtension<*, *, *>
                     ?: error("MocKMP could not find the Android plugin")
-                val variants = when (android) {
-                    is LibraryExtension -> android.libraryVariants
-                    is BaseAppModuleExtension -> android.applicationVariants
-                    else -> error("Unknown 'android' extension $android (neither library nor application)")
-                }
-                variants.all {
-                    registerJavaGeneratingTask(extract, extract.get().outputDirectory.get().asFile)
+                androidComponents.onVariants {
+                    it.sources.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory)
                 }
             } else {
-                commonSourceSet.kotlin.srcDir(extract)
+                val sourceSet = kotlin.sourceSets[if (kotlin is KotlinMultiplatformExtension) "commonMain" else "main"]
+                sourceSet.kotlin.srcDir(extract)
             }
 
             addKspDependencies(
@@ -164,29 +174,27 @@ public class MocKMPGradlePlugin : Plugin<Project> {
         }
 
         private fun addRuntimeDependencies(
-            commonSourceSet: KotlinSourceSet,
+            implementationConfigurationName: String,
             helper: Helper?,
             canAutodetect: Boolean,
         ) {
-            commonSourceSet.dependencies {
-                implementation("org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
-                if (helper != null) {
-                    implementation(project.provider {
-                        val isJunit5 = when (helper) {
-                            Helper.JUnit4 -> false
-                            Helper.JUnit5 -> true
-                            Helper.AutoDetect -> {
-                                if (canAutodetect) {
-                                    project.tasks.withType<Test>().any { it.testFramework is JUnitPlatformTestFramework }
-                                } else {
-                                    error("MocKMP cannot auto-detect JUnit version, please use withHelper(junit4) or withHelper(junit5)")
-                                }
+            project.dependencies.add(implementationConfigurationName, "org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
+            if (helper != null) {
+                project.dependencies.add(implementationConfigurationName, project.provider {
+                    val isJunit5 = when (helper) {
+                        Helper.JUnit4 -> false
+                        Helper.JUnit5 -> true
+                        Helper.AutoDetect -> {
+                            if (canAutodetect) {
+                                project.tasks.withType<Test>().any { it.testFramework is JUnitPlatformTestFramework }
+                            } else {
+                                error("MocKMP cannot auto-detect JUnit version, please use withHelper(junit4) or withHelper(junit5)")
                             }
                         }
-                        if (isJunit5) "org.kodein.mock:mockmp-test-helper-junit5:${BuildConfig.VERSION}"
-                        else "org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}"
-                    })
-                }
+                    }
+                    if (isJunit5) "org.kodein.mock:mockmp-test-helper-junit5:${BuildConfig.VERSION}"
+                    else "org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}"
+                })
             }
         }
 
@@ -207,11 +215,11 @@ public class MocKMPGradlePlugin : Plugin<Project> {
 
         private fun registerExtractTask(
             kotlin: KotlinProjectExtension,
-            commonSourceSet: KotlinSourceSet,
+            sourceSetName: String,
             options: Options
         ): TaskProvider<MocKMPExtractExpectKt> =
             project.tasks.register<MocKMPExtractExpectKt>("mockmpExtractExpectKt") {
-                outputDirectory.set(project.layout.buildDirectory.get().asFile.resolve("mockmp/${commonSourceSet.name}/kotlin"))
+                outputDirectory.set(project.layout.buildDirectory.get().asFile.resolve("mockmp/$sourceSetName/kotlin"))
                 accessorsPackage.set(options.accessorsPackage)
                 public.set(options.public)
                 resource.set("/mockmp.${if (kotlin is KotlinMultiplatformExtension) "multi" else "single"}.kt")
@@ -233,10 +241,24 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             }
 
             kotlinTargets.forEach { target ->
-                project.dependencies.add(
-                    "ksp${target.name.capitalized()}${suffix}",
-                    "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
-                )
+                val configurations = if (suffix.isNotEmpty()) {
+                    project.configurations
+                        .filter { it.name.startsWith("ksp${target.name.capitalized()}") && it.name.endsWith(suffix) }
+                        .map { it.name }
+                } else {
+                    listOf("ksp${target.name.capitalized()}")
+                }
+
+                configurations.forEach { configuration ->
+                    if (configuration in project.configurations.names) {
+                        project.dependencies.add(
+                            configuration,
+                            "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
+                        )
+                    } else {
+                        project.logger.error("Configuration '$configuration' not found for target '${target.name}'.")
+                    }
+                }
             }
         }
     }
