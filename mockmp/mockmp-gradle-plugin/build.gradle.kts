@@ -14,11 +14,14 @@ dependencies {
 }
 
 gradlePlugin {
+    website.set("https://kodeinkoders.github.io/CuP")
+    vcsUrl.set("https://github.com/KodeinKoders/CuP")
+
     plugins.register("mockmp") {
         id = "org.kodein.mock.mockmp"
         implementationClass = "org.kodein.mock.gradle.MocKMPGradlePlugin"
         displayName = "MocKMP"
-        description = "Applies the MocKMP symbol processor to a Kotlin/Multiplatform project"
+        description = "Applies the MocKMP symbol processor to a Kotlin Multiplatform, Android or JVM project"
         tags.set(listOf("kotlin", "mock", "test"))
     }
 }
