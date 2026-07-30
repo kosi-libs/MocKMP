@@ -6,6 +6,8 @@ A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes.
 WARNING: Version 2.0 brings compatibility with Kotlin 2.0, but with breaking changes.
 If you used version 1.17, have a look at the https://kosi-libs.org/mockmp/2.0/migration/1to2.html[Migration Guide].
 
+WARNING: Version 3.0 brings compatibility to AGP 9, but becomes *incompatible* with AGP 8 or previous.
+Only update to MocKMP 3.0 if you are also updating to AGP 9!
 
 == Installation
 
