@@ -17,6 +17,7 @@ tests-projects/local.properties
 # JS
 node_modules/
 package-lock.json
+tests-projects/kotlin-js-store/
 
 # Kotlin
 .kotlin/
