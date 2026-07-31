@@ -15,6 +15,7 @@ kotlin {
         compileSdk = 36
         minSdk = 24
         withHostTest {}
+        lint {}
     }
 
     iosSimulatorArm64()
@@ -89,7 +90,10 @@ val copySources = tasks.register<Sync>("copySources") {
 }
 
 afterEvaluate {
-    project.tasks.withType<KotlinCompilationTask<*>>().configureEach {
+    tasks.withType<KotlinCompilationTask<*>>().configureEach {
+        dependsOn(copySources)
+    }
+    project.tasks.androidPreBuild.configure {
         dependsOn(copySources)
     }
 }

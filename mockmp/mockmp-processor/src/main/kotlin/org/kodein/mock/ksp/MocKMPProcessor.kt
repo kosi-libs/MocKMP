@@ -34,7 +34,7 @@ import kotlin.reflect.KType
  * The whole pipeline for a single round is implemented by [Round], instantiated fresh on every
  * [process] call so this processor itself carries no state between rounds.
  */
-public class MocKMPProcessor(
+class MocKMPProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
     private val throwErrors: Boolean,
@@ -87,6 +87,13 @@ public class MocKMPProcessor(
     }
 
     private val KSType.isAnyFunctionType get() = isFunctionType || isSuspendFunctionType
+
+    /** Follows `typealias` chains to the underlying declaration. */
+    private fun KSType.aliasedDeclaration(): KSDeclaration {
+        var decl = declaration
+        while (decl is KSTypeAlias) decl = decl.type.resolve().declaration
+        return decl
+    }
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
@@ -544,8 +551,8 @@ public class MocKMPProcessor(
          */
         private fun addSuperclassConstructorArgs(gCls: TypeSpec.Builder, vCls: KSClassDeclaration, filesDeps: MutableSet<KSFile>) {
             val vCstr = vCls.firstPublicConstructor() ?: return
-            resolveConstructorArgs(vCls, vCstr, vCls.asBoundedType(), filesDeps).forEach { (format, value) ->
-                gCls.addSuperclassConstructorParameter(format, value)
+            resolveConstructorArgs(vCls, vCstr, vCls.asBoundedType(), filesDeps).forEach { (format, values) ->
+                gCls.addSuperclassConstructorParameter(format, *values.toTypedArray())
             }
         }
 
@@ -736,10 +743,7 @@ public class MocKMPProcessor(
          * for any type already covered by [builtins], which is the only stdlib case exercised today.
          */
         private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, Any> {
-            var decl = type.declaration
-            while (decl is KSTypeAlias) {
-                decl = decl.type.resolve().declaration
-            }
+            val decl = type.aliasedDeclaration()
             val builtIn = builtins[decl.qualifiedName!!.asString()]
             return when {
                 builtIn != null -> builtIn
@@ -766,16 +770,17 @@ public class MocKMPProcessor(
         }
 
         /**
-         * Resolves one `(format, arg)` pair per non-defaulted parameter of constructor [vCstr] of
+         * Resolves one `(format, args)` pair per non-defaulted parameter of constructor [vCstr] of
          * class [vCls] — `null` for nullable parameters, [fakeInitializerOf] otherwise (a builtin
          * placeholder, a `@FakeProvider`, or a nested `fakeXxx()` call; a no-op lambda when the
-         * parameter is itself a function type). Type parameters of [vCls] are substituted using
-         * [vType]'s own type arguments. Shared by fake-class generation
-         * ([addFakeClassConstructorCall]) and abstract-class mock generation
+         * parameter is itself a function type — with an empty body, and no format arg at all, when
+         * that lambda's return type is `Unit`, to avoid a "redundant Unit" warning in generated code).
+         * Type parameters of [vCls] are substituted using [vType]'s own type arguments. Shared by
+         * fake-class generation ([addFakeClassConstructorCall]) and abstract-class mock generation
          * ([addSuperclassConstructorArgs]).
          */
-        private fun resolveConstructorArgs(vCls: KSClassDeclaration, vCstr: KSFunctionDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>): List<Pair<String, Any>> {
-            val args = ArrayList<Pair<String, Any>>()
+        private fun resolveConstructorArgs(vCls: KSClassDeclaration, vCstr: KSFunctionDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>): List<Pair<String, List<Any>>> {
+            val args = ArrayList<Pair<String, List<Any>>>()
             vCstr.parameters.forEach { vParam ->
                 if (!vParam.hasDefault) {
                     var vParamType = vParam.type.resolve()
@@ -785,15 +790,19 @@ public class MocKMPProcessor(
                         vParamType = vType.arguments[index].type!!.resolve()
                     }
                     if (vParamType.nullability != Nullability.NOT_NULL) {
-                        args.add("${vParam.name!!.asString()} = %L" to "null")
-                    } else {
-                        val vParamTypeToFake = if (vParamType.isAnyFunctionType) vParamType.arguments.last().type!!.resolve() else vParamType
-                        val (template, value) = fakeInitializerOf(vParamTypeToFake, filesDeps)
-                        if (vParamType.isAnyFunctionType) {
-                            args.add("${vParam.name!!.asString()} = { ${"_, ".repeat(vParamType.arguments.size - 1)}-> $template }" to value)
+                        args.add("${vParam.name!!.asString()} = %L" to listOf("null"))
+                    } else if (vParamType.isAnyFunctionType) {
+                        val vLambdaParams = "_, ".repeat(vParamType.arguments.size - 1)
+                        val vReturnType = vParamType.arguments.last().type!!.resolve()
+                        if (vReturnType.aliasedDeclaration().qualifiedName?.asString() == "kotlin.Unit") {
+                            args.add("${vParam.name!!.asString()} = { $vLambdaParams-> }" to emptyList())
                         } else {
-                            args.add("${vParam.name!!.asString()} = $template" to value)
+                            val (template, value) = fakeInitializerOf(vReturnType, filesDeps)
+                            args.add("${vParam.name!!.asString()} = { $vLambdaParams-> $template }" to listOf(value))
                         }
+                    } else {
+                        val (template, value) = fakeInitializerOf(vParamType, filesDeps)
+                        args.add("${vParam.name!!.asString()} = $template" to listOf(value))
                     }
                 }
             }
@@ -813,7 +822,7 @@ public class MocKMPProcessor(
                 return
             }
             val args = resolveConstructorArgs(vCls, vCstr, vType, filesDeps)
-            gFun.addStatement("return %T(${args.joinToString { it.first }})", *(listOf(vCls.toClassName()) + args.map { it.second }).toTypedArray())
+            gFun.addStatement("return %T(${args.joinToString { it.first }})", *(listOf(vCls.toClassName()) + args.flatMap { it.second }).toTypedArray())
         }
 
         /**
