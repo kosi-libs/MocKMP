@@ -201,9 +201,12 @@ class VerificationTests {
     @ExperimentalCoroutinesApi
     fun testSuspend() = runTest {
         val bar = mocker.mock<Bar>()
-        mocker.everySuspending { bar.newData() } returns fake<Data>()
+        // Data transitively contains a java.lang.Exception (no structural equals()), so a second,
+        // independently-faked Data would never compare equal to the first; reuse a single instance.
+        val expected = fake<Data>()
+        mocker.everySuspending { bar.newData() } returns expected
         val data = bar.newData()
-        assertEquals(fake<Data>(), data)
+        assertEquals(expected, data)
         mocker.verifyWithSuspend { bar.newData() }
     }
 

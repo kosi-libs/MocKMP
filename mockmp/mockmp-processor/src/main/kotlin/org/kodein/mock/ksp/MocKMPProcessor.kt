@@ -99,12 +99,21 @@ class MocKMPProcessor(
 
     private val KSType.isAnyFunctionType get() = isFunctionType || isSuspendFunctionType
 
-    /** Follows `typealias` chains to the underlying declaration. */
-    private fun KSType.aliasedDeclaration(): KSDeclaration {
-        var decl = declaration
-        while (decl is KSTypeAlias) decl = decl.type.resolve().declaration
-        return decl
+    /**
+     * Follows type alias declarations (e.g. `typealias BarCB = (String) -> Int`, or the built-in
+     * `kotlin.Exception` resolving to `java.lang.Exception` on the JVM target) down to the real
+     * type they expand to. Every site that treats a [KSType] as the identity of a fake
+     * (registration, lookup, and generated-name derivation alike) must resolve through this first,
+     * or an aliased type and its underlying type would be treated as two different fakes.
+     */
+    private fun KSType.unwrapAliases(): KSType {
+        var t = this
+        while (t.declaration is KSTypeAlias) t = (t.declaration as KSTypeAlias).type.resolve()
+        return t
     }
+
+    /** Follows `typealias` chains to the underlying declaration. */
+    private fun KSType.aliasedDeclaration(): KSDeclaration = unwrapAliases().declaration
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
@@ -170,6 +179,32 @@ class MocKMPProcessor(
         throw ProcessingError("$prefix: $message", node)
     }
 
+    /** `qualifiedName`, falling back to `simpleName` for local/anonymous declarations. */
+    private fun KSDeclaration.displayName(): String = qualifiedName?.asString() ?: simpleName.asString()
+
+    /** Plural of a class kind, so reason clauses read naturally ("interfaces cannot be instantiated"). */
+    private fun ClassKind.plural(): String = when (this) {
+        ClassKind.CLASS -> "classes"
+        ClassKind.ENUM_CLASS -> "enum classes"
+        ClassKind.ENUM_ENTRY -> "enum entries"
+        ClassKind.INTERFACE -> "interfaces"
+        ClassKind.OBJECT -> "objects"
+        ClassKind.ANNOTATION_CLASS -> "annotation classes"
+    }
+
+    /**
+     * The single wording for "this type cannot be faked", shared by the compile-time error
+     * ([cannotFake]) and the runtime stub ([Round.reportUnfakeable]). [reason] is a clause
+     * completing "... because <reason>.".
+     */
+    private fun unfakeableMessage(displayName: String, reason: String): String =
+        "Cannot generate a fake for $displayName because $reason. " +
+            "Please register a top-level @FakeProvider function that provides a value of this type."
+
+    /** Aborts the round: [displayName] cannot be faked because [reason]. */
+    private fun cannotFake(node: KSNode, displayName: String, reason: String): Nothing =
+        error(node, unfakeableMessage(displayName, reason))
+
     // endregion
 
     /** The files and annotation sites that referenced a to-be-generated mock or fake, accumulated across annotations. */
@@ -212,11 +247,13 @@ class MocKMPProcessor(
      * nullability.
      */
     private fun KSType.toFunName(): String {
-        val prefix = declaration.packagePrefix() + (if (isMarkedNullable) "Nul" else "") + declaration.parentPrefix()
+        val resolved = unwrapAliases()
+        val decl = resolved.declaration
+        val prefix = decl.packagePrefix() + (if (isMarkedNullable) "Nul" else "") + decl.parentPrefix()
         return prefix +
-                if (arguments.isEmpty()) declaration.simpleName.asString()
-                else "${declaration.simpleName.asString()}X${
-                    arguments.joinToString("_") {
+                if (resolved.arguments.isEmpty()) decl.simpleName.asString()
+                else "${decl.simpleName.asString()}X${
+                    resolved.arguments.joinToString("_") {
                         if (it.variance == Variance.STAR) "STAR"
                         else it.type!!.resolve().toFunName()
                     }
@@ -340,21 +377,28 @@ class MocKMPProcessor(
 
         /**
          * Registers [type] as needing a `fakeXxx()` function, or fails if it isn't a fakeable
-         * class/enum. Sealed classes/interfaces are allowed through — [generateFakeFunction]
+         * class/enum. [type] is resolved through any `typealias` chain first (e.g. `kotlin.Exception`
+         * on the JVM target), so the registration key, and every check below, target the real
+         * underlying type. Sealed classes/interfaces are allowed through — [generateFakeFunction]
          * resolves them to a constructible permitted subclass at generation time. [implicit] marks
          * entries discovered by [seedImplicitPlaceholders] rather than requested directly.
          */
         private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false) {
-            val decl = type.declaration
+            val resolvedType = type.unwrapAliases()
+            val decl = resolvedType.declaration
 
             if (decl !is KSClassDeclaration) {
-                error(node, "Cannot generate fake for ${decl.javaClass.simpleName} ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
+                val reason = if (decl is KSTypeParameter) "it is a type parameter, which has no concrete type to construct" else "it is not a class"
+                cannotFake(node, decl.displayName(), reason)
             }
             val isSealed = Modifier.SEALED in decl.modifiers
             if (!isSealed && (decl.isAbstract() || decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS))) {
-                error(node, "Cannot generate fake for ${if (decl.isAbstract()) "abstract " else ""}${decl.classKind.type} ${decl.qualifiedName?.asString() ?: decl.simpleName.asString()}")
+                val reason =
+                    if (decl.isAbstract() && decl.classKind == ClassKind.CLASS) "abstract classes cannot be instantiated"
+                    else "${decl.classKind.plural()} cannot be instantiated"
+                cannotFake(node, decl.displayName(), reason)
             }
-            toFake.getOrPut(type) { ToProcess().apply { this.implicit = implicit } }.let {
+            toFake.getOrPut(resolvedType) { ToProcess().apply { this.implicit = implicit } }.let {
                 it.files.addAll(files)
                 it.references.add(node)
             }
@@ -399,12 +443,16 @@ class MocKMPProcessor(
 
         /**
          * Populates [providedFakes] from `@FakeProvider` top-level functions, and removes their
-         * return type from [toFake] — a user-supplied provider makes generation unnecessary.
+         * return type from [toFake] — a user-supplied provider makes generation unnecessary. The
+         * return type is resolved through any `typealias` chain first, matching every other site
+         * that uses a [KSType] as a fake's identity (see [unwrapAliases]) — so a provider
+         * declared to return `Exception` registers under the same key `addFake`/`fakeInitializerOf`
+         * look up for a `kotlin.Exception`-typed parameter.
          */
         private fun collectFakeProviders() {
             resolver.getSymbolsWithAnnotation(ANNOTATION_FAKE_PROVIDER).forEach {
                 if (it !is KSFunctionDeclaration || it.parent !is KSFile) error(it, "Only top-level functions can be annotated with @FakeProvider")
-                val type = it.returnType!!.resolve()
+                val type = it.returnType!!.resolve().unwrapAliases()
                 val typeDeclaration = type.declaration
                 if (typeDeclaration !is KSClassDeclaration) error(it, "@FakeProvider functions must return class types.")
                 if (type in providedFakes) error(it, "Only one @FakeProvider function must exist for this type (other is ${providedFakes[type]!!.asString()}).")
@@ -500,13 +548,6 @@ class MocKMPProcessor(
                 )
             }
             return resolveSealedTargetType(sub.asType(arguments))
-        }
-
-        /** Follows type alias declarations (e.g. `typealias BarCB = (String) -> Int`) down to the real type they expand to. */
-        private fun KSType.unwrapAliases(): KSType {
-            var t = this
-            while (t.declaration is KSTypeAlias) t = (t.declaration as KSTypeAlias).type.resolve()
-            return t
         }
 
         /**
@@ -668,7 +709,9 @@ class MocKMPProcessor(
             if (paramType.isAnyFunctionType) {
                 paramType = paramType.arguments.last().type!!.resolve()
             }
-            return paramType.takeIf { it.aliasedDeclaration().qualifiedName?.asString() !in builtins && it !in providedFakes && it !in toFake }
+            // Resolved so the result matches the keys addFake/providedFakes actually use (see unwrapAliases).
+            val resolvedParamType = paramType.unwrapAliases()
+            return resolvedParamType.takeIf { it.declaration.qualifiedName?.asString() !in builtins && it !in providedFakes && it !in toFake }
         }
 
         /**
@@ -999,30 +1042,31 @@ class MocKMPProcessor(
          * for any type already covered by [builtins], which is the only stdlib case exercised today.
          */
         private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, Any> {
-            val decl = type.aliasedDeclaration()
+            val resolvedType = type.unwrapAliases()
+            val decl = resolvedType.declaration
             val builtIn = builtins[decl.qualifiedName!!.asString()]
             return when {
                 builtIn != null -> builtIn
-                type in providedFakes -> {
-                    val f = providedFakes[type]!!
+                resolvedType in providedFakes -> {
+                    val f = providedFakes[resolvedType]!!
                     f.containingFile?.let { filesDeps += it }
                     "%M()" to MemberName(f.packageName.asString(), f.simpleName.asString())
                 }
-                else -> "%M()" to MemberName(decl.fakePackageName(), "fake${type.toFunName()}")
+                else -> "%M()" to MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}")
             }
         }
 
         /**
-         * Appends `return error("...")` to [gFun] — used when an *implicitly* discovered
-         * placeholder target ([ToProcess.implicit]) turns out to be unconstructible. The KSP round
-         * still succeeds; the error only surfaces if the generated function is ever actually
-         * invoked, which should never happen for a discarded `isAny()`-style placeholder.
+         * Reports that [vCls] cannot be faked because [reason]. An *implicit* target
+         * ([ToProcess.implicit]) gets a `return error("...")` stub appended to [gFun] so the KSP
+         * round still succeeds — the error only surfaces if that function is ever actually invoked,
+         * which should never happen for a discarded `isAny()`-style placeholder. An explicit target
+         * fails fast, aborting the round.
          */
-        private fun addUnconstructibleStub(gFun: FunSpec.Builder, displayName: String, reason: String) {
-            gFun.addStatement(
-                "return error(%S)",
-                "The MocKMP processor could not fake $displayName because $reason. Please register a @FakeProvider function that provides a value of this type."
-            )
+        private fun reportUnfakeable(gFun: FunSpec.Builder, vCls: KSClassDeclaration, reason: String, implicit: Boolean) {
+            val message = unfakeableMessage(vCls.displayName(), reason)
+            if (implicit) gFun.addStatement("return error(%S)", message)
+            else error(vCls, message)
         }
 
         /**
@@ -1065,14 +1109,13 @@ class MocKMPProcessor(
 
         /**
          * Appends `return Xxx(param = ...)` to [gFun] using [resolveConstructorArgs] — or, for an
-         * *implicit* target with no public constructor, [addUnconstructibleStub] instead of aborting
+         * *implicit* target with no public constructor, [reportUnfakeable] instead of aborting
          * the KSP round.
          */
         private fun addFakeClassConstructorCall(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, implicit: Boolean) {
             val vCstr = vCls.firstPublicConstructor()
             if (vCstr == null) {
-                if (implicit) addUnconstructibleStub(gFun, vCls.qualifiedName?.asString() ?: vCls.simpleName.asString(), "it has no public constructor")
-                else error(vCls, "Could not find public constructor for ${vCls.qualifiedName?.asString()}. Please create a @FakeProvider for it.")
+                reportUnfakeable(gFun, vCls, "it has no public constructor", implicit)
                 return
             }
             val args = resolveConstructorArgs(vCls, vCstr, vType, filesDeps)
@@ -1081,14 +1124,13 @@ class MocKMPProcessor(
 
         /**
          * Appends `return Xxx.FIRST` to [gFun] — the first declared entry of enum [vCls] — or, for
-         * an *implicit* target with no entries, [addUnconstructibleStub] instead of aborting the
+         * an *implicit* target with no entries, [reportUnfakeable] instead of aborting the
          * KSP round.
          */
         private fun addFakeFirstEnumEntry(gFun: FunSpec.Builder, vCls: KSClassDeclaration, implicit: Boolean) {
             val firstEntry = vCls.declarations.filterIsInstance<KSClassDeclaration>().firstOrNull { it.classKind == ClassKind.ENUM_ENTRY }
             if (firstEntry == null) {
-                if (implicit) addUnconstructibleStub(gFun, vCls.qualifiedName?.asString() ?: vCls.simpleName.asString(), "it is an empty enum class")
-                else error(vCls, "Cannot fake empty enum class ${vCls.qualifiedName!!.asString()}")
+                reportUnfakeable(gFun, vCls, "it is an empty enum class", implicit)
                 return
             }
             gFun.addStatement("return %T.%L", vCls.toClassName(), firstEntry.simpleName.asString())
@@ -1126,8 +1168,12 @@ class MocKMPProcessor(
                 ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process.implicit)
                 ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())
                 else -> {
-                    if (process.implicit) addUnconstructibleStub(gFun, vCls.qualifiedName?.asString() ?: vCls.simpleName.asString(), "it is a ${targetCls.classKind.type} that cannot be constructed")
-                    else error(vCls, "Cannot process ${targetCls.classKind}")
+                    val reason = when {
+                        targetCls != vCls -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
+                        Modifier.SEALED in vCls.modifiers -> "it is a sealed ${vCls.classKind.type} with no permitted subclasses"
+                        else -> "${targetCls.classKind.plural()} cannot be instantiated"
+                    }
+                    reportUnfakeable(gFun, vCls, reason, process.implicit)
                 }
             }
             gFile.addFunction(gFun.build().also { fakes[vType] = MemberName(mockPkg, mockFunName) })
