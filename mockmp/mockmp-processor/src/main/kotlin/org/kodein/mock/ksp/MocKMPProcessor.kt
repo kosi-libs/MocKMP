@@ -136,8 +136,8 @@ class MocKMPProcessor(
 
     /** The files and annotation sites that referenced a to-be-generated mock or fake, accumulated across annotations. */
     private class ToProcess {
-        val files = HashSet<KSFile>()
-        val references = HashSet<KSNode>()
+        val files = LinkedHashSet<KSFile>()
+        val references = LinkedHashSet<KSNode>()
 
         /**
          * True when this entry was discovered implicitly — as a type reachable from a mocked
@@ -204,23 +204,29 @@ class MocKMPProcessor(
      */
     private inner class Round(private val resolver: Resolver) {
 
+        // Every collection below is insertion-ordered on purpose. Several of them are iterated to
+        // emit `when` branches or whole files, so a `HashMap` would order generated code by hash:
+        // stable for a given input, but reshuffling the entire file whenever an unrelated
+        // declaration is added. Insertion order follows the order KSP hands the symbols over —
+        // i.e. source order — so adding a declaration inserts a line instead of rewriting the file.
+
         /** Interfaces referenced by `@Mock`/`@UsesMocks`, with the files/nodes that referenced them. */
-        private val toMock = HashMap<KSClassDeclaration, ToProcess>()
+        private val toMock = LinkedHashMap<KSClassDeclaration, ToProcess>()
 
         /** Generated `MockXxx` class name, per mocked interface — consumed by [generateMockAccessor]. */
-        private val mocks = HashMap<KSClassDeclaration, ClassName>()
+        private val mocks = LinkedHashMap<KSClassDeclaration, ClassName>()
 
         /** Types referenced by `@Fake`/`@UsesFakes`, or required transitively (see [expandTransitiveFakes]). */
-        private val toFake = HashMap<KSType, ToProcess>()
+        private val toFake = LinkedHashMap<KSType, ToProcess>()
 
         /** Generated `fakeXxx()` function name, per faked type — consumed by [generateFakeAccessor]. */
-        private val fakes = HashMap<KSType, MemberName>()
+        private val fakes = LinkedHashMap<KSType, MemberName>()
 
         /** User-supplied `@FakeProvider` functions, keyed by the type they provide a fake for. */
-        private val providedFakes = HashMap<KSType, KSFunctionDeclaration>()
+        private val providedFakes = LinkedHashMap<KSType, KSFunctionDeclaration>()
 
         /** Properties annotated `@Mock`/`@Fake`, grouped by enclosing class — consumed by [generateInjector]. */
-        private val toInject = HashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
+        private val toInject = LinkedHashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
 
         /**
          * Concrete `Array<T>` types (a known component type) needing a placeholder — kept separate
@@ -809,7 +815,7 @@ class MocKMPProcessor(
             val mockClassName = vItf.toMockName()
             val mockPkg = vItf.fakePackageName()
             val gFile = FileSpec.builder(mockPkg, mockClassName)
-            val filesDeps = HashSet(process.files)
+            val filesDeps = LinkedHashSet(process.files)
             val (gCls, mocker) = mockClassBuilder(vItf, mockClassName, filesDeps)
             val overrideAll = vItf.classKind == ClassKind.INTERFACE && !process.implicit
 
@@ -961,7 +967,7 @@ class MocKMPProcessor(
             val vCls = vType.declaration as KSClassDeclaration
             val targetType = resolveSealedTargetType(vType)
             val targetCls = targetType.declaration as KSClassDeclaration
-            val filesDeps = HashSet(process.files)
+            val filesDeps = LinkedHashSet(process.files)
             val mockFunName = "fake${vType.toFunName()}"
             val mockPkg = vCls.fakePackageName()
             val gFile = FileSpec.builder(mockPkg, mockFunName)
@@ -1055,7 +1061,7 @@ class MocKMPProcessor(
          */
         private fun generateInjector(vCls: KSClassDeclaration) {
             val vProps = injectedPropertiesOf(vCls)
-            val filesDeps = HashSet<KSFile>().apply {
+            val filesDeps = LinkedHashSet<KSFile>().apply {
                 vCls.containingFile?.let { add(it) }
                 // An inherited property is declared in another file: its change must retrigger this generation.
                 vProps.forEach { (_, vProp) -> vProp.containingFile?.let { add(it) } }
