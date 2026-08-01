@@ -35,6 +35,30 @@ As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `Mock
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
 
+Inherited properties are injected as well, so you can put the mocks & fakes that all your tests need in a shared base class:
+
+[source,kotlin]
+----
+abstract class BaseTests {
+    @Mock lateinit var db: Database //<1>
+
+    val mocker = Mocker()
+
+    @BeforeTest fun setUp() {
+        mocker.reset()
+        mocker.injectMocks(this) //<2>
+    }
+}
+
+class MyTests : BaseTests() {
+    @Mock lateinit var api: API
+}
+----
+<1> Declared in the base class, but injected into every subclass.
+<2> Resolves to `injectMocks(receiver: MyTests)`, which sets both `db` and `api`.
+
+NOTE: The base class must be in the same module as its subclasses: the processor only sees the annotations of the module it is running on.
+
 [TIP]
 ====
 You can inject other classes than test classes:

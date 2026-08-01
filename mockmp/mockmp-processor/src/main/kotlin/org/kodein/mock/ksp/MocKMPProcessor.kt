@@ -1,6 +1,7 @@
 package org.kodein.mock.ksp
 
 import com.google.devtools.ksp.containingFile
+import com.google.devtools.ksp.getAllSuperTypes
 import com.google.devtools.ksp.isAbstract
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
@@ -252,7 +253,7 @@ class MocKMPProcessor(
 
             toMock.forEach { (vItf, process) -> generateMockClass(vItf, process) }
             toFake.forEach { (vType, process) -> generateFakeFunction(vType, process) }
-            toInject.forEach { (vCls, vProps) -> generateInjector(vCls, vProps) }
+            toInject.forEach { (vCls, _) -> generateInjector(vCls) }
 
             if (mocks.isNotEmpty() || fakes.isNotEmpty()) {
                 generateMockAccessor()
@@ -915,8 +916,33 @@ class MocKMPProcessor(
         }
 
         /**
+         * Every `@Mock`/`@Fake` annotated property that is *visible* on [vCls]: the ones it declares
+         * itself, plus the ones it inherits from its supertypes.
+         *
+         * [toInject] is keyed by declaring class, so without this merge a subclass's injector would
+         * set only its own properties — and since the user's `mocker.injectMocks(this)` resolves to
+         * the most specific overload, inherited properties would stay uninitialized.
+         *
+         * Supertypes come first so that, if a subclass shadows an inherited annotated property, the
+         * derived declaration is the one kept: the generated `receiver.name = …` always resolves to
+         * the most derived property anyway, so entries are deduplicated by simple name, last wins.
+         */
+        private fun injectedPropertiesOf(vCls: KSClassDeclaration): List<Pair<String, KSPropertyDeclaration>> {
+            val ancestors = vCls.getAllSuperTypes()
+                .mapNotNull { it.declaration as? KSClassDeclaration }
+                .toList()
+                .asReversed()
+            return (ancestors + vCls)
+                .flatMap { toInject[it] ?: emptyList() }
+                .associateBy { (_, vProp) -> vProp.simpleName.asString() }
+                .values
+                .toList()
+        }
+
+        /**
          * Generates `Mocker.injectMocks(receiver: Xxx)` for class [vCls], setting every
-         * `@Mock`/`@Fake` annotated property in [vProps]:
+         * `@Mock`/`@Fake` annotated property visible on it — inherited ones included, see
+         * [injectedPropertiesOf]:
          *
          * ```
          * internal fun Mocker.injectMocks(receiver: SomeTests) {
@@ -925,8 +951,13 @@ class MocKMPProcessor(
          * }
          * ```
          */
-        private fun generateInjector(vCls: KSClassDeclaration, vProps: List<Pair<String, KSPropertyDeclaration>>) {
-            val filesDeps = HashSet<KSFile>().apply { vCls.containingFile?.let { add(it) } }
+        private fun generateInjector(vCls: KSClassDeclaration) {
+            val vProps = injectedPropertiesOf(vCls)
+            val filesDeps = HashSet<KSFile>().apply {
+                vCls.containingFile?.let { add(it) }
+                // An inherited property is declared in another file: its change must retrigger this generation.
+                vProps.forEach { (_, vProp) -> vProp.containingFile?.let { add(it) } }
+            }
 
             val gFile = FileSpec.builder(vCls.packageName.asString(), "${vCls.simpleName.asString()}_injectMocks")
             val gFun = FunSpec.builder("injectMocks")
@@ -1058,6 +1089,11 @@ class MocKMPProcessor(
          *     else -> error("Could not find injector for $receiver")
          * }
          * ```
+         *
+         * Only the first matching branch of a `when` ever runs, so branches are ordered most derived
+         * first: a class always has strictly more supertypes than any of its own supertypes, which
+         * makes "supertype count, descending" a valid topological order. Unrelated classes are then
+         * ordered by qualified name, so the generated file does not depend on [toInject]'s hash order.
          */
         private fun generateInjectorAccessor() {
             val gFile = FileSpec.builder(accessorsPackage, "injectors")
@@ -1066,8 +1102,12 @@ class MocKMPProcessor(
                 .addParameter("receiver", Any::class)
 
             if (toInject.isNotEmpty()) {
+                val sorted = toInject.keys.sortedWith(
+                    compareByDescending<KSClassDeclaration> { it.getAllSuperTypes().count() }
+                        .thenBy { it.qualifiedName?.asString() ?: it.simpleName.asString() }
+                )
                 gFun.beginControlFlow("return when (receiver)")
-                toInject.forEach { (cls, _) -> gFun.addStatement("is %T -> %M(receiver)", cls.toClassName(), MemberName(cls.packageName.asString(), "injectMocks")) }
+                sorted.forEach { cls -> gFun.addStatement("is %T -> %M(receiver)", cls.toClassName(), MemberName(cls.packageName.asString(), "injectMocks")) }
                 gFun.addStatement("else -> error(\"Could not find injector for \$receiver\")")
                 gFun.endControlFlow()
             } else {
