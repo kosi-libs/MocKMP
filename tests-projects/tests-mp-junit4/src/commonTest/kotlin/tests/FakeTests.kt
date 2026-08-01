@@ -7,8 +7,10 @@ import data.SomeDirection
 import org.kodein.mock.Fake
 import org.kodein.mock.UsesFakes
 import org.kodein.mock.generated.fake
+import org.kodein.mock.generated.providePlaceholder
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.time.Instant
@@ -81,6 +83,14 @@ class FakeTests {
     fun testStarProjectedGenerics() {
         assertNull(fake<NullGenData<*>>().content)
         assertNotNull(fake<NonNullGenData<*>>().content)
+    }
+
+    @Test
+    fun testGenericPlaceholderIsMostGeneral() {
+        // `providePlaceholder` is keyed by KClass, which erases type arguments, so one of this
+        // build's many GenData<...> fakes has to stand in for all of them: the most general one.
+        val placeholder = assertIs<GenData<*>>(providePlaceholder(GenData::class))
+        assertEquals(Any::class, placeholder.data::class)
     }
 
 }
