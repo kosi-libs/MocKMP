@@ -487,8 +487,14 @@ class MocKMPProcessor(
         /**
          * [type] with every reference to one of [vCls]'s type parameters replaced by the matching
          * type argument of [vType] — `GenData<T>` becomes `GenData<String>` when [vType] is
-         * `Wrap<String>` — or `null` when one of them cannot be resolved: it belongs to an enclosing
-         * declaration rather than to [vCls], or [vType] projects it with a star.
+         * `Wrap<String>` — or `null` when one of them belongs to an enclosing declaration rather
+         * than to [vCls], which the arguments of [vType] say nothing about.
+         *
+         * When [vType] projects a type parameter with a star — which is all a `KClass` reference can
+         * express, so it is what every `@UsesFakes(Generic::class)` produces — the parameter's first
+         * bound stands in for it, the same "good enough" substitute [asBoundedType] uses. An
+         * undeclared bound is `Any?`, which is why `NullGenData<T>(val content: T)` fakes its content
+         * as `null` while `NonNullGenData<T : Any>` fakes it as an `Any` instance.
          *
          * Substitution is recursive: a type parameter can be nested at any depth (`GenData<GenData<T>>`,
          * `() -> GenData<T>`), and only substituting a *bare* type parameter would leave the rest
@@ -502,7 +508,13 @@ class MocKMPProcessor(
             if (decl is KSTypeParameter) {
                 val index = vCls.typeParameters.indexOf(decl)
                 if (index < 0) return null
-                return vType.arguments.getOrNull(index)?.type?.resolve()
+                val resolved = vType.arguments.getOrNull(index)?.type?.resolve()
+                    ?: decl.bounds.firstOrNull()?.resolve()
+                    ?: resolver.builtIns.anyType.makeNullable()
+                // `T?` substitutes to `String?`, not to `String`: dropping the nullability would make
+                // constructorParamTypeToFake (which skips nullable parameters) and resolveConstructorArgs
+                // (which emits `null` for them) disagree on whether a fake is needed at all.
+                return if (type.isMarkedNullable) resolved.makeNullable() else resolved
             }
             if (type.arguments.isEmpty()) return type
 
@@ -525,11 +537,13 @@ class MocKMPProcessor(
          */
         private fun constructorParamTypeToFake(vCls: KSClassDeclaration, vType: KSType, param: KSValueParameter, process: ToProcess): KSType? {
             if (param.hasDefault) return null
-            var paramType = param.type.resolve()
+            // Nullability is tested *after* substitution, as [resolveConstructorArgs] does: a type
+            // parameter can substitute to a nullable type, and the two must agree on which
+            // parameters get a fake and which are simply set to `null`.
+            var paramType = substituteTypeParameters(param.type.resolve(), vCls, vType)
+                ?: error(param, "Could not resolve generic parameter $param (${process.references.firstOrNull()?.location})")
             if (paramType.nullability != Nullability.NOT_NULL) return null
 
-            paramType = substituteTypeParameters(paramType, vCls, vType)
-                ?: error(param, "Could not resolve generic parameter $param (${process.references.firstOrNull()?.location})")
             if (paramType.isAnyFunctionType) {
                 paramType = paramType.arguments.last().type!!.resolve()
             }

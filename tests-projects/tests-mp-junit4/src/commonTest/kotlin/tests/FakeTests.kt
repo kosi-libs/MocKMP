@@ -10,6 +10,7 @@ import org.kodein.mock.generated.fake
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.time.Instant
 
 
@@ -65,6 +66,21 @@ class FakeTests {
         val fake = fake<FakeLong>()
         assertEquals(0L, fake.data.data)
         assertEquals(0, fake.data.int)
+    }
+
+    class NullGenData<T>(
+        val content: T,
+    )
+
+    class NonNullGenData<T : Any>(
+        val content: T,
+    )
+
+    @Test
+    @UsesFakes(NullGenData::class, NonNullGenData::class)
+    fun testStarProjectedGenerics() {
+        assertNull(fake<NullGenData<*>>().content)
+        assertNotNull(fake<NonNullGenData<*>>().content)
     }
 
 }

@@ -79,15 +79,17 @@ data class NullGenData<T>(val content: T)
 data class NonNullGenData<T : Any>(val content: T)
 
 @Test
-@UsesFakes(GenData::class)
+@UsesFakes(NullGenData::class, NonNullGenData::class)
 fun testGenericFake() {
     val nullData = fake<NullGenData<*>>()
-    assertNull(nullData.content)
+    assertNull(nullData.content) //<1>
 
     val nonNullData = fake<NonNullGenData<*>>()
-    assertNonNull(nonNullData.content) // is Any
+    assertNotNull(nonNullData.content) //<2>
 }
 ----
+<1> A star projection carries no type argument, so each type parameter is faked as its bound. `T` is unbounded here, which means `Any?`: the fake is `null`.
+<2> `T`'s bound is `Any`, so the fake is an `Any` instance.
 
 However, if you need a specific generic type to fake, you need to declare it in an xref:injection.adoc[injected class], even if you are never going to use that class.
 
