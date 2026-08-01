@@ -1067,7 +1067,10 @@ class MocKMPProcessor(
                 vProps.forEach { (_, vProp) -> vProp.containingFile?.let { add(it) } }
             }
 
-            val gFile = FileSpec.builder(vCls.packageName.asString(), "${vCls.simpleName.asString()}_injectMocks")
+            // Nesting is part of the file name, as it is for mocks ([toMockName]) and fakes
+            // ([toFunName]): two nested classes sharing a simple name in one package would otherwise
+            // both write to `Mocks_injectMocks.kt`, and KSP fails the round on the second write.
+            val gFile = FileSpec.builder(vCls.packageName.asString(), "${vCls.parentPrefix()}${vCls.simpleName.asString()}_injectMocks")
             val gFun = FunSpec.builder("injectMocks")
                 .addModifiers(visibilityModifier)
                 .receiver(mockerTypeName)
