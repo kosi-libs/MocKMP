@@ -98,14 +98,31 @@ class MocKMPProcessor(
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
-    /** Thrown to abort processing of the current round with a location-tagged message. */
-    private class Error(message: String, val node: KSNode) : Exception(message)
+    /**
+     * Thrown to abort processing of the current round with a location-tagged message. Deliberately
+     * *not* named `Error`: it shadowed `kotlin.Error` in [process], which made the `catch` below read
+     * like a catch-all when it was the narrowest possible catch.
+     */
+    private class ProcessingError(message: String, val node: KSNode) : Exception(message)
 
     override fun process(resolver: Resolver): List<KSAnnotated> =
         try {
             Round(resolver).run()
-        } catch (e: Error) {
+        } catch (e: ProcessingError) {
             logger.error("MocKMP: ${e.message}", e.node)
+            if (throwErrors) throw e
+            emptyList()
+        } catch (e: Exception) {
+            // Anything reaching here is a MocKMP bug, not bad user input — but it used to surface as
+            // a raw KSP crash, with nothing saying which processor produced it or what to do about
+            // it. The stack trace is included because catching without it would lose the one KSP
+            // prints today, making a bug report harder to file rather than easier.
+            logger.error(
+                "MocKMP: internal error: ${e::class.simpleName}: ${e.message}\n" +
+                        "This is a bug in MocKMP. Please open an issue at https://github.com/kosi-libs/MocKMP/issues/new, " +
+                        "including the stack trace below and, if you can, the declaration being processed.\n" +
+                        e.stackTraceToString()
+            )
             if (throwErrors) throw e
             emptyList()
         }
@@ -129,7 +146,7 @@ class MocKMPProcessor(
             is FileLocation -> "$node (${loc.filePath}:${loc.lineNumber})"
             is NonExistLocation -> node.asString()
         }
-        throw Error("$prefix: $message", node)
+        throw ProcessingError("$prefix: $message", node)
     }
 
     // endregion
@@ -505,7 +522,11 @@ class MocKMPProcessor(
             val decl = resolved.declaration
             if (decl !is KSClassDeclaration) return
             if (decl.qualifiedName?.asString() == "kotlin.Array") {
-                placeholderArrayTypes += resolved
+                // `Array<*>` has no component type to key a component-specific branch on — which is
+                // the only reason [placeholderArrayTypes] exists — so leave it to the generic
+                // `Array::class -> emptyArray<Any?>()` builtin branch, exactly as any other erased
+                // generic is handled.
+                if (resolved.arguments.firstOrNull()?.type != null) placeholderArrayTypes += resolved
                 return
             }
             if (decl.qualifiedName?.asString() in builtins) return

@@ -21,6 +21,8 @@ interface Foo<out T : Any> {
     fun doInterface(bar: Bar)
     fun doEnum(direction: Direction)
     fun doArray(array: Array<String>)
+    // A star projection has no component type, so it gets no component-specific placeholder branch.
+    fun doStarArray(array: Array<*>)
     fun doAbstract(abs: Abs)
     fun doSealedClass(s: SCls)
     fun doSealedInterface(s: SItf)

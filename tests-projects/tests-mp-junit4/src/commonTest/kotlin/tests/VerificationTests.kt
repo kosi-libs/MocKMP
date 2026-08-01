@@ -300,6 +300,18 @@ class VerificationTests {
     }
 
     @Test
+    fun testStarProjectedArrayArgument() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doStarArray(isAny()) } returns Unit
+
+        foo.doStarArray(arrayOf("Test"))
+
+        mocker.verify {
+            foo.doStarArray(isAny())
+        }
+    }
+
+    @Test
     fun testEnumArgument() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every { foo.doEnum(isAny()) } returns Unit
