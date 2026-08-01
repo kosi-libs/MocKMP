@@ -485,33 +485,55 @@ class MocKMPProcessor(
         // region Phase 2: transitive fakes
 
         /**
+         * [type] with every reference to one of [vCls]'s type parameters replaced by the matching
+         * type argument of [vType] — `GenData<T>` becomes `GenData<String>` when [vType] is
+         * `Wrap<String>` — or `null` when one of them cannot be resolved: it belongs to an enclosing
+         * declaration rather than to [vCls], or [vType] projects it with a star.
+         *
+         * Substitution is recursive: a type parameter can be nested at any depth (`GenData<GenData<T>>`,
+         * `() -> GenData<T>`), and only substituting a *bare* type parameter would leave the rest
+         * unresolved — with no `fakeGenDataXTX()` function to call for it.
+         *
+         * Returns [type] itself when nothing was substituted: [toFake], [fakes] and [providedFakes]
+         * are keyed by [KSType], so a rebuilt-but-equivalent instance must never be introduced needlessly.
+         */
+        private fun substituteTypeParameters(type: KSType, vCls: KSClassDeclaration, vType: KSType): KSType? {
+            val decl = type.declaration
+            if (decl is KSTypeParameter) {
+                val index = vCls.typeParameters.indexOf(decl)
+                if (index < 0) return null
+                return vType.arguments.getOrNull(index)?.type?.resolve()
+            }
+            if (type.arguments.isEmpty()) return type
+
+            var substituted = false
+            val arguments = type.arguments.map { argument ->
+                val argumentType = argument.type?.resolve() ?: return@map argument // A star projection has nothing to substitute.
+                val resolved = substituteTypeParameters(argumentType, vCls, vType) ?: return null
+                if (resolved == argumentType) return@map argument
+                substituted = true
+                resolver.getTypeArgument(resolver.createKSTypeReferenceFromKSType(resolved), argument.variance)
+            }
+            return if (substituted) type.replace(arguments) else type
+        }
+
+        /**
          * Resolves the type a fake is needed for, for constructor [param] of fake class [vCls]
          * (whose fake is being generated for [vType]) — or `null` if [param] needs no fake: it has
          * a default value, is nullable, resolves to a [builtins] type, or already has one
          * ([providedFakes] or [toFake]).
-         *
-         * NOTE: unwraps function types *then* substitutes type parameters; the constructor-argument
-         * generation in [addFakeClassConstructorCall] resolves the same kind of parameter in the
-         * opposite order. The two are independent and are intentionally not merged here.
          */
         private fun constructorParamTypeToFake(vCls: KSClassDeclaration, vType: KSType, param: KSValueParameter, process: ToProcess): KSType? {
             if (param.hasDefault) return null
-            var paramTypeRef = param.type
-            var paramType = paramTypeRef.resolve()
+            var paramType = param.type.resolve()
             if (paramType.nullability != Nullability.NOT_NULL) return null
 
+            paramType = substituteTypeParameters(paramType, vCls, vType)
+                ?: error(param, "Could not resolve generic parameter $param (${process.references.firstOrNull()?.location})")
             if (paramType.isAnyFunctionType) {
-                paramTypeRef = paramType.arguments.last().type!!
-                paramType = paramTypeRef.resolve()
+                paramType = paramType.arguments.last().type!!.resolve()
             }
-            if (paramType.declaration is KSTypeParameter) {
-                val index = vCls.typeParameters.indexOf(paramType.declaration)
-                paramTypeRef = vType.arguments.getOrNull(index)?.type
-                    ?: error(param, "Could not resolve generic parameter $param (${process.references.firstOrNull()?.location})")
-                paramType = paramTypeRef.resolve()
-            }
-            val paramTypeName = paramTypeRef.toRealTypeName(vCls.typeParameters.toTypeParameterResolver())
-            return paramType.takeIf { paramTypeName.qualified() !in builtins && it !in providedFakes && it !in toFake }
+            return paramType.takeIf { it.aliasedDeclaration().qualifiedName?.asString() !in builtins && it !in providedFakes && it !in toFake }
         }
 
         /**
@@ -776,7 +798,9 @@ class MocKMPProcessor(
          * placeholder, a `@FakeProvider`, or a nested `fakeXxx()` call; a no-op lambda when the
          * parameter is itself a function type — with an empty body, and no format arg at all, when
          * that lambda's return type is `Unit`, to avoid a "redundant Unit" warning in generated code).
-         * Type parameters of [vCls] are substituted using [vType]'s own type arguments. Shared by
+         * Type parameters of [vCls] are substituted using [vType]'s own type arguments, at any depth
+         * (see [substituteTypeParameters]) — the very substitution [constructorParamTypeToFake] used
+         * to decide which nested `fakeXxx()` functions to generate, so the two must agree. Shared by
          * fake-class generation ([addFakeClassConstructorCall]) and abstract-class mock generation
          * ([addSuperclassConstructorArgs]).
          */
@@ -784,12 +808,8 @@ class MocKMPProcessor(
             val args = ArrayList<Pair<String, List<Any>>>()
             vCstr.parameters.forEach { vParam ->
                 if (!vParam.hasDefault) {
-                    var vParamType = vParam.type.resolve()
-                    val vParamTypeDecl = vParamType.declaration
-                    if (vParamTypeDecl is KSTypeParameter) {
-                        val index = vCls.typeParameters.indexOf(vParamTypeDecl)
-                        vParamType = vType.arguments[index].type!!.resolve()
-                    }
+                    val vParamType = substituteTypeParameters(vParam.type.resolve(), vCls, vType)
+                        ?: error(vParam, "Could not resolve generic parameter $vParam of ${vCls.qualifiedName?.asString()}")
                     if (vParamType.nullability != Nullability.NOT_NULL) {
                         args.add("${vParam.name!!.asString()} = %L" to listOf("null"))
                     } else if (vParamType.isAnyFunctionType) {

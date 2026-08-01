@@ -44,6 +44,13 @@ data class GenData<out T: Any>(
     val int: Int
 )
 
+class Wrap<T : Any>(
+    val direct: T,
+    val inner: GenData<T>,
+    val nested: GenData<GenData<T>>,
+    val maker: () -> GenData<T>,
+)
+
 class Arrays(
     val bytes: ByteArray,
     val strings: Array<String>
