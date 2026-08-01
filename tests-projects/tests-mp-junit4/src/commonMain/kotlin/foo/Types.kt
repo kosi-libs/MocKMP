@@ -89,3 +89,15 @@ sealed interface SItf {
         override fun toString(): String = "O"
     }
 }
+
+// A permitted subclass may declare its own type parameters, in its own order.
+sealed class SSwapped<out A : Any, out B : Any> {
+    class Impl<out X : Any, out Y : Any>(val x: X, val y: Y) : SSwapped<Y, X>()
+}
+
+// Only ever reached through the sealed parent below.
+class SDep(val s: String)
+
+sealed class SDeps {
+    class Impl(val dep: SDep) : SDeps()
+}

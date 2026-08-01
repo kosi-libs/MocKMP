@@ -371,16 +371,70 @@ class MocKMPProcessor(
         private fun KSClassDeclaration.asBoundedType(): KSType =
             asType(typeParameters.map { resolver.getTypeArgument(it.bounds.first(), Variance.INVARIANT) })
 
+        /** The stand-in type for [this] type parameter when no argument is known: its first bound, or `Any?`. */
+        private fun KSTypeParameter.boundType(): KSType =
+            bounds.firstOrNull()?.resolve() ?: resolver.builtIns.anyType.makeNullable()
+
         /**
          * If [decl] is sealed (class or interface), returns its first permitted subclass, resolved
          * recursively through nested sealed hierarchies. Returns [decl] unchanged when it isn't
          * sealed, or when a sealed hierarchy has no permitted subclasses (construction then fails
          * naturally later, with a reasonable "no public constructor" message).
+         *
+         * [resolveSealedTargetType] is the type-level counterpart, and must keep picking the same
+         * subclass as this one.
          */
         private fun resolveSealedTarget(decl: KSClassDeclaration): KSClassDeclaration {
             if (Modifier.SEALED !in decl.modifiers) return decl
             val first = decl.getSealedSubclasses().firstOrNull() ?: return decl
             return resolveSealedTarget(first)
+        }
+
+        /**
+         * Binds the type parameters [declared] is written in terms of to the matching arguments of
+         * [actual], recursively — unifying `Swapped<Y, X>` against `Swapped<String, Int>` binds
+         * `Y` to `String` and `X` to `Int`.
+         */
+        private fun bindTypeParameters(declared: KSType, actual: KSType, into: MutableMap<KSTypeParameter, KSType>) {
+            val decl = declared.declaration
+            if (decl is KSTypeParameter) {
+                into[decl] = actual
+                return
+            }
+            declared.arguments.forEachIndexed { index, argument ->
+                val declaredArgument = argument.type?.resolve() ?: return@forEachIndexed
+                val actualArgument = actual.arguments.getOrNull(index)?.type?.resolve() ?: return@forEachIndexed
+                bindTypeParameters(declaredArgument, actualArgument, into)
+            }
+        }
+
+        /**
+         * [resolveSealedTarget] at the type level: the permitted subclass that will actually be
+         * constructed for [vType], expressed with *its own* type arguments.
+         *
+         * A subclass does not have to declare the same type parameters, in the same order, as the
+         * sealed parent it extends — `class Impl<X, Y> : Swapped<Y, X>()` is legal — so the parent's
+         * arguments cannot simply be indexed by the subclass's parameter positions. They are mapped
+         * through the supertype reference the subclass declares ([bindTypeParameters]); a parameter
+         * the parent says nothing about falls back to its bound.
+         */
+        private fun resolveSealedTargetType(vType: KSType): KSType {
+            val decl = vType.declaration as? KSClassDeclaration ?: return vType
+            if (Modifier.SEALED !in decl.modifiers) return vType
+            val sub = decl.getSealedSubclasses().firstOrNull() ?: return vType
+
+            val bindings = HashMap<KSTypeParameter, KSType>()
+            sub.superTypes
+                .map { it.resolve() }
+                .firstOrNull { it.declaration == decl }
+                ?.let { bindTypeParameters(it, vType, bindings) }
+            val arguments = sub.typeParameters.map { vParam ->
+                resolver.getTypeArgument(
+                    resolver.createKSTypeReferenceFromKSType(bindings[vParam] ?: vParam.boundType()),
+                    Variance.INVARIANT,
+                )
+            }
+            return resolveSealedTargetType(sub.asType(arguments))
         }
 
         /** Follows type alias declarations (e.g. `typealias BarCB = (String) -> Int`) down to the real type they expand to. */
@@ -508,9 +562,7 @@ class MocKMPProcessor(
             if (decl is KSTypeParameter) {
                 val index = vCls.typeParameters.indexOf(decl)
                 if (index < 0) return null
-                val resolved = vType.arguments.getOrNull(index)?.type?.resolve()
-                    ?: decl.bounds.firstOrNull()?.resolve()
-                    ?: resolver.builtIns.anyType.makeNullable()
+                val resolved = vType.arguments.getOrNull(index)?.type?.resolve() ?: decl.boundType()
                 // `T?` substitutes to `String?`, not to `String`: dropping the nullability would make
                 // constructorParamTypeToFake (which skips nullable parameters) and resolveConstructorArgs
                 // (which emits `null` for them) disagree on whether a fake is needed at all.
@@ -567,9 +619,12 @@ class MocKMPProcessor(
             val toExplore = ArrayDeque(toFake.map { it.toPair() } + abstractMockSeeds)
             while (toExplore.isNotEmpty()) {
                 val (type, process) = toExplore.removeFirst()
-                val cls = type.declaration as KSClassDeclaration
+                // The constructor that will be called is the sealed target's, not the sealed parent's
+                // (which isn't even public) — the two phases must walk the same one.
+                val targetType = resolveSealedTargetType(type)
+                val cls = targetType.declaration as KSClassDeclaration
                 cls.firstPublicConstructor()?.parameters?.forEach { param ->
-                    val paramTypeToFake = constructorParamTypeToFake(cls, type, param, process) ?: return@forEach
+                    val paramTypeToFake = constructorParamTypeToFake(cls, targetType, param, process) ?: return@forEach
                     addFake(paramTypeToFake, process.files, param, implicit = process.implicit)
                     toExplore.add(paramTypeToFake to process)
                 }
@@ -877,8 +932,9 @@ class MocKMPProcessor(
 
         /**
          * Generates the top-level `fakeXxx(): Xxx` function for [vType], into its own file. Sealed
-         * classes/interfaces are first resolved to their first constructible permitted subclass (see
-         * [resolveSealedTarget]) — a class fake then constructs the type via
+         * classes/interfaces are first resolved to their first constructible permitted subclass, with
+         * that subclass's own type arguments (see [resolveSealedTargetType]) — a class fake then
+         * constructs the type via
          * [addFakeClassConstructorCall], an enum fake returns its first entry via
          * [addFakeFirstEnumEntry], and an object fake is a plain reference:
          *
@@ -892,7 +948,8 @@ class MocKMPProcessor(
          */
         private fun generateFakeFunction(vType: KSType, process: ToProcess) {
             val vCls = vType.declaration as KSClassDeclaration
-            val targetCls = resolveSealedTarget(vCls)
+            val targetType = resolveSealedTargetType(vType)
+            val targetCls = targetType.declaration as KSClassDeclaration
             val filesDeps = HashSet(process.files)
             val mockFunName = "fake${vType.toFunName()}"
             val mockPkg = vCls.fakePackageName()
@@ -901,7 +958,7 @@ class MocKMPProcessor(
                 .addModifiers(visibilityModifier)
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when (targetCls.classKind) {
-                ClassKind.CLASS -> addFakeClassConstructorCall(gFun, targetCls, vType, filesDeps, process.implicit)
+                ClassKind.CLASS -> addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process.implicit)
                 ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process.implicit)
                 ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())
                 else -> {
