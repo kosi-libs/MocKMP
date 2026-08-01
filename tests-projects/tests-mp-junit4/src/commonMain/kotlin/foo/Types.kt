@@ -66,6 +66,9 @@ interface Bar : Foo<Bar> {
     fun callback(cb: (String) -> Int)
     fun taCallback(cb: BarCB)
     fun suspendCallback(cb: suspend (String) -> Int)
+    // Declared after suspendCallback on purpose: its Function2 placeholder key is the one the
+    // suspend callback above also claims as its JVM fallback.
+    fun comboCallback(cb: (String, Int) -> Boolean)
     fun <T: Comparable<T>> order(c: Iterable<T>) : List<T>
 
     interface Sub {

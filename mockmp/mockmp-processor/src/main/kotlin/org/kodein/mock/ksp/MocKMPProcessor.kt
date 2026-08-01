@@ -1220,7 +1220,8 @@ class MocKMPProcessor(
          * erases generic type arguments — see [fakes]), concrete array type (see
          * [placeholderArrayTypes] — `Array<T>` is the one case that *isn't* erased on the JVM),
          * function-type arity (a plain lambda cast to the right shape, matched by the same raw
-         * `Function1::class`/etc. `T::class` already erases to — see [placeholderFunctionShapes]),
+         * `Function1::class`/etc. `T::class` already erases to — see [placeholderFunctionShapes];
+         * one branch per `KClass`, a suspend shape's JVM fallback key never displacing a genuine one),
          * and non-numeric builtin (a literal or factory call matching [builtins] — the numeric ones
          * are already handled by `References`'s own hardcoded primitive map and never reach here):
          *
@@ -1303,7 +1304,33 @@ class MocKMPProcessor(
                 gFun.addStatement("%M<%T>()::class -> %M<%T>()", emptyArray, componentType, emptyArray, componentType)
             }
 
+            // One branch per KClass, since only the first matching one of a `when` ever runs.
+            // Every shape claims the declaration KSP resolved it to, and a suspend shape *also* wants
+            // `Function<arity+1>::class` (see below) — a key a genuine, non-suspend shape one arity
+            // higher may already own. The genuine shape wins: it is the only value that key can be
+            // looked up with anywhere except the JVM, and on the JVM erasure makes either lambda
+            // satisfy the cast. Registering the fallbacks in a second pass is what enforces that,
+            // whatever order the shapes were discovered in.
+            val functionShapeBranches = LinkedHashMap<ClassName, Pair<Boolean, Int>>()
             placeholderFunctionShapes.forEach { (decl, isSuspendAndArity) ->
+                // Same declaration KSP itself resolved the type to — same as any other interface's
+                // `Bar::class` branch.
+                functionShapeBranches[decl.toClassName()] = isSuspendAndArity
+            }
+            placeholderFunctionShapes.values.forEach { isSuspendAndArity ->
+                val (isSuspend, arity) = isSuspendAndArity
+                if (isSuspend) {
+                    // On the JVM specifically, a reified suspend function type's runtime class is its
+                    // CPS-transformed backing type (Function(arity+1), continuation appended), not the
+                    // frontend-level SuspendFunctionN declaration KSP resolves above — Native's and
+                    // Wasm's own reification, unlike the JVM's, does match the frontend declaration.
+                    // Since a suspend-shaped lambda genuinely implements both on the JVM, adding this
+                    // second branch covers both platforms' actual runtime lookup key.
+                    functionShapeBranches.getOrPut(ClassName("kotlin", "Function${arity + 1}")) { isSuspendAndArity }
+                }
+            }
+
+            functionShapeBranches.forEach { (branchClass, isSuspendAndArity) ->
                 val (isSuspend, arity) = isSuspendAndArity
                 val shape = buildString {
                     if (isSuspend) append("suspend ")
@@ -1320,18 +1347,7 @@ class MocKMPProcessor(
                 // for a suspend shape, not a no-op — the lambda has to be compiled *as* the target
                 // shape from the start, which only a declared-type context (not `as`) provides.
                 val value = "run { val f: $shape = { ${params}error(%S) }; f }"
-                // Same declaration KSP itself resolved the type to — same as any other interface's
-                // `Bar::class` branch.
-                gFun.addStatement("%T::class -> $value", decl.toClassName(), message)
-                if (isSuspend) {
-                    // On the JVM specifically, a reified suspend function type's runtime class is its
-                    // CPS-transformed backing type (Function(arity+1), continuation appended), not the
-                    // frontend-level SuspendFunctionN declaration KSP resolves above — Native's own
-                    // reification, unlike the JVM's, does match the frontend declaration. Since a
-                    // suspend-shaped lambda genuinely implements both on the JVM, adding this second,
-                    // harmless-elsewhere branch covers both platforms' actual runtime lookup key.
-                    gFun.addStatement("%T::class -> $value", ClassName("kotlin", "Function${arity + 1}"), message)
-                }
+                gFun.addStatement("%T::class -> $value", branchClass, message)
             }
 
             gFun.addStatement("else -> error(\"Could not find placeholder for type \$cls\")")

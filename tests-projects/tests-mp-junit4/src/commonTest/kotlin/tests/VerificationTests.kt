@@ -348,6 +348,18 @@ class VerificationTests {
     }
 
     @Test
+    fun testTwoArgFunctionArgument() {
+        val bar = mocker.mock<Bar>()
+        mocker.every { bar.comboCallback(isAny()) } returns Unit
+
+        bar.comboCallback { _, _ -> true }
+
+        mocker.verify {
+            bar.comboCallback(isAny())
+        }
+    }
+
+    @Test
     fun testSealedClassArgument() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every { foo.doSealedClass(isAny()) } returns Unit
