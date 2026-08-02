@@ -26,8 +26,11 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
             return references.getReference(cls) as T
         } catch (e: Throwable) {
             throw RuntimeException("Could not find a way to get a reference of ${cls.bestName()}.\n" +
-                    "Please open an issue: https://github.com/Kodein-Framework/MocKMP/issues/new\n" +
-                    "In the meantime, you can give the mocker a reference to use with mocker.useReference(${cls.simpleName}).", e)
+                    "Make sure ${cls.bestName()} is covered by @Mock, @Fake, @UsesMocks or @UsesFakes, " +
+                    "and that this Mocker has already created a mock — with mocker.mock<T>() or mocker.injectMocks(this) — " +
+                    "as that is what registers the generated values on it.\n" +
+                    "Otherwise, give the mocker a reference to use with mocker.useReference(...).\n" +
+                    "If none of this applies, please open an issue: https://github.com/kosi-libs/MocKMP/issues/new", e)
         }
     }
 
