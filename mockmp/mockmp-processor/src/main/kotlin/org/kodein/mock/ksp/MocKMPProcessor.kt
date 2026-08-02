@@ -55,6 +55,15 @@ class MocKMPProcessor(
         const val ANNOTATION_FAKE_PROVIDER = "org.kodein.mock.FakeProvider"
 
         /**
+         * Members that define an object's *identity*, and are therefore never routed through the
+         * [org.kodein.mock.Mocker]: it keys its registrations by `(receiver, method)`, so a mocked
+         * `hashCode()` would recurse into the very map lookup that invoked it. `toString` is
+         * deliberately absent — mocking it is a supported feature, and nothing in `Mocker` calls it
+         * on a receiver.
+         */
+        val IDENTITY_MEMBERS = listOf("equals", "hashCode")
+
+        /**
          * Types for which a literal placeholder can be emitted directly instead of generating (or
          * looking up) a `fakeXxx()` function. Maps a type's qualified name to a KotlinPoet format
          * string and its single format argument (a literal, or a [MemberName] to a factory function).
@@ -563,7 +572,7 @@ class MocKMPProcessor(
                     .filter { it.isAbstract() }
                     .forEach { vProp -> seedImplicitPlaceholder(vProp.type.resolve()) }
                 vItf.getAllFunctions()
-                    .filter { if (overrideAll) it.simpleName.asString() !in listOf("equals", "hashCode") else it.isAbstract }
+                    .filter { it.simpleName.asString() !in IDENTITY_MEMBERS && (overrideAll || it.isAbstract) }
                     .forEach { vFun ->
                         vFun.parameters.forEach { seedImplicitPlaceholder(it.type.resolve()) }
                         vFun.returnType?.let { seedImplicitPlaceholder(it.resolve()) }
@@ -771,6 +780,58 @@ class MocKMPProcessor(
         }
 
         /**
+         * Appends an *identity* override of [vFun] — one of [IDENTITY_MEMBERS] — to [gCls], for the
+         * case where [vItf] re-declares it as abstract and Kotlin therefore requires an
+         * implementation. Routing it through the mocker is what this exists to avoid.
+         *
+         * A mocked interface can defer to `Any`'s own implementations, since `super` resolves past
+         * the interface to `Any`:
+         *
+         * ```
+         * override fun equals(other: Any?): Boolean = super.equals(other)
+         * ```
+         *
+         * A mocked *abstract class* cannot — `super` resolves to the class itself, where the member
+         * is abstract ("Abstract member cannot be accessed directly") — so identity is spelled out,
+         * with a per-instance hash since Kotlin has no common-source identity hash:
+         *
+         * ```
+         * private val identityHashCode: Int = Random.nextInt()
+         * override fun equals(other: Any?): Boolean = this === other
+         * override fun hashCode(): Int = identityHashCode
+         * ```
+         */
+        private fun addIdentityOverride(gCls: TypeSpec.Builder, vFun: KSFunctionDeclaration, vItf: KSClassDeclaration) {
+            val canCallSuper = vItf.classKind == ClassKind.INTERFACE
+            when (vFun.simpleName.asString()) {
+                "equals" -> gCls.addFunction(
+                    FunSpec.builder("equals")
+                        .addModifiers(KModifier.OVERRIDE)
+                        .addParameter("other", ANY.copy(nullable = true))
+                        .returns(BOOLEAN)
+                        .addStatement(if (canCallSuper) "return super.equals(other)" else "return this === other")
+                        .build()
+                )
+                "hashCode" -> {
+                    if (!canCallSuper) {
+                        gCls.addProperty(
+                            PropertySpec.builder("identityHashCode", INT, KModifier.PRIVATE)
+                                .initializer("%T.nextInt()", ClassName("kotlin.random", "Random"))
+                                .build()
+                        )
+                    }
+                    gCls.addFunction(
+                        FunSpec.builder("hashCode")
+                            .addModifiers(KModifier.OVERRIDE)
+                            .returns(INT)
+                            .addStatement(if (canCallSuper) "return super.hashCode()" else "return identityHashCode")
+                            .build()
+                    )
+                }
+            }
+        }
+
+        /**
          * The [org.kodein.mock.Mocker]-backed override for one function of the mocked interface,
          * e.g. for `fun baz(i: Int): String`:
          *
@@ -845,8 +906,17 @@ class MocKMPProcessor(
                 .forEach { vProp -> gCls.addProperty(mockedProperty(vProp, vItf, mocker)) }
 
             vItf.getAllFunctions()
-                .filter { if (overrideAll) it.simpleName.asString() !in listOf("equals", "hashCode") else it.isAbstract }
-                .forEach { vFun -> gCls.addFunction(mockedFunction(vFun, vItf, mocker)) }
+                .filter { overrideAll || it.isAbstract }
+                .forEach { vFun ->
+                    // A supertype that re-declares equals/hashCode as abstract forces an override,
+                    // so skipping them outright would not compile — they get an identity
+                    // implementation instead of a mocked one (see [addIdentityOverride]).
+                    if (vFun.simpleName.asString() in IDENTITY_MEMBERS) {
+                        if (vFun.isAbstract) addIdentityOverride(gCls, vFun, vItf)
+                    } else {
+                        gCls.addFunction(mockedFunction(vFun, vItf, mocker))
+                    }
+                }
 
             gFile.addType(gCls.build().also { mocks[vItf] = ClassName(mockPkg, it.name!!) })
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))

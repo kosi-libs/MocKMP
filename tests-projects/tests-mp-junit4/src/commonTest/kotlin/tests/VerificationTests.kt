@@ -300,6 +300,38 @@ class VerificationTests {
     }
 
     @Test
+    fun testMockWithAbstractIdentityMembers() {
+        // Identified re-declares equals/hashCode as abstract. Routing those through the Mocker would
+        // recurse: its registrations are keyed by (receiver, method), so the lookup would call the
+        // very hashCode() it is looking up.
+        val identified = mocker.mock<Identified>()
+        mocker.every { identified.doSomething() } returns Unit
+
+        identified.doSomething()
+
+        assertEquals(identified, identified)
+        assertNotEquals(identified, mocker.mock<Identified>())
+        mocker.verify { identified.doSomething() }
+    }
+
+    @Test
+    fun testReceiverIsMatchedByIdentity() {
+        val a = mocker.mock<Identified>()
+        val b = mocker.mock<Identified>()
+        mocker.every { a.doSomething() } returns Unit
+        mocker.every { b.doSomething() } returns Unit
+
+        a.doSomething()
+
+        // Non-exhaustive verification takes the other code path than the exhaustive one; both must
+        // attribute the call to the instance it was made on.
+        mocker.verify(exhaustive = false) { a.doSomething() }
+        assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify(exhaustive = false) { b.doSomething() }
+        }
+    }
+
+    @Test
     fun testStarProjectedArrayArgument() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every { foo.doStarArray(isAny()) } returns Unit

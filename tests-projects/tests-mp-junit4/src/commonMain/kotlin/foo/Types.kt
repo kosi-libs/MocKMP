@@ -31,6 +31,8 @@ interface Foo<out T : Any> {
     fun newString(): String
     fun newStringNullable(): String?
     fun newT(): T
+    fun newIdentified(): Identified
+    fun newAbsIdentified(): AbsIdentified
     val defaultT: T
     val map: FooMap<String>
     val list: List<Set<Int>>
@@ -76,6 +78,20 @@ interface Bar : Foo<Bar> {
     interface Sub {
         fun doOp()
     }
+}
+
+// Re-declares its identity members as abstract, which Kotlin requires an implementation for.
+// Only ever reached implicitly, through Foo.newIdentified below.
+interface Identified {
+    override fun equals(other: Any?): Boolean
+    override fun hashCode(): Int
+    fun doSomething()
+}
+
+abstract class AbsIdentified {
+    abstract override fun equals(other: Any?): Boolean
+    abstract override fun hashCode(): Int
+    abstract fun doSomething()
 }
 
 abstract class Abs(val i: Int)

@@ -48,6 +48,12 @@ public class Mocker {
         object FromRegistration : ProcessResult<Nothing>()
     }
 
+    /**
+     * Receivers are matched by *identity*, in every verification mode: "verify the calls made on
+     * this mock" means this instance, not one that merely compares equal to it. The generated mocks
+     * never override `equals`/`hashCode` (the processor keeps those off the mocker), so this also
+     * agrees with how [regFuns]/[regSuspendFuns] key their registrations.
+     */
     private fun <E, R> process(isSuspend: Boolean, receiver: Any?, method: String, args: Array<*>, regs: RegistrationMap<E>): ProcessResult<R> {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
@@ -74,7 +80,7 @@ public class Mocker {
                     call
                 } else {
                     val callIndices = (
-                            calls.indices.filter { calls[it].receiver == receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
+                            calls.indices.filter { calls[it].receiver === receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
                                 ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)}" }
                             ).filter { calls[it].arguments.size == constraints.size } .takeIf { it.isNotEmpty() }
                                 ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)} with ${constraints.size} arguments" }
