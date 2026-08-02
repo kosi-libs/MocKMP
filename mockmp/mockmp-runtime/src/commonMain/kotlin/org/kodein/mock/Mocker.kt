@@ -39,6 +39,7 @@ public class Mocker {
         calls.clear()
         regFuns.clear()
         regSuspendFuns.clear()
+        references.reset()
     }
 
     private fun methodName(receiver: Any?, methodName: String) = if (receiver == null) methodName else "${receiver::class.simpleName}.$methodName"

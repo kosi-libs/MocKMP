@@ -13,10 +13,21 @@ internal class References {
      */
     internal var placeholderProvider: ((KClass<*>) -> Any)? = null
 
+    /** Everything given to [Mocker.useReference]. Per-test state, dropped by [reset]. */
     private val references = ArrayList<Any>()
 
+    /**
+     * Every reference resolved so far, so that a repeated `isAny<T>()` within one test keeps handing
+     * back the same instance. Also where [addReference] indexes a user reference by its exact class.
+     * Per-test state, dropped by [reset] — the placeholders it holds are `MockXxx` instances built by
+     * the generated provider against a throwaway [Mocker], which have no business outliving the test
+     * that caused them to be created.
+     */
+    private val cache = HashMap<KClass<*>, Any>()
+
+    /** Immutable seed: numeric placeholders. Kept out of [cache] so that [reset] cannot drop them. */
     @Suppress("RemoveRedundantCallsOfConversionMethods")
-    private val map = hashMapOf<KClass<*>, Any>(
+    private val primitives = hashMapOf<KClass<*>, Any>(
         Boolean::class to false,
         UByte::class to 0.toUByte(),
         Byte::class to 0.toByte(),
@@ -57,13 +68,30 @@ internal class References {
         LinkedHashMap::class to LinkedHashMap<Any?, Any?>(),
     )
 
+    /**
+     * Drops everything a single test put here, so that [Mocker.reset] hands back a genuinely clean
+     * mocker.
+     *
+     * [placeholderProvider] deliberately survives: it points at a generated, stateless top-level
+     * function, so there is nothing about it to go stale — and clearing it would break building the
+     * mocks once and calling [Mocker.reset] per test, since nothing would re-register it and every
+     * `isAny<T>()` would then fail.
+     */
+    fun reset() {
+        references.clear()
+        cache.clear()
+    }
+
     fun addReference(r: Any) {
         references.add(r)
-        map[r::class] = r
+        cache[r::class] = r
     }
 
     fun tryGetReference(cls: KClass<*>): Any? {
-        map[cls]?.let { return it }
+        // [cache] before [primitives] so that a useReference for a primitive type still wins, as it
+        // did when the two shared one map.
+        cache[cls]?.let { return it }
+        primitives[cls]?.let { return it }
         var ref: Any? = null
         references.forEach {
             if (cls.isInstance(it)) ref = it
@@ -73,7 +101,7 @@ internal class References {
         if (ref == null) ref = defaults[cls]
         if (ref == null) ref = placeholderProvider?.invoke(cls)
         if (ref != null) {
-            map[cls] = ref
+            cache[cls] = ref
         }
         return ref
     }
