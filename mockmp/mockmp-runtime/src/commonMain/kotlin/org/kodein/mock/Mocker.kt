@@ -215,7 +215,10 @@ public class Mocker {
 
     public fun <R, T> backProperty(receiver: R, property: KMutableProperty1<R, T>, default: T) {
         var value = default
-        every { register<Unit>(receiver, "set:${property.name}", isAny()) } runs {
+        // addConstraint rather than isAny(): the setter's placeholder argument is never read, and
+        // isAny() would infer Any? and so require the project to have a `kotlin.Any` placeholder —
+        // a dependency this has no business having, and which only holds by coincidence.
+        every { register<Unit>(receiver, "set:${property.name}", addConstraint(ArgConstraint.isAny<Any?>())) } runs {
             @Suppress("UNCHECKED_CAST")
             value = it[0] as T
         }

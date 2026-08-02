@@ -34,6 +34,20 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
         }
     }
 
+    /**
+     * Adds [constraint] and returns `null` in place of a placeholder.
+     *
+     * For call sites that discard the value: `every` and `verify` only ever read the constraints —
+     * the recorded argument of a definition call is never looked at — so only the *presence* of one
+     * argument matters. Going through [toReturn] would make such a call site fail whenever the
+     * project happens to have no placeholder for a type it does not actually use.
+     */
+    internal fun <T> addConstraint(constraint: ArgConstraint<T>): T {
+        constraints.add(constraint)
+        @Suppress("UNCHECKED_CAST")
+        return null as T
+    }
+
     public inline fun <reified T> isAny(capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isAny(capture), T::class)
     public inline fun <reified T> isEqual(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isEqual(expected, capture), T::class)
     public inline fun <reified T> isNotEqual(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotEqual(expected, capture), T::class)
