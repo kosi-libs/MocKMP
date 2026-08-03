@@ -65,6 +65,12 @@ public interface ITestsWithMocks {
     @BeforeTest
     public fun injectMocksBeforeTest() {
         mocker.reset()
+        // Next to the reset, so that nothing from the previous test survives it: [Deferred.init]
+        // only creates when the value is still null, which on its own makes "recreated before each
+        // test" true only for as long as the framework allocates a new test instance per test.
+        // Under JUnit 5's @TestInstance(PER_CLASS) a stale object would keep the mocks that
+        // setUpMocks is about to replace.
+        clearDeferred()
         setUpMocks()
         initDeferred()
         initMocksBeforeTest()
