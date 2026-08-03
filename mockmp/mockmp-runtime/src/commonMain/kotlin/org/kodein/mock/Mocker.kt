@@ -9,6 +9,24 @@ import kotlin.reflect.KProperty
 
 private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, E>>>
 
+/**
+ * Records and answers the calls made to the mocks created from it.
+ *
+ * **Not thread-safe.** A `Mocker`, and every mock created from it, belong to a single thread: the
+ * registrations, the log of recorded calls and the placeholder references are all held in plain,
+ * unsynchronised collections. Calls arriving concurrently corrupt that state rather than failing
+ * cleanly — calls go missing or land out of order, and a later [verify] fails for reasons that have
+ * nothing to do with the code under test.
+ *
+ * This is a property of the API, not only of its implementation: [every] and [verify] set a single
+ * mode on the mocker for the duration of their block and capture the call by throwing out of it, so
+ * they could not be made concurrent by locking. Even a mocked call arriving from another thread
+ * *while* such a block runs would be read as part of it.
+ *
+ * When the code under test dispatches, inject the dispatcher it uses so that mocked calls still run
+ * on the test thread, rather than letting it reach a real background dispatcher. Where that is not
+ * possible, give each thread its own `Mocker`.
+ */
 public class Mocker {
     public class MockingException(message: String) : Exception(message)
 

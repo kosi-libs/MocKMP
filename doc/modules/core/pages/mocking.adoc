@@ -55,6 +55,14 @@ class DatabaseTests {
 
 NOTE: A method *must* be mocked to run without throwing an exception (there is no "relaxed" mode).
 
+[CAUTION]
+====
+A `Mocker`, and every mock created from it, must be used from a *single thread*.
+Calls arriving concurrently corrupt the mocker's state instead of failing cleanly: calls go missing or land out of order, and a later `verify` fails for reasons unrelated to the code under test.
+
+If the code under test dispatches, inject the dispatcher it uses so that the mocked calls still run on the test thread, rather than letting it reach a real background one.
+====
+
 You can mock methods according to specific argument constraints:
 
 [source,kotlin]
