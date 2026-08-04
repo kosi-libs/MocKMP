@@ -261,6 +261,10 @@ public class Mocker {
         try {
             try {
                 mode.builder.block()
+                // After block(), so that an exception thrown out of it is not masked by this one. A
+                // verify block, unlike an every block, runs to completion and can hold several calls,
+                // so a constraint that reached none of them would otherwise vanish here.
+                mode.builder.checkNoPendingConstraints()
                 if (exhaustive && calls.isNotEmpty()) {
                     val call = calls.first()
                     throw MockerVerificationLazyAssertionError { "Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}" }

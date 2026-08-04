@@ -300,6 +300,38 @@ class VerificationTests {
     }
 
     @Test
+    fun testTrailingUnusedConstraint() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doInt(isAny()) } returns Unit
+
+        foo.doInt(42)
+
+        val ex = assertFailsWith<Mocker.MockingException> {
+            mocker.verify {
+                foo.doInt(42)
+                isAny<String>() // built, never passed to a mocked call
+            }
+        }
+        assertTrue("never passed to a mocked call" in ex.message!!, ex.message)
+    }
+
+    @Test
+    fun testUnusedConstraintTakenByTheNextCall() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doInt(isAny()) } returns Unit
+
+        foo.doInt(42)
+
+        val ex = assertFailsWith<Mocker.MockingException> {
+            mocker.verify {
+                isAny<String>() // stray: leaves two constraints pending for a one-argument call
+                foo.doInt(isAny())
+            }
+        }
+        assertTrue("never passed to a mocked call" in ex.message!!, ex.message)
+    }
+
+    @Test
     fun testCustomConstraint() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every {

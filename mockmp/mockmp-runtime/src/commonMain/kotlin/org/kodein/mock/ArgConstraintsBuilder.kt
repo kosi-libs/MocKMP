@@ -9,12 +9,35 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
 
     internal fun getConstraints(args: Array<*>): List<ArgConstraint<*>> {
         val list = when {
+            // A constraint built before this call, for a call that never happened, is indistinguishable
+            // from one built for this call's arguments: constraints carry no argument type, and the
+            // argument a constraint records is a placeholder a literal could equally have produced. Only
+            // a *count* mismatch is detectable here; [checkNoPendingConstraints] catches the rest.
             constraints.size == args.size -> constraints.toList()
             constraints.isEmpty() -> args.map { if (it == null) ArgConstraint.isNull() else ArgConstraint.isEqual(it) }
-            else -> throw Mocker.MockingException("You cannot mix literal values and constraints. Please replace all literal values by their constraint counterpart (isEqual(value) or isNull()).")
+            else -> throw Mocker.MockingException(
+                "Expected ${args.size} constraint(s) for this call, but ${constraints.size} were pending: ${constraints.joinToString { it.description() }}.\n" +
+                        "Either literal values are mixed with constraints (replace each literal with its constraint counterpart, isEqual(value) or isNull()), " +
+                        "or a constraint was created and never passed to a mocked call."
+            )
         }
         constraints.clear()
         return list
+    }
+
+    /**
+     * Fails if constraints were created but never handed to a mocked call — they would otherwise be
+     * silently taken by whichever call came next, or dropped with this builder.
+     */
+    internal fun checkNoPendingConstraints() {
+        if (constraints.isEmpty()) return
+        val count = constraints.size
+        val pending = constraints.joinToString { it.description() }
+        constraints.clear()
+        throw Mocker.MockingException(
+            "$count constraint(s) were created but never passed to a mocked call: $pending.\n" +
+                    "A constraint only applies to the call it is given to, as an argument."
+        )
     }
 
     @PublishedApi
