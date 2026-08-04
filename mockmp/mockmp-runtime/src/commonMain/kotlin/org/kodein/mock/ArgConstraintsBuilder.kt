@@ -58,6 +58,23 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
     public inline fun <reified T : Any> isInstanceOf(capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isInstanceOf(T::class, capture), T::class)
 
     public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T = toReturn<T>(constraint, T::class)
-    @Suppress("UNCHECKED_CAST")
-    public inline fun <reified T> isValid(capture: MutableList<T>? = null, noinline description: () -> String = { "isValid" }, noinline test: (T) -> ArgConstraint.Result): T = isValid<T>(ArgConstraint(capture, description, test as (Any?) -> ArgConstraint.Result))
+
+    /**
+     * A constraint satisfied when [test] returns [ArgConstraint.Result.Success] for the argument.
+     *
+     * A parameter typed as a supertype accepts a narrower constraint — `isValid<String>` against a
+     * `doAny(any: Any)` — so the argument the call actually carries need not be a [T]. It is checked
+     * before [test] sees it: a mismatch is a constraint that does not match, not a
+     * `ClassCastException` thrown out of the surrounding `every`/`verify`.
+     */
+    public inline fun <reified T> isValid(capture: MutableList<T>? = null, noinline description: () -> String = { "isValid" }, noinline test: (T) -> ArgConstraint.Result): T {
+        val typeName = T::class.bestName()
+        // Genuinely accepts Any?, so it needs no cast to be stored as the constraint's (T) -> Result:
+        // function types are contravariant in their parameters.
+        val checked: (Any?) -> ArgConstraint.Result = { arg ->
+            if (arg is T) test(arg)
+            else ArgConstraint.Result.Failure { "Expected an instance of $typeName, but was <$arg>" }
+        }
+        return isValid<T>(ArgConstraint(capture, description, checked))
+    }
 }

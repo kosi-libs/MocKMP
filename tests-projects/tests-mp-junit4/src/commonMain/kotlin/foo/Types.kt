@@ -19,6 +19,8 @@ interface Foo<out T : Any> {
     fun doInt(int: Int)
     fun doPrimitive(string: String, int: Int)
     fun doInterface(bar: Bar)
+    // A supertype-typed parameter: accepts a constraint narrower than the parameter itself.
+    fun doAny(any: Any)
     fun doEnum(direction: Direction)
     fun doArray(array: Array<String>)
     // A star projection has no component type, so it gets no component-specific placeholder branch.

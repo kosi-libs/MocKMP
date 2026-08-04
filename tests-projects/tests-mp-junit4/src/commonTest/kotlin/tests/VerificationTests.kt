@@ -300,6 +300,50 @@ class VerificationTests {
     }
 
     @Test
+    fun testCustomConstraint() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every {
+            foo.doAny(isValid<String> { if (it == "ok") ArgConstraint.Result.Success else ArgConstraint.Result.Failure { "not ok" } })
+        } returns Unit
+
+        foo.doAny("ok")
+
+        mocker.verify {
+            foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+        }
+    }
+
+    @Test
+    fun testCustomConstraintDoesNotMatchAnotherType() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every {
+            foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+        } returns Unit
+
+        // An Int cannot satisfy a String constraint: that is a constraint that does not match, not a
+        // ClassCastException thrown out of the mocked call.
+        assertFailsWith<Mocker.MockingException> {
+            foo.doAny(42)
+        }
+    }
+
+    @Test
+    fun testCustomConstraintOfAnotherTypeFailsVerification() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doAny(isAny()) } returns Unit
+
+        foo.doAny(42)
+
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify {
+                foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+            }
+        }
+        // Not the whole message: bestName() renders qualifiedName on JVM/Native, simpleName on JS/Wasm.
+        assertTrue("String" in ex.message!!, ex.message)
+    }
+
+    @Test
     fun testMockWithAbstractIdentityMembers() {
         // Identified re-declares equals/hashCode as abstract. Routing those through the Mocker would
         // recurse: its registrations are keyed by (receiver, method), so the lookup would call the
