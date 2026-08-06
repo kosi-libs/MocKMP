@@ -1091,9 +1091,15 @@ class MocKMPProcessor(
             val vPropTypeDecl = vPropType.declaration
             if (vPropType.isFunctionType) {
                 val argCount = vPropType.arguments.size - 1
+                // Named, not positional: at arity 1, `mockFunction1(this, "kotlin.String")` also fits
+                // the reified `mockFunction1(mocker, functionName, block)` overload, which Kotlin
+                // then picks — landing the type string in `functionName` and registering the mock as
+                // `kotlin.String(kotlin.String)` instead of `invoke(kotlin.String)`.
                 val args =
                     if (argCount == 0) ""
-                    else vPropType.arguments.take(argCount).joinToString(prefix = ", ") { "\"${it.type!!.resolve().declaration.qualifiedName!!.asString()}\"" }
+                    else vPropType.arguments.take(argCount).mapIndexed { i, arg ->
+                        "a${i + 1}Type = \"${arg.type!!.resolve().declaration.qualifiedName!!.asString()}\""
+                    }.joinToString(prefix = ", ")
                 gFun.addStatement(
                     "receiver.%N = %M(this$args)",
                     vProp.simpleName.asString(),

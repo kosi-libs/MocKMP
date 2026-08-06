@@ -5,6 +5,7 @@ import foo.Bar
 import foo.Foo
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
+import org.kodein.mock.Mocker
 import org.kodein.mock.generated.injectMocks
 import org.kodein.mock.tests.TestsWithMocks
 import kotlin.test.*
@@ -35,6 +36,9 @@ class InjectionTests : TestsWithMocks() {
 
     @Mock
     lateinit var callback: (Boolean, Int) -> String
+
+    @Mock
+    lateinit var callback1: (String) -> Unit
 
     @Mock
     lateinit var s1: Foo.Sub
@@ -104,6 +108,20 @@ class InjectionTests : TestsWithMocks() {
         every { callback(isAny(), isAny()) } returns "test"
         callback(true, 42)
         verify { callback(true, 42) }
+    }
+
+    @Test
+    fun testCallbackOfOneArgument() {
+        every { callback1(isAny()) } returns Unit
+        callback1("test")
+        verify { callback1("test") }
+    }
+
+    @Test
+    fun testCallbackOfOneArgumentRegistrationKey() {
+        val ex = assertFailsWith<Mocker.MockingException> { callback1("test") }
+        // Not the whole key: the type name in it is bestName()-rendered, so it differs on JS/Wasm.
+        assertTrue("invoke(" in ex.message!!, ex.message)
     }
 
     @Test
