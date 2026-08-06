@@ -305,7 +305,11 @@ class MocKMPProcessor(
          * than requested directly.
          */
         private fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false) {
-            if (type.isFunctionType) return
+            // Suspend function types included: KSP presents `kotlin.coroutines.SuspendFunctionN` as an
+            // interface, so testing only isFunctionType let a `suspend (A) -> R` property through to
+            // the mocked-interface path and generated a class implementing that compiler-synthesized
+            // supertype. [addMockInjection] builds these with mockFunctionN/mockSuspendFunctionN.
+            if (type.isAnyFunctionType) return
             val decl = type.declaration
             val isMockable = decl is KSClassDeclaration &&
                     (decl.classKind == ClassKind.INTERFACE || (decl.classKind == ClassKind.CLASS && Modifier.ABSTRACT in decl.modifiers))
@@ -1089,8 +1093,10 @@ class MocKMPProcessor(
          */
         private fun addMockInjection(gFun: FunSpec.Builder, vProp: KSPropertyDeclaration, vPropType: KSType) {
             val vPropTypeDecl = vPropType.declaration
-            if (vPropType.isFunctionType) {
+            if (vPropType.isAnyFunctionType) {
+                // A suspend function type's arguments are [P1, …, R] exactly like a plain one's.
                 val argCount = vPropType.arguments.size - 1
+                val factory = if (vPropType.isSuspendFunctionType) "mockSuspendFunction" else "mockFunction"
                 // Named, not positional: at arity 1, `mockFunction1(this, "kotlin.String")` also fits
                 // the reified `mockFunction1(mocker, functionName, block)` overload, which Kotlin
                 // then picks — landing the type string in `functionName` and registering the mock as
@@ -1103,7 +1109,7 @@ class MocKMPProcessor(
                 gFun.addStatement(
                     "receiver.%N = %M(this$args)",
                     vProp.simpleName.asString(),
-                    MemberName("org.kodein.mock", "mockFunction$argCount"),
+                    MemberName("org.kodein.mock", "$factory$argCount"),
                 )
             } else {
                 gFun.addStatement(

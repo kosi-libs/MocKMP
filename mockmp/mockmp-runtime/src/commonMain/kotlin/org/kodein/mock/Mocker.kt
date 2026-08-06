@@ -238,6 +238,24 @@ public class Mocker {
     public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T): EverySuspend<T> =
         everyImpl(true, ::EverySuspend, regSuspendFuns) { block() }
 
+    /**
+     * Registers a catch-all behaviour for [receiver].[method] taking [argCount] arguments, without
+     * needing a coroutine context.
+     *
+     * [everySuspending] reaches the same registration by *invoking* the suspend mock inside a
+     * definition block, which is why it must be `suspend` — even though nothing there ever suspends,
+     * the block throwing at the first mocked call. Skipping that dance is what lets
+     * `mockSuspendFunctionN` build a mock outside a coroutine, and so lets a generated injector call
+     * it. It also avoids `isAny<A>()`, which would require a placeholder for every argument type.
+     */
+    @PublishedApi
+    internal fun <T> everySuspendingCall(receiver: Any?, method: String, argCount: Int): EverySuspend<T> {
+        val every = EverySuspend<T>(receiver, method)
+        regSuspendFuns.getOrPut(receiver to method) { ArrayList() }
+            .add(List(argCount) { ArgConstraint.isAny<Any?>() } to every)
+        return every
+    }
+
     public fun <R, T> backProperty(receiver: R, property: KMutableProperty1<R, T>, default: T) {
         var value = default
         // addConstraint rather than isAny(): the setter's placeholder argument is never read, and

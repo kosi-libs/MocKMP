@@ -1,9 +1,13 @@
 package tests
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Mocker
 import org.kodein.mock.mockFunction1
+import org.kodein.mock.mockSuspendFunction1
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
 // The generated placeholder provider is registered by a MockXxx constructor, so a Mocker that only
 // ever mocks functional types never gets one. Deliberately not a TestsWithMocks: injectMocks would
@@ -42,6 +46,27 @@ class BareMockerTests {
             set(value) {
                 mocker.register<Unit>(this, "set:name", value)
             }
+    }
+
+    // Creating a suspend function mock takes no coroutine context: this test function is not
+    // suspend, and would not compile if mockSuspendFunction1 still were.
+    @Test
+    fun testSuspendFunctionMockCreation() {
+        val mocker = Mocker()
+        val cb: suspend (String) -> Int = mockSuspendFunction1(mocker, a1Type = "kotlin.String")
+
+        assertNotNull(cb)
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendFunctionMockWithBlock() = runTest {
+        val mocker = Mocker()
+        val cb: suspend (String) -> Int = mockSuspendFunction1(mocker, a1Type = "kotlin.String") { it.length }
+
+        assertEquals(4, cb("test"))
+
+        mocker.verifyWithSuspend { cb(isAny()) }
     }
 
     @Test

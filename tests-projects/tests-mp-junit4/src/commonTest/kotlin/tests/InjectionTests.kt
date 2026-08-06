@@ -3,6 +3,8 @@ package tests
 import data.*
 import foo.Bar
 import foo.Foo
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
 import org.kodein.mock.Mocker
@@ -39,6 +41,9 @@ class InjectionTests : TestsWithMocks() {
 
     @Mock
     lateinit var callback1: (String) -> Unit
+
+    @Mock
+    lateinit var suspendCallback: suspend (String) -> Int
 
     @Mock
     lateinit var s1: Foo.Sub
@@ -122,6 +127,25 @@ class InjectionTests : TestsWithMocks() {
         val ex = assertFailsWith<Mocker.MockingException> { callback1("test") }
         // Not the whole key: the type name in it is bestName()-rendered, so it differs on JS/Wasm.
         assertTrue("invoke(" in ex.message!!, ex.message)
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendCallback() = runTest {
+        everySuspending { suspendCallback(isAny()) } returns 42
+
+        assertEquals(42, suspendCallback("test"))
+
+        verifyWithSuspend { suspendCallback("test") }
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendCallbackRegistrationKey() = runTest {
+        val ex = assertFailsWith<Mocker.MockingException> { suspendCallback("test") }
+        // "invoke(" would not discriminate: the old MockSuspendFunction1 route registered
+        // "invoke(?)", erasing the argument type out of the key.
+        assertTrue("String" in ex.message!!, ex.message)
     }
 
     @Test
