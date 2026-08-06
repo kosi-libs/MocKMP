@@ -8,6 +8,11 @@ import kotlin.jvm.JvmInline
 @RequiresOptIn
 annotation class ExperimentalTest
 
+// Applicable to a getter but not to a property, so copying it without its use-site target does not
+// compile.
+@Target(AnnotationTarget.PROPERTY_GETTER)
+annotation class GetterOnly
+
 typealias FooMap<T> = Map<T, List<Pair<Int, Set<String>>>>
 
 @JvmInline
@@ -50,6 +55,9 @@ interface Foo<out T : Any> {
 
     @ExperimentalTest
     fun experimentalMethod()
+
+    @get:GetterOnly
+    val annotatedGetter: String
 
     fun doSomethingInline(param: InlineString)
 

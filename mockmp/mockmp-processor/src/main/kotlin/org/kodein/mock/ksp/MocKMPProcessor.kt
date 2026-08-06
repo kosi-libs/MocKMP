@@ -53,6 +53,7 @@ class MocKMPProcessor(
         const val ANNOTATION_USES_MOCKS = "org.kodein.mock.UsesMocks"
         const val ANNOTATION_USES_FAKES = "org.kodein.mock.UsesFakes"
         const val ANNOTATION_FAKE_PROVIDER = "org.kodein.mock.FakeProvider"
+        const val ANNOTATION_DEPRECATED = "kotlin.Deprecated"
 
         /**
          * Members that define an object's *identity*, and are therefore never routed through the
@@ -756,7 +757,7 @@ class MocKMPProcessor(
                         .addStatement("return this.%N.register(this, %S)", mocker, "get:${vProp.simpleName.asString()}")
                         .build()
                 )
-            vProp.annotations.forEach { gProp.addAnnotation(it.toAnnotationSpec()) }
+            gProp.addAnnotations(vProp.overrideAnnotations())
             if (vProp.isMutable) {
                 gProp.mutable(true)
                     .setter(
@@ -835,6 +836,31 @@ class MocKMPProcessor(
             }
         }
 
+        /** True when [this] member carries `kotlin.Deprecated`. */
+        private fun KSDeclaration.isDeprecated(): Boolean =
+            annotations.any { it.annotationType.resolve().declaration.qualifiedName?.asString() == ANNOTATION_DEPRECATED }
+
+        /**
+         * The annotations of [this] mocked member, as they should appear on the generated override.
+         *
+         * `kotlin.Deprecated` is dropped. It is never *required* on an override — omitting it only
+         * warns on the override itself, which [generateMockClass] suppresses — whereas propagating it
+         * warns at every call the test makes to the mock, about the interface being deprecated rather
+         * than about anything the test did.
+         *
+         * Everything else is kept, deliberately: an override must repeat its supertype's opt-in
+         * markers, and compiler-plugin annotations that change the calling convention (`@Composable`
+         * above all) must be repeated or the override will not compile at all.
+         *
+         * `omitDefaultValues` keeps the copy faithful — without it `@Deprecated("…")` came out
+         * carrying a materialised `ReplaceWith(expression = "")`.
+         */
+        private fun KSDeclaration.overrideAnnotations(): List<AnnotationSpec> =
+            annotations
+                .filter { it.annotationType.resolve().declaration.qualifiedName?.asString() != ANNOTATION_DEPRECATED }
+                .map { it.toAnnotationSpec(omitDefaultValues = true) }
+                .toList()
+
         /**
          * The [org.kodein.mock.Mocker]-backed override for one function of the mocked interface,
          * e.g. for `fun baz(i: Int): String`:
@@ -853,7 +879,7 @@ class MocKMPProcessor(
             vFun.typeParameters.forEach { vParam -> gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver)) }
             gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
             gFun.returns(vFun.returnType!!.toTypeName(typeParamResolver))
-            vFun.annotations.forEach { gFun.addAnnotation(it.toAnnotationSpec()) }
+            gFun.addAnnotations(vFun.overrideAnnotations())
             vFun.parameters.forEach { vParam ->
                 gFun.addParameter(vParam.name!!.asString(), vParam.type.toTypeName(typeParamResolver), if (vParam.isVararg) listOf(KModifier.VARARG) else emptyList())
             }
@@ -905,12 +931,21 @@ class MocKMPProcessor(
             val (gCls, mocker) = mockClassBuilder(vItf, mockClassName, filesDeps)
             val overrideAll = vItf.classKind == ClassKind.INTERFACE && !process.implicit
 
-            vItf.getAllProperties()
-                .filter { it.isAbstract() }
-                .forEach { vProp -> gCls.addProperty(mockedProperty(vProp, vItf, mocker)) }
+            val vProps = vItf.getAllProperties().filter { it.isAbstract() }.toList()
+            val vFuns = vItf.getAllFunctions().filter { overrideAll || it.isAbstract }.toList()
 
-            vItf.getAllFunctions()
-                .filter { overrideAll || it.isAbstract }
+            // [overrideAnnotations] drops `kotlin.Deprecated`, which leaves the override warning that
+            // it does not repeat its supertype's deprecation. That is the point — the alternative
+            // warns in the user's tests instead — so it is silenced here rather than propagated.
+            if (vProps.any { it.isDeprecated() } || vFuns.any { it.isDeprecated() }) {
+                gCls.addAnnotation(
+                    AnnotationSpec.builder(Suppress::class).addMember("%S", "OVERRIDE_DEPRECATION").build()
+                )
+            }
+
+            vProps.forEach { vProp -> gCls.addProperty(mockedProperty(vProp, vItf, mocker)) }
+
+            vFuns
                 .forEach { vFun ->
                     // A supertype that re-declares equals/hashCode as abstract forces an override,
                     // so skipping them outright would not compile — they get an identity
