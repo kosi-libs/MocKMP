@@ -1,6 +1,7 @@
 package org.kodein.mock
 
 
+/** Not `inline`, unlike arities 1 and up — see [mockFunction0] for why. */
 public fun <R>
 mockSuspendFunction0(
     mocker: Mocker,

@@ -7,6 +7,14 @@ internal class Anonymous
 @PublishedApi
 internal const val defaultFunctionName: String = "invoke"
 
+/**
+ * Not `inline`, unlike arities 1 and up.
+ *
+ * Those are inline only because they need `reified` type parameters — `every { it(isAny(), …) }`
+ * resolves `isAny<A1>()` against them. Arity 0 has nothing to reify, and `block` would have to be
+ * `noinline` anyway, so marking it `inline` earns a compiler warning that the impact is
+ * insignificant rather than any benefit.
+ */
 public fun <R>
 mockFunction0(
     mocker: Mocker,
