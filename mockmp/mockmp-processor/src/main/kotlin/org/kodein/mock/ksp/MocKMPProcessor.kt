@@ -109,6 +109,17 @@ class MocKMPProcessor(
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
     /**
+     * Whether the four accessors have been written, across *all* rounds — unlike [Round], this
+     * processor outlives them.
+     *
+     * Generating files causes KSP to run another round, in which no annotated symbol is found, so
+     * emitting the accessors on a "did we collect anything" condition doubled as the guard against
+     * writing them twice. They are now emitted whether or not anything was collected, and this is
+     * what keeps the second round from rewriting them.
+     */
+    private var accessorsGenerated = false
+
+    /**
      * Thrown to abort processing of the current round with a location-tagged message. Deliberately
      * *not* named `Error`: it shadowed `kotlin.Error` in [process], which made the `catch` below read
      * like a catch-all when it was the narrowest possible catch.
@@ -288,7 +299,13 @@ class MocKMPProcessor(
             toFake.forEach { (vType, process) -> generateFakeFunction(vType, process) }
             toInject.forEach { (vCls, _) -> generateInjector(vCls) }
 
-            if (mocks.isNotEmpty() || fakes.isNotEmpty()) {
+            // Unconditionally, even with nothing to dispatch: the Gradle plugin always writes the
+            // matching declarations into the source set, as `expect`s for a multiplatform project and
+            // as inline `mock()`/`fake()` for a single-target one, so a project that applies the
+            // plugin before annotating anything would otherwise not compile. Each generator emits an
+            // `error("No … declared")` body for the empty case.
+            if (!accessorsGenerated) {
+                accessorsGenerated = true
                 generateMockAccessor()
                 generateFakeAccessor()
                 generateInjectorAccessor()

@@ -32,4 +32,6 @@ include(
     ":tests-jvm-junit5",
     ":tests-android",
     ":tests-mp-main",
+    ":tests-mp-empty",
+    ":tests-jvm-empty",
 )
