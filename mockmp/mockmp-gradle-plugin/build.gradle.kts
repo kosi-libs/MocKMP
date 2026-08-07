@@ -14,8 +14,9 @@ dependencies {
 }
 
 gradlePlugin {
-    website.set("https://kodeinkoders.github.io/CuP")
-    vcsUrl.set("https://github.com/KodeinKoders/CuP")
+    // The "Website" and "Source repository" links of the Gradle Plugin Portal listing.
+    website.set("https://kosi-libs.org/mockmp/")
+    vcsUrl.set("https://github.com/kosi-libs/MocKMP")
 
     plugins.register("mockmp") {
         id = "org.kodein.mock.mockmp"
