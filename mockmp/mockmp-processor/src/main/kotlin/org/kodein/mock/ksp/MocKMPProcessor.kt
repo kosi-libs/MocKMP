@@ -264,12 +264,13 @@ class MocKMPProcessor(
     private fun KSDeclaration.toMockName(): String = "Mock" + parentPrefix() + simpleName.asString()
 
     /**
-     * The package a generated `fakeXxx()` function for [this] declaration is emitted into: its own
-     * package, except for Kotlin stdlib packages (which this module cannot write into), redirected
-     * under a local `fake.` prefix.
+     * The package a generated `fakeXxx()`/`MockXxx` declaration for [this] declaration is emitted
+     * into: its own package, except for protected packages (the Kotlin stdlib and the JDK, which
+     * this module cannot write into — see [isProtectedPackage]), redirected under a local `fake.`
+     * prefix.
      */
     private fun KSDeclaration.fakePackageName(): String =
-        if (packageName.isKotlinStdlib()) "fake." + packageName.asString() else packageName.asString()
+        if (packageName.isProtectedPackage()) "fake." + packageName.asString() else packageName.asString()
 
     // endregion
 
@@ -977,9 +978,9 @@ class MocKMPProcessor(
          * re-declared as an explicit override).
          *
          * Generated into [KSDeclaration.fakePackageName] rather than [vItf]'s own package: besides
-         * the same stdlib-write restriction fakes already redirect around, some interfaces
-         * (`kotlin.Function1` and friends) live directly in the bare `kotlin` package, which only the
-         * standard library itself is allowed to contribute to.
+         * the same Kotlin-stdlib/JDK write restriction fakes already redirect around, some
+         * interfaces (`kotlin.Function1` and friends) live directly in the bare `kotlin` package,
+         * which only the standard library itself is allowed to contribute to.
          *
          * Records the generated class name into [mocks], consumed by [generateMockAccessor].
          */
@@ -1213,7 +1214,8 @@ class MocKMPProcessor(
                 gFun.addStatement(
                     "receiver.%N = %T(this)",
                     vProp.simpleName.asString(),
-                    ClassName(vPropTypeDecl.packageName.asString(), vPropTypeDecl.toMockName()),
+                    // fakePackageName(), not the raw package: generateMockClass writes MockXxx there too.
+                    ClassName(vPropTypeDecl.fakePackageName(), vPropTypeDecl.toMockName()),
                 )
             }
         }

@@ -16,4 +16,7 @@ internal fun KSClassDeclaration.firstPublicConstructor() = (sequenceOf(primaryCo
     .firstOrNull()
 
 
-internal fun KSName.isKotlinStdlib() = asString().let { it == "kotlin" || it.startsWith("kotlin.") }
+/** True for packages this module cannot write generated declarations into directly: the Kotlin stdlib and the JDK. */
+internal fun KSName.isProtectedPackage() = asString().let {
+    it == "kotlin" || it.startsWith("kotlin.") || it == "java" || it.startsWith("java.")
+}
