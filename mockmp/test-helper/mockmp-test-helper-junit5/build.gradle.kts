@@ -3,6 +3,14 @@ plugins {
     alias(libs.plugins.mavenPublish)
 }
 
+// Registered before its first use, so the source directory below can be derived from it: a provider
+// derived from a task provider carries the task dependency with it, which a plain path string does not
+// — that is what the afterEvaluate wiring here used to be compensating for.
+val copySrc = tasks.register<Sync>("copySrc") {
+    from("$projectDir/../mockmp-test-helper/src")
+    into(layout.buildDirectory.dir("src"))
+}
+
 kotlin {
     jvm()
     jvmToolchain(11)
@@ -33,7 +41,7 @@ kotlin {
 
     sourceSets {
         commonMain {
-            kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
+            kotlin.srcDir(copySrc.map { it.destinationDir.resolve("commonMain/kotlin") })
             dependencies {
                 implementation(projects.mockmpRuntime)
                 implementation(libs.kotlin.test)
@@ -42,20 +50,6 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.kotlin.test.junit5)
         }
-    }
-}
-
-val copySrc = tasks.register<Sync>("copySrc") {
-    from("$projectDir/../mockmp-test-helper/src")
-    into("${layout.buildDirectory.get().asFile}/src")
-}
-
-afterEvaluate {
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>> {
-        dependsOn(copySrc)
-    }
-    tasks.withType<org.gradle.jvm.tasks.Jar> {
-        dependsOn(copySrc)
     }
 }
 

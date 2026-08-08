@@ -247,7 +247,10 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             options: Options
         ): TaskProvider<MocKMPExtractExpectKt> =
             project.tasks.register<MocKMPExtractExpectKt>("mockmpExtractExpectKt") {
-                outputDirectory.set(project.layout.buildDirectory.get().asFile.resolve("mockmp/$sourceSetName/kotlin"))
+                // A provider, not buildDirectory.get(): resolving it here would pin an absolute path
+                // at configuration time, leaving this task writing to the old location if anything
+                // relocates the build directory afterwards.
+                outputDirectory.set(project.layout.buildDirectory.dir("mockmp/$sourceSetName/kotlin"))
                 accessorsPackage.set(options.accessorsPackage)
                 public.set(options.public)
                 resource.set("/mockmp.${if (kotlin is KotlinMultiplatformExtension) "multi" else "single"}.kt")

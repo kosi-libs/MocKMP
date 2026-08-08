@@ -1,10 +1,15 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.multiplatformLibrary)
     alias(libs.plugins.ksp)
     id("org.kodein.mock.mockmp")
+}
+
+// Registered before its first use, so the source directories below can be derived from it: a provider
+// derived from a task provider carries the task dependency with it, which a plain path string does not.
+val copySources = tasks.register<Sync>("copySources") {
+    from("$rootDir/tests-mp-junit4/src")
+    into(layout.buildDirectory.dir("src"))
 }
 
 kotlin {
@@ -46,13 +51,13 @@ kotlin {
 
     sourceSets {
         commonMain {
-            kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
+            kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonMain/kotlin") })
             dependencies {
                 implementation(libs.kotlinx.datetime)
             }
         }
         commonTest {
-            kotlin.srcDir("${layout.buildDirectory.get().asFile}/src/commonTest/kotlin")
+            kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonTest/kotlin") })
             dependencies {
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
@@ -74,26 +79,16 @@ mockmp {
 }
 
 // Showing tests in Gradle command line
-afterEvaluate {
-    tasks.withType<AbstractTestTask> {
-        testLogging {
-            events("passed", "skipped", "failed", "standard_out", "standard_error")
-            showExceptions = true
-            showStackTraces = true
-        }
+tasks.withType<AbstractTestTask>().configureEach {
+    testLogging {
+        events("passed", "skipped", "failed", "standard_out", "standard_error")
+        showExceptions = true
+        showStackTraces = true
     }
 }
 
-val copySources = tasks.register<Sync>("copySources") {
-    from("$rootDir/tests-mp-junit4/src")
-    into("${layout.buildDirectory.get().asFile}/src")
-}
-
-afterEvaluate {
-    tasks.withType<KotlinCompilationTask<*>>().configureEach {
-        dependsOn(copySources)
-    }
-    project.tasks.androidPreBuild.configure {
-        dependsOn(copySources)
-    }
+// androidPreBuild still needs the dependency stated: it consumes the copied sources without going
+// through a source directory, so nothing derives it.
+tasks.androidPreBuild.configure {
+    dependsOn(copySources)
 }

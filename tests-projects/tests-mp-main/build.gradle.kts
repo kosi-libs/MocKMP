@@ -60,12 +60,10 @@ mockmp {
 }
 
 // Showing tests in Gradle command line
-afterEvaluate {
-    tasks.withType<AbstractTestTask> {
-        testLogging {
-            events("passed", "skipped", "failed", "standard_out", "standard_error")
-            showExceptions = true
-            showStackTraces = true
-        }
+tasks.withType<AbstractTestTask>().configureEach {
+    testLogging {
+        events("passed", "skipped", "failed", "standard_out", "standard_error")
+        showExceptions = true
+        showStackTraces = true
     }
 }
