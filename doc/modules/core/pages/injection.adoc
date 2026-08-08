@@ -21,9 +21,13 @@ class MyTests {
     }
 
     @Test fun controllerTest() {
-        mocker.every { view.render(isAny()) } returns true
+        mocker.every { api.getCurrentUser() } returns user
+        mocker.every { db.saveUser(isAny()) } returns Unit
         controller.start()
-        mocker.verify { view.render(model) }
+        mocker.verify {
+            api.getCurrentUser()
+            db.saveUser(user)
+        }
     }
 }
 ----
