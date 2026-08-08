@@ -258,7 +258,18 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 is KotlinMultiplatformExtension -> {
                     when (val targets = options.specificTargets) {
                         null -> kotlin.targets.filterNot { it.name == "metadata" }
-                        else -> kotlin.targets.filter { it.name in targets }
+                        else -> {
+                            // Otherwise a mistyped name simply filters everything out, and MocKMP
+                            // quietly processes nothing at all.
+                            val unknown = targets - kotlin.targets.map { it.name }.toSet()
+                            if (unknown.isNotEmpty()) {
+                                error(
+                                    "MocKMP was configured with unknown target(s) ${unknown.joinToString()}. " +
+                                            "This project declares ${kotlin.targets.joinToString { it.name }}."
+                                )
+                            }
+                            kotlin.targets.filter { it.name in targets }
+                        }
                     }
                 }
                 is KotlinSingleTargetExtension<*> -> {
@@ -277,15 +288,27 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                     listOf("ksp${target.name.capitalized()}")
                 }
 
+                // Failing rather than logging, as everything else in this plugin does: a target left
+                // unprocessed does not fail here, it fails much later and elsewhere, as the accessors
+                // it should have generated turning up missing — "expect … has no actual declaration".
+                if (configurations.isEmpty()) {
+                    error(
+                        "MocKMP found no KSP configuration for target '${target.name}'. " +
+                                "Make sure the KSP plugin is applied and supports that target."
+                    )
+                }
+
                 configurations.forEach { configuration ->
-                    if (configuration in project.configurations.names) {
-                        project.dependencies.add(
-                            configuration,
-                            "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
+                    if (configuration !in project.configurations.names) {
+                        error(
+                            "MocKMP could not find the KSP configuration '$configuration' for target '${target.name}'. " +
+                                    "Make sure the KSP plugin is applied and supports that target."
                         )
-                    } else {
-                        project.logger.error("Configuration '$configuration' not found for target '${target.name}'.")
                     }
+                    project.dependencies.add(
+                        configuration,
+                        "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
+                    )
                 }
             }
         }
