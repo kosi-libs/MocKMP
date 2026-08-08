@@ -1,4 +1,7 @@
 = Faking concrete classes
+// This page was published as `facking.adoc` up to 3.0. The alias keeps that URL redirecting here
+// rather than 404-ing.
+:page-aliases: facking.adoc
 
 CAUTION: Only *concrete trees* (concrete classes containing concrete classes) can be faked!
 

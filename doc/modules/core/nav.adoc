@@ -1,5 +1,5 @@
 * xref:setup.adoc[Setup]
 * xref:mocking.adoc[]
-* xref:facking.adoc[]
+* xref:faking.adoc[]
 * xref:injection.adoc[]
 * xref:helper.adoc[]
