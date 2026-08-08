@@ -1,17 +1,38 @@
 name: check
 
+# Three triggers, deliberately:
+#  - pull_request validates a change before it lands;
+#  - push to main validates the merge result, which no PR run can (a PR is tested against its own
+#    head, so two individually-green PRs can still break main together);
+#  - workflow_dispatch re-runs the suite on demand, for when something outside the repo moves — a new
+#    Xcode or Node on the runner image, or a dependency republished under the same version.
+#
+# The ignore list covers documentation only. .github/** is deliberately absent from it: a change to
+# this workflow should run this workflow.
 on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '**.adoc'
+      - '**/.gitignore'
   pull_request:
     paths-ignore:
       - '**.md'
       - '**.adoc'
       - '**/.gitignore'
-      - './github/**'
-      - '!./github/workflow/test.yml'
+  workflow_dispatch:
 
 jobs:
 
   check:
+    # macOS is the only image that can build the Apple targets, so it runs the whole suite. The
+    # consequence, accepted deliberately: linuxX64Test and mingwX64Test are cross-compiled but never
+    # executed anywhere — KGP disables them off their host ("w: Native task 'linuxX64Test' is
+    # disabled"), and build/test-results/ has no directory for either. Every other target is covered:
+    # :tests-projects:check builds mockmp transitively for all of them, and mockmp-runtime declares
+    # the same target set as tests-mp-junit4. Running those two would take a runner matrix.
     runs-on: macOS-latest
     steps:
       - name: Check out
