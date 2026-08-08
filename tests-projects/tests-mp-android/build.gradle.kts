@@ -64,7 +64,13 @@ kotlin {
             }
         }
 
-        androidUnitTest {
+        // androidHostTest, not androidUnitTest: under com.android.kotlin.multiplatform.library the
+        // host-side test compilation is 'hostTest' (enabled by withHostTest above), so its default
+        // source set is named after it. androidUnitTest is the name used by the older androidTarget()
+        // plugin; declared here it belongs to no compilation, and KGP warns about it as unused.
+        // There is no generated accessor for it — the android target comes from AGP, so KGP only
+        // supplies accessors for the source sets it names itself, androidUnitTest among them.
+        getByName("androidHostTest") {
             dependencies {
                 implementation(libs.kotlin.test.junit)
             }
