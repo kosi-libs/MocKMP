@@ -1,3 +1,13 @@
+// Compiles mockmp-test-helper's sources verbatim (see copySrc below), against kotlin-test-junit5
+// rather than kotlin-test-junit. That is the whole difference, and it cannot be deferred to the
+// consumer: kotlin.test.BeforeTest is a compile-time typealias, so this module's ITestsWithMocks
+// carries Lorg/junit/jupiter/api/BeforeEach; where the other's carries Lorg/junit/Before;.
+//
+// It therefore publishes the same fully-qualified class names as mockmp-test-helper, and the two must
+// never both be resolved onto one classpath. See mockmp-test-helper/build.gradle.kts for why that
+// cannot be turned into a detectable conflict — three routes were tried or researched and all are
+// closed there, with the evidence.
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.mavenPublish)
@@ -39,12 +49,14 @@ kotlin {
         nodejs()
     }
 
+    explicitApi()
+
     sourceSets {
         commonMain {
             kotlin.srcDir(copySrc.map { it.destinationDir.resolve("commonMain/kotlin") })
             dependencies {
-                implementation(projects.mockmpRuntime)
-                implementation(libs.kotlin.test)
+                api(projects.mockmpRuntime)
+                api(libs.kotlin.test)
             }
         }
         jvmMain.dependencies {
