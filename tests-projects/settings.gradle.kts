@@ -1,3 +1,5 @@
+rootProject.name = "tests-projects"
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
