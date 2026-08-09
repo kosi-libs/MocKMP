@@ -11,6 +11,7 @@ import org.kodein.mock.Mocker
 import org.kodein.mock.generated.injectMocks
 import org.kodein.mock.tests.TestsWithMocks
 import kotlin.test.*
+import kotlin.test.assertContains
 import kotlin.time.Instant
 
 class InjectionTests : TestsWithMocks() {
@@ -128,8 +129,11 @@ class InjectionTests : TestsWithMocks() {
     @Test
     fun testCallbackOfOneArgumentRegistrationKey() {
         val ex = assertFailsWith<Mocker.MockingException> { callback1("test") }
-        // Not the whole key: the type name in it is bestName()-rendered, so it differs on JS/Wasm.
-        assertTrue("invoke(" in ex.message!!, ex.message)
+        // The whole key, on every platform. A generated mock is handed the qualified name the
+        // processor resolved -- mockFunction1(this, a1Type = "kotlin.String") -- rather than deriving
+        // it from bestName(), which is exactly why the type-string overloads exist. This asserts that
+        // guarantee; PlatformKeyTests asserts the reified overloads, which do vary by platform.
+        assertContains(ex.message!!, "invoke(kotlin.String)")
     }
 
     @Test

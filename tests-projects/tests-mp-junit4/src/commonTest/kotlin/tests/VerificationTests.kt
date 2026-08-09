@@ -374,7 +374,9 @@ class VerificationTests {
                 foo.doAny(isValid<String> { ArgConstraint.Result.Success })
             }
         }
-        // Not the whole message: bestName() renders qualifiedName on JVM/Native, simpleName on JS/Wasm.
+        // Not the whole message, and here that really is unavoidable: isValid names the type through
+        // bestName(), which renders qualifiedName on JVM/Native and simpleName on JS/Wasm. The exact
+        // rendering is pinned per platform in PlatformKeyTests.
         assertTrue("String" in ex.message!!, ex.message)
     }
 

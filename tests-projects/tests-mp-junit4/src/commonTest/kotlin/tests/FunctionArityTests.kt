@@ -24,6 +24,7 @@ import org.kodein.mock.mockSuspendFunction9
 import org.kodein.mock.tests.TestsWithMocks
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -186,21 +187,18 @@ class FunctionArityTests : TestsWithMocks() {
         assertEquals(listOf<Any?>(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10), received)
     }
 
-    // Pins the widest registration key. Only the simple names are asserted, and only that they appear
-    // in order: bestName() renders qualifiedName on JVM/Native but simpleName on JS/Wasm, so the whole
-    // key differs by platform (same reason as InjectionTests.testCallbackOfOneArgumentRegistrationKey).
+    // The widest registration key, exactly, on every platform. f10 is a generated mock, so the
+    // processor hands mockFunction10 the qualified names it resolved rather than letting bestName()
+    // derive them -- the whole reason the type-string overloads exist. PlatformKeyTests covers the
+    // reified overloads, whose keys do differ between JVM/Native and JS/Wasm.
     @Test
     fun testArity10RegistrationKey() {
         val ex = assertFailsWith<Mocker.MockingException> { f10(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) }
-        val message = ex.message!!
-        assertTrue("invoke(" in message, message)
-        val names = listOf("Int", "String", "Boolean", "Long", "Double", "Float", "Short", "Byte", "List", "Set")
-        var from = message.indexOf("invoke(")
-        names.forEach { name ->
-            val at = message.indexOf(name, from)
-            assertTrue(at >= 0, "expected '$name' after index $from in: $message")
-            from = at + name.length
-        }
+        assertContains(
+            ex.message!!,
+            "invoke(kotlin.Int, kotlin.String, kotlin.Boolean, kotlin.Long, kotlin.Double, " +
+                    "kotlin.Float, kotlin.Short, kotlin.Byte, kotlin.collections.List, kotlin.collections.Set)",
+        )
     }
 
     @Test
