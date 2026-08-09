@@ -15,6 +15,11 @@ data class SomeDirection(
 
 typealias NamesMap<K> = Map<K, Set<String>>
 
+data class Error<T>(
+    val code: T,
+    val exception: Exception
+)
+
 data class Data(
     val gen1: GenData<String>,
     val gen2: GenData<Int>,
@@ -24,6 +29,7 @@ data class Data(
     val dir1: SomeDirection,
     val dir2: SomeDirection,
     val special: Instant,
+    val special2: Error<Int>,
     val list: List<String>,
     val arrayList: ArrayList<String>,
     val arrayDeque: ArrayDeque<String>,
@@ -42,6 +48,13 @@ data class Data(
 data class GenData<out T: Any>(
     val data: T,
     val int: Int
+)
+
+class Wrap<T : Any>(
+    val direct: T,
+    val inner: GenData<T>,
+    val nested: GenData<GenData<T>>,
+    val maker: () -> GenData<T>,
 )
 
 class Arrays(

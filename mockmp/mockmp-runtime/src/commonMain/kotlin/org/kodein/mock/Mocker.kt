@@ -9,6 +9,24 @@ import kotlin.reflect.KProperty
 
 private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<Pair<List<ArgConstraint<*>>, E>>>
 
+/**
+ * Records and answers the calls made to the mocks created from it.
+ *
+ * **Not thread-safe.** A `Mocker`, and every mock created from it, belong to a single thread: the
+ * registrations, the log of recorded calls and the placeholder references are all held in plain,
+ * unsynchronised collections. Calls arriving concurrently corrupt that state rather than failing
+ * cleanly — calls go missing or land out of order, and a later [verify] fails for reasons that have
+ * nothing to do with the code under test.
+ *
+ * This is a property of the API, not only of its implementation: [every] and [verify] set a single
+ * mode on the mocker for the duration of their block and capture the call by throwing out of it, so
+ * they could not be made concurrent by locking. Even a mocked call arriving from another thread
+ * *while* such a block runs would be read as part of it.
+ *
+ * When the code under test dispatches, inject the dispatcher it uses so that mocked calls still run
+ * on the test thread, rather than letting it reach a real background dispatcher. Where that is not
+ * possible, give each thread its own `Mocker`.
+ */
 public class Mocker {
     public class MockingException(message: String) : Exception(message)
 
@@ -39,6 +57,7 @@ public class Mocker {
         calls.clear()
         regFuns.clear()
         regSuspendFuns.clear()
+        references.reset()
     }
 
     private fun methodName(receiver: Any?, methodName: String) = if (receiver == null) methodName else "${receiver::class.simpleName}.$methodName"
@@ -48,6 +67,12 @@ public class Mocker {
         object FromRegistration : ProcessResult<Nothing>()
     }
 
+    /**
+     * Receivers are matched by *identity*, in every verification mode: "verify the calls made on
+     * this mock" means this instance, not one that merely compares equal to it. The generated mocks
+     * never override `equals`/`hashCode` (the processor keeps those off the mocker), so this also
+     * agrees with how [regFuns]/[regSuspendFuns] key their registrations.
+     */
     private fun <E, R> process(isSuspend: Boolean, receiver: Any?, method: String, args: Array<*>, regs: RegistrationMap<E>): ProcessResult<R> {
         when (val mode = specialMode) {
             is SpecialMode.DEFINITION -> {
@@ -74,7 +99,7 @@ public class Mocker {
                     call
                 } else {
                     val callIndices = (
-                            calls.indices.filter { calls[it].receiver == receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
+                            calls.indices.filter { calls[it].receiver === receiver && calls[it].method == method } .takeIf { it.isNotEmpty() }
                                 ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)}" }
                             ).filter { calls[it].arguments.size == constraints.size } .takeIf { it.isNotEmpty() }
                                 ?: throw MockerVerificationLazyAssertionError { "Could not find a call to ${methodName(receiver, method)} with ${constraints.size} arguments" }
@@ -213,9 +238,30 @@ public class Mocker {
     public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T): EverySuspend<T> =
         everyImpl(true, ::EverySuspend, regSuspendFuns) { block() }
 
+    /**
+     * Registers a catch-all behaviour for [receiver].[method] taking [argCount] arguments, without
+     * needing a coroutine context.
+     *
+     * [everySuspending] reaches the same registration by *invoking* the suspend mock inside a
+     * definition block, which is why it must be `suspend` — even though nothing there ever suspends,
+     * the block throwing at the first mocked call. Skipping that dance is what lets
+     * `mockSuspendFunctionN` build a mock outside a coroutine, and so lets a generated injector call
+     * it. It also avoids `isAny<A>()`, which would require a placeholder for every argument type.
+     */
+    @PublishedApi
+    internal fun <T> everySuspendingCall(receiver: Any?, method: String, argCount: Int): EverySuspend<T> {
+        val every = EverySuspend<T>(receiver, method)
+        regSuspendFuns.getOrPut(receiver to method) { ArrayList() }
+            .add(List(argCount) { ArgConstraint.isAny<Any?>() } to every)
+        return every
+    }
+
     public fun <R, T> backProperty(receiver: R, property: KMutableProperty1<R, T>, default: T) {
         var value = default
-        every { register<Unit>(receiver, "set:${property.name}", isAny()) } runs {
+        // addConstraint rather than isAny(): the setter's placeholder argument is never read, and
+        // isAny() would infer Any? and so require the project to have a `kotlin.Any` placeholder —
+        // a dependency this has no business having, and which only holds by coincidence.
+        every { register<Unit>(receiver, "set:${property.name}", addConstraint(ArgConstraint.isAny<Any?>())) } runs {
             @Suppress("UNCHECKED_CAST")
             value = it[0] as T
         }
@@ -233,6 +279,10 @@ public class Mocker {
         try {
             try {
                 mode.builder.block()
+                // After block(), so that an exception thrown out of it is not masked by this one. A
+                // verify block, unlike an every block, runs to completion and can hold several calls,
+                // so a constraint that reached none of them would otherwise vanish here.
+                mode.builder.checkNoPendingConstraints()
                 if (exhaustive && calls.isNotEmpty()) {
                     val call = calls.first()
                     throw MockerVerificationLazyAssertionError { "Expected call list to be empty, but got a call to ${methodName(call.receiver, call.method)}" }

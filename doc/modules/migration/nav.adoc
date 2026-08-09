@@ -1,2 +1,3 @@
 * Migrations
 ** xref:1to2.adoc[1.17 to 2.0]
+** xref:2to3.adoc[2.1 to 3.0]

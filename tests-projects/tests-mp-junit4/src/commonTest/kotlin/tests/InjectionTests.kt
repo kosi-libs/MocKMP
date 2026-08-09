@@ -3,11 +3,15 @@ package tests
 import data.*
 import foo.Bar
 import foo.Foo
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.kodein.mock.Fake
 import org.kodein.mock.Mock
+import org.kodein.mock.Mocker
 import org.kodein.mock.generated.injectMocks
 import org.kodein.mock.tests.TestsWithMocks
 import kotlin.test.*
+import kotlin.test.assertContains
 import kotlin.time.Instant
 
 class InjectionTests : TestsWithMocks() {
@@ -35,6 +39,12 @@ class InjectionTests : TestsWithMocks() {
 
     @Mock
     lateinit var callback: (Boolean, Int) -> String
+
+    @Mock
+    lateinit var callback1: (String) -> Unit
+
+    @Mock
+    lateinit var suspendCallback: suspend (String) -> Int
 
     @Mock
     lateinit var s1: Foo.Sub
@@ -72,6 +82,9 @@ class InjectionTests : TestsWithMocks() {
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 Instant.fromEpochSeconds(0),
+                // java.lang.Exception has no structural equals(), so reuse the faked instance's own
+                // exception reference here; `code` is still checked against the literal below.
+                Error(0, data.special2.exception),
                 emptyList(),
                 ArrayList(),
                 ArrayDeque(),
@@ -104,6 +117,42 @@ class InjectionTests : TestsWithMocks() {
         every { callback(isAny(), isAny()) } returns "test"
         callback(true, 42)
         verify { callback(true, 42) }
+    }
+
+    @Test
+    fun testCallbackOfOneArgument() {
+        every { callback1(isAny()) } returns Unit
+        callback1("test")
+        verify { callback1("test") }
+    }
+
+    @Test
+    fun testCallbackOfOneArgumentRegistrationKey() {
+        val ex = assertFailsWith<Mocker.MockingException> { callback1("test") }
+        // The whole key, on every platform. A generated mock is handed the qualified name the
+        // processor resolved -- mockFunction1(this, a1Type = "kotlin.String") -- rather than deriving
+        // it from bestName(), which is exactly why the type-string overloads exist. This asserts that
+        // guarantee; PlatformKeyTests asserts the reified overloads, which do vary by platform.
+        assertContains(ex.message!!, "invoke(kotlin.String)")
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendCallback() = runTest {
+        everySuspending { suspendCallback(isAny()) } returns 42
+
+        assertEquals(42, suspendCallback("test"))
+
+        verifyWithSuspend { suspendCallback("test") }
+    }
+
+    @Test
+    @ExperimentalCoroutinesApi
+    fun testSuspendCallbackRegistrationKey() = runTest {
+        val ex = assertFailsWith<Mocker.MockingException> { suspendCallback("test") }
+        // "invoke(" would not discriminate: the old MockSuspendFunction1 route registered
+        // "invoke(?)", erasing the argument type out of the key.
+        assertTrue("String" in ex.message!!, ex.message)
     }
 
     @Test

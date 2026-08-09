@@ -1,0 +1,107 @@
+= Migrate MocKMP from 2.1 to 3.0
+
+MocKMP 3 changes exactly one thing: the Gradle plugin now targets *Android Gradle Plugin 9*, and no longer works with AGP 8 or earlier.
+
+Nothing else changed.
+The runtime, the processor and the test helper are byte-for-byte identical to 2.1: mocking, faking, injection, the `mock<T>()` / `fake<T>()` / `injectMocks` accessors, the `TestsWithMocks` class and `ITestsWithMocks` interface, and every annotation all behave exactly as they did.
+
+[TIP]
+====
+*If your project does not build anything for Android, there is nothing to migrate.*
+Bump the MocKMP version and you are done.
+====
+
+
+== Android projects must move to AGP 9
+
+[CAUTION]
+====
+MocKMP 3.0 *cannot* be used with AGP 8 or earlier, and MocKMP 2.1 *cannot* be used with AGP 9.
+The two versions are the two sides of that boundary — pick the one matching the AGP you are on, and migrate both together.
+====
+
+The reason is not a matter of taste: to compile mocks & fakes for Android, MocKMP has to hand its generated sources to each Android variant.
+It used to do so through the variant API's `registerJavaGeneratingTask`, which AGP 9 removed.
+MocKMP 3 registers them through `androidComponents.onVariants { }` instead, which does not exist in AGP 8.
+
+So the migration is an AGP 8 → 9 migration, which MocKMP forces the *timing* of but does not define.
+Follow https://developer.android.com/build/releases/gradle-plugin[the Android Gradle plugin release notes and upgrade guide] as the authority.
+
+
+=== What that looked like here
+
+For reference, these are the changes MocKMP's own Android test projects needed.
+They are AGP-side changes, not MocKMP ones, but they are the ones you are most likely to meet.
+
+The new DSL is now mandatory, so the opt-out property is gone:
+
+[source,properties]
+.gradle.properties
+----
+# android.newDsl=false // <1>
+----
+<1> Remove it; AGP 9 does not accept it.
+
+A plain Android library no longer applies the Kotlin Android plugin separately, and declares its sources on the `android` extension:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    id("com.android.library")
+    // id("org.jetbrains.kotlin.android") // <1>
+    id("com.google.devtools.ksp")
+    id("org.kodein.mock.mockmp")
+}
+
+// kotlin.sourceSets { // <2>
+//     main { kotlin.srcDir("...") }
+// }
+android.sourceSets {
+    named("main") {
+        kotlin.directories.add("...") // <2>
+    }
+}
+----
+<1> No longer applied alongside `com.android.library`.
+<2> Source directories move from `kotlin.sourceSets` / `srcDir` to `android.sourceSets` / `kotlin.directories`.
+
+A Kotlin Multiplatform module targets Android through its own plugin rather than `androidTarget()`:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("multiplatform")
+    id("com.android.kotlin.multiplatform.library") // <1>
+    id("com.google.devtools.ksp")
+    id("org.kodein.mock.mockmp")
+}
+
+kotlin {
+    // androidTarget() // <1>
+    android {
+        namespace = "com.example.myapplication"
+        compileSdk = 36
+        minSdk = 24
+        withHostTest {} // <2>
+    }
+
+    sourceSets {
+        // androidUnitTest { // <3>
+        getByName("androidHostTest") { // <4>
+            dependencies {
+                implementation(kotlin("test-junit"))
+            }
+        }
+    }
+}
+----
+<1> `com.android.kotlin.multiplatform.library` plus a `kotlin { android { } }` block replaces `com.android.library` plus `androidTarget()`.
+<2> Declares the host-side (unit) test compilation, which is not created by default.
+<3> `androidUnitTest` is the name the old `androidTarget()` plugin used.
+Left in place it silently belongs to no compilation, and Kotlin reports it as an unused source set.
+<4> Because the compilation declared above is named `hostTest`, its source set is `androidHostTest`.
+Kotlin generates no typed accessor for it — the Android target comes from AGP — so name it with `getByName`.
+
+Once the build configures, MocKMP applies exactly as before — the xref:core:setup.adoc[setup documentation] is unchanged.

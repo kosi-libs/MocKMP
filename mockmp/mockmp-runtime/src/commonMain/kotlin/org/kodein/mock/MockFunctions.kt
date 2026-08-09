@@ -7,6 +7,14 @@ internal class Anonymous
 @PublishedApi
 internal const val defaultFunctionName: String = "invoke"
 
+/**
+ * Not `inline`, unlike arities 1 and up.
+ *
+ * Those are inline only because they need `reified` type parameters — `every { it(isAny(), …) }`
+ * resolves `isAny<A1>()` against them. Arity 0 has nothing to reify, and `block` would have to be
+ * `noinline` anyway, so marking it `inline` earns a compiler warning that the impact is
+ * insignificant rather than any benefit.
+ */
 public fun <R>
 mockFunction0(
     mocker: Mocker,
@@ -21,6 +29,19 @@ mockFunction0(
         if (block != null) mocker.every { it() } runs { block() }
     }
 
+/**
+ * **Pass the type as `a1Type = "…"`, never positionally.**
+ *
+ * `mockFunction1(mocker, "kotlin.String")` also fits the reified overload below — both leave exactly
+ * one parameter defaulted — and Kotlin picks that one, so the type string silently becomes the
+ * [functionName] and the mock registers as `kotlin.String(kotlin.String)`. Naming the argument
+ * resolves it. Arities of 2 and up pass more strings than the reified overload takes, so they cannot
+ * hit this.
+ *
+ * The type-string overloads exist so that the KSP processor can pass the qualified name it resolved:
+ * `bestName()` returns `qualifiedName` on JVM/Native but `simpleName` on JS/Wasm, so letting the
+ * reified overload derive it would make the registration key vary by platform.
+ */
 public inline fun <R, reified A1>
 mockFunction1(
     mocker: Mocker,

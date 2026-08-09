@@ -28,9 +28,13 @@ class MyTests : TestsWithMocks() { //<1>
     val controller by withMocks { ControllerImpl(db, api) } //<3>
 
     @Test fun controllerTest() {
-        every { view.render(isAny()) } returns true //<4>
+        every { api.getCurrentUser() } returns user //<4>
+        every { db.saveUser(isAny()) } returns Unit
         controller.start()
-        verify { view.render(model) } //<4>
+        verify { //<4>
+            api.getCurrentUser()
+            db.saveUser(user)
+        }
     }
 }
 ----
@@ -68,7 +72,7 @@ class MyTests : MySuperAbstractTests(), ITestsWithMocks { //<1>
 
     override val mocksState = ITestsWithMocks.State() //<2>
 
-    override fun setUpMocks() = injectMocks(mocker)
+    override fun setUpMocks() = mocker.injectMocks(this)
 
     // ...your tests...
 }

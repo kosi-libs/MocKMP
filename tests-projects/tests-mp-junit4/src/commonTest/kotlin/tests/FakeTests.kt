@@ -2,14 +2,18 @@ package tests
 
 import data.Data
 import data.Direction
+import data.Error
 import data.GenData
 import data.SomeDirection
 import org.kodein.mock.Fake
 import org.kodein.mock.UsesFakes
 import org.kodein.mock.generated.fake
+import org.kodein.mock.generated.providePlaceholder
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.time.Instant
 
 
@@ -29,6 +33,9 @@ class FakeTests {
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 Instant.fromEpochSeconds(0),
+                // java.lang.Exception has no structural equals(), so reuse the faked instance's own
+                // exception reference here; `code` is still checked against the literal below.
+                Error(0, data.special2.exception),
                 emptyList(),
                 ArrayList(),
                 ArrayDeque(),
@@ -65,6 +72,29 @@ class FakeTests {
         val fake = fake<FakeLong>()
         assertEquals(0L, fake.data.data)
         assertEquals(0, fake.data.int)
+    }
+
+    class NullGenData<T>(
+        val content: T,
+    )
+
+    class NonNullGenData<T : Any>(
+        val content: T,
+    )
+
+    @Test
+    @UsesFakes(NullGenData::class, NonNullGenData::class)
+    fun testStarProjectedGenerics() {
+        assertNull(fake<NullGenData<*>>().content)
+        assertNotNull(fake<NonNullGenData<*>>().content)
+    }
+
+    @Test
+    fun testGenericPlaceholderIsMostGeneral() {
+        // `providePlaceholder` is keyed by KClass, which erases type arguments, so one of this
+        // build's many GenData<...> fakes has to stand in for all of them: the most general one.
+        val placeholder = assertIs<GenData<*>>(providePlaceholder(GenData::class))
+        assertEquals(Any::class, placeholder.data::class)
     }
 
 }

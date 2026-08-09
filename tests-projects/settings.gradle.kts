@@ -1,3 +1,5 @@
+rootProject.name = "tests-projects"
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -32,4 +34,7 @@ include(
     ":tests-jvm-junit5",
     ":tests-android",
     ":tests-mp-main",
+    ":tests-mp-empty",
+    ":tests-jvm-empty",
+    ":tests-mp-options",
 )

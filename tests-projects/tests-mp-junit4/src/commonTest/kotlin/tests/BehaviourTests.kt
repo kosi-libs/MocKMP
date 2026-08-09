@@ -96,4 +96,37 @@ class BehaviourTests {
         assertEquals(1 , f1.invoke())
         assertEquals(2 , f2.invoke())
     }
+
+    // isAny<T>() hands back the placeholder inside the every block, so `also` both captures it and
+    // passes it on as the argument.
+    private fun capturePlaceholder(foo: Foo<Bar>): Bar {
+        var captured: Bar? = null
+        mocker.every { foo.doInterface(isAny<Bar>().also { captured = it }) } returns Unit
+        return assertNotNull(captured)
+    }
+
+    @Test
+    fun testResetClearsCachedPlaceholders() {
+        val foo = mocker.mock<Foo<Bar>>()
+
+        val before = capturePlaceholder(foo)
+        mocker.reset()
+        // Resolving at all here also proves the placeholder provider survived the reset.
+        val after = capturePlaceholder(foo)
+
+        assertNotSame(before, after)
+    }
+
+    @Test
+    fun testResetClearsUsedReferences() {
+        val foo = mocker.mock<Foo<Bar>>()
+        val reference = mocker.mock<Bar>()
+
+        mocker.useReference(reference)
+        assertSame(reference, capturePlaceholder(foo))
+
+        mocker.reset()
+
+        assertNotSame(reference, capturePlaceholder(foo))
+    }
 }

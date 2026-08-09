@@ -201,9 +201,12 @@ class VerificationTests {
     @ExperimentalCoroutinesApi
     fun testSuspend() = runTest {
         val bar = mocker.mock<Bar>()
-        mocker.everySuspending { bar.newData() } returns fake<Data>()
+        // Data transitively contains a java.lang.Exception (no structural equals()), so a second,
+        // independently-faked Data would never compare equal to the first; reuse a single instance.
+        val expected = fake<Data>()
+        mocker.everySuspending { bar.newData() } returns expected
         val data = bar.newData()
-        assertEquals(fake<Data>(), data)
+        assertEquals(expected, data)
         mocker.verifyWithSuspend { bar.newData() }
     }
 
@@ -300,6 +303,128 @@ class VerificationTests {
     }
 
     @Test
+    fun testTrailingUnusedConstraint() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doInt(isAny()) } returns Unit
+
+        foo.doInt(42)
+
+        val ex = assertFailsWith<Mocker.MockingException> {
+            mocker.verify {
+                foo.doInt(42)
+                isAny<String>() // built, never passed to a mocked call
+            }
+        }
+        assertTrue("never passed to a mocked call" in ex.message!!, ex.message)
+    }
+
+    @Test
+    fun testUnusedConstraintTakenByTheNextCall() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doInt(isAny()) } returns Unit
+
+        foo.doInt(42)
+
+        val ex = assertFailsWith<Mocker.MockingException> {
+            mocker.verify {
+                isAny<String>() // stray: leaves two constraints pending for a one-argument call
+                foo.doInt(isAny())
+            }
+        }
+        assertTrue("never passed to a mocked call" in ex.message!!, ex.message)
+    }
+
+    @Test
+    fun testCustomConstraint() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every {
+            foo.doAny(isValid<String> { if (it == "ok") ArgConstraint.Result.Success else ArgConstraint.Result.Failure { "not ok" } })
+        } returns Unit
+
+        foo.doAny("ok")
+
+        mocker.verify {
+            foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+        }
+    }
+
+    @Test
+    fun testCustomConstraintDoesNotMatchAnotherType() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every {
+            foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+        } returns Unit
+
+        // An Int cannot satisfy a String constraint: that is a constraint that does not match, not a
+        // ClassCastException thrown out of the mocked call.
+        assertFailsWith<Mocker.MockingException> {
+            foo.doAny(42)
+        }
+    }
+
+    @Test
+    fun testCustomConstraintOfAnotherTypeFailsVerification() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doAny(isAny()) } returns Unit
+
+        foo.doAny(42)
+
+        val ex = assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify {
+                foo.doAny(isValid<String> { ArgConstraint.Result.Success })
+            }
+        }
+        // Not the whole message, and here that really is unavoidable: isValid names the type through
+        // bestName(), which renders qualifiedName on JVM/Native and simpleName on JS/Wasm. The exact
+        // rendering is pinned per platform in PlatformKeyTests.
+        assertTrue("String" in ex.message!!, ex.message)
+    }
+
+    @Test
+    fun testMockWithAbstractIdentityMembers() {
+        // Identified re-declares equals/hashCode as abstract. Routing those through the Mocker would
+        // recurse: its registrations are keyed by (receiver, method), so the lookup would call the
+        // very hashCode() it is looking up.
+        val identified = mocker.mock<Identified>()
+        mocker.every { identified.doSomething() } returns Unit
+
+        identified.doSomething()
+
+        assertEquals(identified, identified)
+        assertNotEquals(identified, mocker.mock<Identified>())
+        mocker.verify { identified.doSomething() }
+    }
+
+    @Test
+    fun testReceiverIsMatchedByIdentity() {
+        val a = mocker.mock<Identified>()
+        val b = mocker.mock<Identified>()
+        mocker.every { a.doSomething() } returns Unit
+        mocker.every { b.doSomething() } returns Unit
+
+        a.doSomething()
+
+        // Non-exhaustive verification takes the other code path than the exhaustive one; both must
+        // attribute the call to the instance it was made on.
+        mocker.verify(exhaustive = false) { a.doSomething() }
+        assertFailsWith<MockerVerificationAssertionError> {
+            mocker.verify(exhaustive = false) { b.doSomething() }
+        }
+    }
+
+    @Test
+    fun testStarProjectedArrayArgument() {
+        val foo = mocker.mock<Foo<Bar>>()
+        mocker.every { foo.doStarArray(isAny()) } returns Unit
+
+        foo.doStarArray(arrayOf("Test"))
+
+        mocker.verify {
+            foo.doStarArray(isAny())
+        }
+    }
+
+    @Test
     fun testEnumArgument() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every { foo.doEnum(isAny()) } returns Unit
@@ -344,6 +469,18 @@ class VerificationTests {
 
         mocker.verify {
             bar.suspendCallback(isAny())
+        }
+    }
+
+    @Test
+    fun testTwoArgFunctionArgument() {
+        val bar = mocker.mock<Bar>()
+        mocker.every { bar.comboCallback(isAny()) } returns Unit
+
+        bar.comboCallback { _, _ -> true }
+
+        mocker.verify {
+            bar.comboCallback(isAny())
         }
     }
 

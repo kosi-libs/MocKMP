@@ -1,3 +1,5 @@
+rootProject.name = "mockmp"
+
 pluginManagement {
     repositories {
         gradlePluginPortal()

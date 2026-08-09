@@ -8,6 +8,7 @@ If you used version 1.17, have a look at the https://kosi-libs.org/mockmp/2.0/mi
 
 WARNING: Version 3.0 brings compatibility to AGP 9, but becomes *incompatible* with AGP 8 or previous.
 Only update to MocKMP 3.0 if you are also updating to AGP 9!
+If you used version 2.1, have a look at the https://kosi-libs.org/mockmp/3.0/migration/2to3.html[Migration Guide].
 
 == Installation
 

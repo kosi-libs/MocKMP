@@ -10,9 +10,9 @@ import com.google.devtools.ksp.gradle.KspExtension
 import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.internal.tasks.testing.junitplatform.JUnitPlatformTestFramework
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.junitplatform.JUnitPlatformOptions
 import org.gradle.kotlin.dsl.findByType
 import org.gradle.kotlin.dsl.get
 import org.gradle.kotlin.dsl.register
@@ -181,28 +181,48 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             )
         }
 
+        private fun addHelperDependency(implementationConfigurationName: String, isJunit5: Boolean) {
+            project.dependencies.add(
+                implementationConfigurationName,
+                if (isJunit5) "org.kodein.mock:mockmp-test-helper-junit5:${BuildConfig.VERSION}"
+                else "org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}"
+            )
+        }
+
+        /**
+         * True when any test task runs on the JUnit Platform.
+         *
+         * `Test.getOptions()` returns the options of whichever framework the task is set to, so the
+         * type of that object is the public counterpart of the internal `getTestFramework()`.
+         * Realizing each task here is what runs its pending configuration actions, which is how a
+         * `useJUnitPlatform()` buried in a lazy `configure { }` — the Kotlin Multiplatform DSL's
+         * `testRuns["test"].executionTask` being the common case — is seen at all.
+         */
+        private fun usesJUnitPlatform(): Boolean =
+            project.tasks.withType<Test>().any { it.options is JUnitPlatformOptions }
+
         private fun addRuntimeDependencies(
             implementationConfigurationName: String,
             helper: Helper?,
             canAutodetect: Boolean,
         ) {
             project.dependencies.add(implementationConfigurationName, "org.kodein.mock:mockmp-runtime:${BuildConfig.VERSION}")
-            if (helper != null) {
-                project.dependencies.add(implementationConfigurationName, project.provider {
-                    val isJunit5 = when (helper) {
-                        Helper.JUnit4 -> false
-                        Helper.JUnit5 -> true
-                        Helper.AutoDetect -> {
-                            if (canAutodetect) {
-                                project.tasks.withType<Test>().any { it.testFramework is JUnitPlatformTestFramework }
-                            } else {
-                                error("MocKMP cannot auto-detect JUnit version, please use withHelper(junit4) or withHelper(junit5)")
-                            }
-                        }
+            when (helper) {
+                null -> {}
+                Helper.JUnit4 -> addHelperDependency(implementationConfigurationName, isJunit5 = false)
+                Helper.JUnit5 -> addHelperDependency(implementationConfigurationName, isJunit5 = true)
+                Helper.AutoDetect -> {
+                    if (!canAutodetect) error("MocKMP cannot auto-detect JUnit version, please use withHelper(junit4) or withHelper(junit5)")
+                    // In afterEvaluate rather than in a dependency provider: a provider is queried
+                    // while resolving the configuration, which happens at execution time, where
+                    // reaching back into the project is what the configuration cache forbids. By
+                    // afterEvaluate the build script has run, and any plugin that creates test tasks
+                    // from its own afterEvaluate registered that callback when it was applied — above
+                    // the mockmp { } block, so ahead of this one.
+                    project.afterEvaluate {
+                        addHelperDependency(implementationConfigurationName, isJunit5 = usesJUnitPlatform())
                     }
-                    if (isJunit5) "org.kodein.mock:mockmp-test-helper-junit5:${BuildConfig.VERSION}"
-                    else "org.kodein.mock:mockmp-test-helper:${BuildConfig.VERSION}"
-                })
+                }
             }
         }
 
@@ -227,7 +247,10 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             options: Options
         ): TaskProvider<MocKMPExtractExpectKt> =
             project.tasks.register<MocKMPExtractExpectKt>("mockmpExtractExpectKt") {
-                outputDirectory.set(project.layout.buildDirectory.get().asFile.resolve("mockmp/$sourceSetName/kotlin"))
+                // A provider, not buildDirectory.get(): resolving it here would pin an absolute path
+                // at configuration time, leaving this task writing to the old location if anything
+                // relocates the build directory afterwards.
+                outputDirectory.set(project.layout.buildDirectory.dir("mockmp/$sourceSetName/kotlin"))
                 accessorsPackage.set(options.accessorsPackage)
                 public.set(options.public)
                 resource.set("/mockmp.${if (kotlin is KotlinMultiplatformExtension) "multi" else "single"}.kt")
@@ -238,7 +261,18 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 is KotlinMultiplatformExtension -> {
                     when (val targets = options.specificTargets) {
                         null -> kotlin.targets.filterNot { it.name == "metadata" }
-                        else -> kotlin.targets.filter { it.name in targets }
+                        else -> {
+                            // Otherwise a mistyped name simply filters everything out, and MocKMP
+                            // quietly processes nothing at all.
+                            val unknown = targets - kotlin.targets.map { it.name }.toSet()
+                            if (unknown.isNotEmpty()) {
+                                error(
+                                    "MocKMP was configured with unknown target(s) ${unknown.joinToString()}. " +
+                                            "This project declares ${kotlin.targets.joinToString { it.name }}."
+                                )
+                            }
+                            kotlin.targets.filter { it.name in targets }
+                        }
                     }
                 }
                 is KotlinSingleTargetExtension<*> -> {
@@ -257,15 +291,27 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                     listOf("ksp${target.name.capitalized()}")
                 }
 
+                // Failing rather than logging, as everything else in this plugin does: a target left
+                // unprocessed does not fail here, it fails much later and elsewhere, as the accessors
+                // it should have generated turning up missing — "expect … has no actual declaration".
+                if (configurations.isEmpty()) {
+                    error(
+                        "MocKMP found no KSP configuration for target '${target.name}'. " +
+                                "Make sure the KSP plugin is applied and supports that target."
+                    )
+                }
+
                 configurations.forEach { configuration ->
-                    if (configuration in project.configurations.names) {
-                        project.dependencies.add(
-                            configuration,
-                            "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
+                    if (configuration !in project.configurations.names) {
+                        error(
+                            "MocKMP could not find the KSP configuration '$configuration' for target '${target.name}'. " +
+                                    "Make sure the KSP plugin is applied and supports that target."
                         )
-                    } else {
-                        project.logger.error("Configuration '$configuration' not found for target '${target.name}'.")
                     }
+                    project.dependencies.add(
+                        configuration,
+                        "org.kodein.mock:mockmp-processor:${BuildConfig.VERSION}",
+                    )
                 }
             }
         }

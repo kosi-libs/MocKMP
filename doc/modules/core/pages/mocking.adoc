@@ -55,6 +55,14 @@ class DatabaseTests {
 
 NOTE: A method *must* be mocked to run without throwing an exception (there is no "relaxed" mode).
 
+[CAUTION]
+====
+A `Mocker`, and every mock created from it, must be used from a *single thread*.
+Calls arriving concurrently corrupt the mocker's state instead of failing cleanly: calls go missing or land out of order, and a later `verify` fails for reasons unrelated to the code under test.
+
+If the code under test dispatches, inject the dispatcher it uses so that the mocked calls still run on the test thread, rather than letting it reach a real background one.
+====
+
 You can mock methods according to specific argument constraints:
 
 [source,kotlin]
@@ -81,7 +89,7 @@ You can mock property getters & setters much like regular methods:
 
 [source,kotlin]
 ----
-@UsesMocks(User::class)
+@UsesMocks(Place::class)
 class MyTests {
     @Test fun myUnitTest() {
         val mocker = Mocker()
@@ -102,13 +110,13 @@ A var (read & write) property can be "backed" by the mocker:
 
 [source,kotlin]
 ----
-@UsesMocks(User::class)
+@UsesMocks(Place::class)
 class MyTests {
     @Test fun myUnitTest() {
         val mocker = Mocker()
         val place = mocker.mock<Place>()
 
-        mocker.backProperty(user, Place::name, default = "")
+        mocker.backProperty(place, Place::name, default = "")
 
         place.name = "Machu Pichu"
         assertEquals("Machu Pichu", place.name)
@@ -249,9 +257,11 @@ If you configure your behaviour to _maybe throw_ an exception, you can verify a 
 
 [source,kotlin]
 ----
-mocker.every { api.getUserById(isAny()) } runs { args ->
+val fakeUser = fake<User>()
+
+mocker.every { api.getUserById(isAny()) } runs { args -> //<1>
     val idArg = args[0] as Int
-    if (idArg == 42) return MockUser()
+    if (idArg == 42) fakeUser
     else throw UnknownUserException(idArg)
 }
 
@@ -261,6 +271,8 @@ mocker.verify {
     called { api.getUserById(isAny()) }
 }
 ----
+<1> The block is an ordinary lambda, not an inline one: its *last expression* is the returned value.
+A `return` here would try to return from the enclosing function and will not compile.
 
 
 == Configuring verification exhaustivity & order
@@ -332,7 +344,7 @@ The previous example could be rewritten as such:
 
 [source,kotlin]
 ----
-val delegate = MockDelegate()
+val delegate = mocker.mock<Delegate>()
 val sessionCapture = ArrayList<Session>()
 mocker.every { delegate.setSession(isAny(capture = sessionCapture)) } returns Unit
 
@@ -381,23 +393,37 @@ You can create mocks for functional type by using `mockFunctionX` where X is the
 
 [source,kotlin]
 ----
-val callback: (User) -> Unit = mockFunction1()
+val callback: (User) -> Unit = mockFunction1(mocker) //<1>
 mocker.every { callback(isAny()) } returns Unit
 
 userRepository.fetchUser(callback)
 
 mocker.verify { callback(fakeUser) }
 ----
+<1> The `mocker` is mandatory: it is what records the call, exactly as it does for a mocked interface.
+The declared type of the property is what tells `mockFunction1` the argument and return types, so there is nothing else to pass.
 
 The `mockFunctionX` builders can accept a lambda parameter that defines behaviour & return type of the mocked function (so that you don't have to call `mocker.every`).
 The above mocked callback function can be declared as such:
 
 [source,kotlin]
 ----
-val callback: (User) -> Unit = mockFunction1() {} // implicit Unit
+val callback: (User) -> Unit = mockFunction1(mocker) {} // implicit Unit
 ----
 
-You can mock suspending functions with `mockSuspendFunctionX`.
+You can mock suspending functions with `mockSuspendFunctionX`, which works the same way.
+Note that a suspending function mock must be defined with `everySuspending` and checked with `verifyWithSuspend`, just like a suspending method:
+
+[source,kotlin]
+----
+val onUserLoaded: suspend (User) -> Unit = mockSuspendFunction1(mocker) //<1>
+mocker.everySuspending { onUserLoaded(isAny()) } returns Unit
+
+userRepository.observeUser(onUserLoaded)
+
+mocker.verifyWithSuspend { onUserLoaded(fakeUser) }
+----
+<1> Creating the mock is *not* itself a suspending operation, so this line does not need to be in a coroutine.
 
 
 == Defining custom argument constraints
