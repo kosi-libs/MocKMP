@@ -24,8 +24,8 @@ jobs:
           key: ${{ runner.os }}-konan-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-konan-
       # Gates the publication below, alongside the check: see the note in test.yml.
-      - name: Test the processor
-        run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test
+      - name: Test the processor and the plugin
+        run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test :mockmp:mockmp-gradle-plugin:test
         shell: bash
       - name: Check
         run: ./gradlew --stacktrace --scan :tests-projects:check

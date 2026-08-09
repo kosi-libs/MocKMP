@@ -36,4 +36,5 @@ include(
     ":tests-mp-main",
     ":tests-mp-empty",
     ":tests-jvm-empty",
+    ":tests-mp-options",
 )

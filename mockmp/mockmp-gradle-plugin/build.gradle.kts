@@ -11,6 +11,11 @@ dependencies {
     implementation(libs.ksp.gradlePlugin)
     implementation(libs.kotlin.gradlePlugin)
     implementation(libs.android.gradlePlugin)
+
+    // ProjectBuilder comes from gradleApi(), which `kotlin-dsl` puts on the main classpath but not the
+    // test one. No TestKit: these tests configure a project in memory rather than running a build.
+    testImplementation(gradleApi())
+    testImplementation(libs.kotlin.test.junit)
 }
 
 gradlePlugin {
