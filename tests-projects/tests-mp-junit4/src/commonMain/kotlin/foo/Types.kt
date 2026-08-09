@@ -73,6 +73,10 @@ interface Bar : Foo<Bar> {
     fun doSomething() { doNothing() }
     fun newData(string: String, vararg int: Int): Data
     fun doData(data: Data)
+    // The only mockable member with a nullable parameter, which is what isNull/isNotNull need to
+    // constrain: doAny takes Any, newStringNullable returns rather than accepts, and equals(Any?) is
+    // excluded from mocking by IDENTITY_MEMBERS.
+    fun doNullable(s: String?)
     fun doAll(string: String, int: Int, data: Data)
     suspend fun newData(): Data
     suspend fun doSomethingSuspend() { doNothing() }
