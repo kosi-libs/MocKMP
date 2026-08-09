@@ -50,6 +50,13 @@ jobs:
           path: ~/.konan
           key: ${{ runner.os }}-konan-${{ hashFiles('**/*.gradle*') }}-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-konan-
+      # Before the multiplatform check, not after: these are in-process compilations that finish in
+      # seconds, so a broken processor diagnostic fails the run immediately rather than behind a full
+      # Apple/JS/Native build. :tests-projects:check does not reach them — it builds the processor, but
+      # runs no test of its own.
+      - name: Test the processor
+        run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test
+        shell: bash
       - name: Check
         run: ./gradlew --stacktrace --scan :tests-projects:check
         shell: bash
