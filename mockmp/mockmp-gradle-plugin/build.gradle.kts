@@ -3,6 +3,7 @@ plugins {
     `java-gradle-plugin`
     `maven-publish`
     alias(libs.plugins.gradle.pluginPublish)
+    alias(libs.plugins.mavenPublish)
     alias(libs.plugins.kotlin.plugin.samWithReceiver)
     alias(libs.plugins.buildConfig)
 }
@@ -29,6 +30,19 @@ gradlePlugin {
         displayName = "MocKMP"
         description = "Applies the MocKMP symbol processor to a Kotlin Multiplatform, Android or JVM project"
         tags.set(listOf("kotlin", "mock", "test"))
+    }
+}
+
+// The plugin goes to the Gradle Plugin Portal (publishPlugins) *and*, like every other module, to
+// Maven Central (publishAndReleaseToMavenCentral): the portal is not a repository a build can resolve
+// an ordinary `classpath`/`implementation` dependency from, which is what a legacy `buildscript {}`
+// block, or a project that mirrors its dependencies, needs.
+// `java-gradle-plugin` publishes two coordinates — the plugin itself and the `org.kodein.mock.mockmp`
+// marker that maps the plugin id onto it — and both carry this POM.
+mavenPublishing {
+    pom {
+        name = "mockmp-gradle-plugin"
+        description = "MocKMP Gradle plugin"
     }
 }
 
