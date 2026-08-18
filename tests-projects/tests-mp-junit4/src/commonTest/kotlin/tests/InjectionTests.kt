@@ -37,6 +37,14 @@ class InjectionTests : TestsWithMocks() {
     @Fake
     lateinit var funs: Funs
 
+    // An interface is faked by implementing it; a concrete instantiation of a generic one is only
+    // reachable through a declared property like this, as it is for a generic class fake.
+    @Fake
+    lateinit var service: Service
+
+    @Fake
+    lateinit var stringBox: Box<String>
+
     @Mock
     lateinit var callback: (Boolean, Int) -> String
 
@@ -65,6 +73,8 @@ class InjectionTests : TestsWithMocks() {
         assertNotNull(genFooData)
         assertNotNull(arrays)
         assertNotNull(funs)
+        assertNotNull(service)
+        assertNotNull(stringBox)
         assertNotNull(callback)
         assertNotNull(s1)
         assertNotNull(s2)
@@ -97,6 +107,14 @@ class InjectionTests : TestsWithMocks() {
             ),
             data
         )
+    }
+
+    @Test
+    fun testFakeInterface() {
+        assertEquals("", service.name)
+        service.record("entry")
+        assertEquals("", stringBox.content)
+        assertEquals("", stringBox.replace("other"))
     }
 
     @Test

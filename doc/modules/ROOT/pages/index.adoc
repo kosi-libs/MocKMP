@@ -4,12 +4,13 @@ A Kotlin/Multiplatform Kotlin Symbol Processor that generates Mocks & Fakes at c
 
 [IMPORTANT]
 ====
-- Mocking only applies to *interfaces*
-- Faking only applies to *concrete trees*
+- Mocking applies to *interfaces & abstract classes*, which are mocked by implementing them
+- Faking applies to *concrete trees*, and to *interfaces & abstract classes*, which are faked by implementing them
 ====
 
-A Mock is an object implementing an interface whose behaviour is configurable at run-time, usually specifically for unit-tests. +
+A Mock is an object implementing an interface (or extending an abstract class) whose behaviour is configurable at run-time, usually specifically for unit-tests. +
 Mocks can be used to validate that a method or property was (or wasn't) accessed in specific conditions.
 
-A fake is a concrete class that contains bogus data: all nullables are null, all strings are empty, all numbers are 0. +
-A fake can be used when you need to instantiate a class to test an API but do not care about the data it contains.
+A fake is an instance that contains bogus data: all nullables are null, all strings are empty, all numbers are 0. +
+A fake can be used when you need to instantiate a type to test an API but do not care about the data it contains. +
+An interface (or abstract class) is faked by a generated implementation: its functions do nothing, and its properties are themselves fakes.

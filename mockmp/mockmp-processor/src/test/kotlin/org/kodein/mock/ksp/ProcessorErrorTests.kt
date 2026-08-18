@@ -28,10 +28,11 @@ class ProcessorErrorTests {
     // logged one.
     private val ProcessingErrorName = "MocKMPProcessor\$ProcessingError"
 
-    private fun compile(
+    /** The compilation itself, for the one test that reads what was generated rather than what was reported. */
+    private fun compilation(
         source: String,
         options: Map<String, String> = emptyMap(),
-    ): JvmCompilationResult =
+    ): KotlinCompilation =
         KotlinCompilation().apply {
             sources = listOf(SourceFile.kotlin("Fixture.kt", source))
             inheritClassPath = true
@@ -40,7 +41,12 @@ class ProcessorErrorTests {
                 symbolProcessorProviders += MocKMPProcessorProvider()
                 processorOptions.putAll(options)
             }
-        }.compile()
+        }
+
+    private fun compile(
+        source: String,
+        options: Map<String, String> = emptyMap(),
+    ): JvmCompilationResult = compilation(source, options).compile()
 
     @Test
     fun mockOnNonInterface() {
@@ -155,15 +161,15 @@ class ProcessorErrorTests {
     }
 
     // The wording shared by the compile-time error and the runtime stub (unfakeableMessage): a concrete
-    // reason, then the @FakeProvider suggestion. An interface cannot be instantiated, so @UsesFakes on
-    // one is the shortest way in.
+    // reason, then the @FakeProvider suggestion. An annotation class can be neither constructed nor
+    // implemented, which is what is left once interfaces and abstract classes are fakeable.
     @Test
     fun unfakeableTypeStatesAReasonAndSuggestsFakeProvider() {
         val result = compile(
             """
             import org.kodein.mock.UsesFakes
 
-            interface NotConstructible
+            annotation class NotConstructible
 
             @UsesFakes(NotConstructible::class)
             class Tests
@@ -171,8 +177,127 @@ class ProcessorErrorTests {
         )
         assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
         assertContains(result.messages, "Cannot generate a fake for NotConstructible")
-        assertContains(result.messages, "interfaces cannot be instantiated")
+        assertContains(result.messages, "annotation classes cannot be instantiated")
         assertContains(result.messages, "register a top-level @FakeProvider function")
+        // Nothing required it: the user asked for this type by name, so there is no chain to report.
+        assertFalse(
+            "Required by:" in result.messages,
+            "a directly requested type should not be explained by a path:\n${result.messages}",
+        )
+    }
+
+    // A fake is usually reached transitively, so naming only the type that failed leaves the user with
+    // nothing of theirs to look at. Every hop is reported: an interface property, an interface function
+    // return, then a constructor parameter — the three ways one type comes to require another.
+    @Test
+    fun unfakeableTypeReportsWhatRequiredIt() {
+        val result = compile(
+            """
+            import org.kodein.mock.UsesFakes
+
+            class TCPLayer private constructor()
+
+            class Network(val tcp: TCPLayer, val timeout: Int)
+
+            interface Connection {
+                fun connect(creds: String): Network
+            }
+
+            interface Database {
+                val con: Connection
+            }
+
+            @UsesFakes(Database::class)
+            class Tests
+            """
+        )
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertContains(result.messages, "Cannot generate a fake for TCPLayer")
+        assertContains(
+            result.messages,
+            "Required by: Database.con: Connection -> Connection.connect(String): Network -> Network(TCPLayer, Int)",
+        )
+    }
+
+    // The other half of the same wording: a type reached only from a *mocked* interface's signatures
+    // is implicit, so it does not fail the build — it gets a stub that throws if it is ever used. That
+    // stub is where the path matters most, since nothing about such a type appears in the user's code
+    // at all. Asserted on the generated source, as nothing is reported at compile time.
+    @Test
+    fun anImplicitlyRequiredUnfakeableTypeCarriesItsPathIntoTheGeneratedStub() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesMocks
+
+            class TCPLayer private constructor()
+
+            class Network(val tcp: TCPLayer, val timeout: Int)
+
+            interface Service {
+                fun net(id: String): Network
+            }
+
+            @UsesMocks(Service::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val stub = compilation.workingDir.walkTopDown().first { it.name == "fakefixture_TCPLayer.kt" }.readText()
+        assertContains(stub, "Cannot generate a fake for fixture.TCPLayer")
+        assertContains(stub, "Required by: Service.net(String): Network -> Network(TCPLayer, Int)")
+    }
+
+    // A function type resolves to an interface declaration (kotlin.Function1 & co.), so it would
+    // otherwise take the "fake it by implementing it" path — which Kotlin/JS forbids for exactly
+    // these types. @Mock is the supported way to get a callable stand-in for one.
+    @Test
+    fun fakeOnAFunctionTypedPropertyPointsAtMock() {
+        val result = compile(
+            """
+            import org.kodein.mock.Fake
+
+            class Tests {
+                @Fake lateinit var callback: (String) -> Int
+            }
+            """
+        )
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertContains(result.messages, "Cannot generate a fake for the function type")
+        assertContains(result.messages, "Please use @Mock instead")
+    }
+
+    // An interface is faked by generating a class that implements it: no-op functions, faked
+    // properties. This is the compile-time half — that no diagnostic is produced for what used to be
+    // an error; InterfaceFakeTests in tests-mp-junit4 asserts the generated behaviour.
+    @Test
+    fun interfacesAndAbstractClassesAreFakeable() {
+        val result = compile(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesFakes
+
+            interface Api {
+                val name: String
+                fun log(message: String)
+                fun count(): Int
+            }
+
+            abstract class AbsApi(val id: Int) : Api
+
+            @UsesFakes(Api::class, AbsApi::class)
+            class Tests
+            """,
+            // The accessors are generated as `actual` declarations by default, which this
+            // single-module compilation is not set up for — and the point here is the fake, not them.
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
     }
 
     // The two halves of the throwErrors option, over one bad input. Both fail the compilation and both

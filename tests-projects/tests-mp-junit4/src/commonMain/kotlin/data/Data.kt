@@ -67,3 +67,49 @@ class Funs(
     val data: () -> GenData<String>,
     val combo: (String) -> GenData<String>
 )
+
+// Faked by implementing rather than by constructing: every abstract member below is overridden with
+// a faked value or a no-op, and `describe` — which is not abstract — is left to run over them.
+interface Service {
+    val name: String
+    // A var keeps a backing field, so a faked value can be replaced.
+    var count: Int
+    val dir: SomeDirection
+    val optional: SomeDirection?
+    val callback: (String) -> GenData<String>
+    val suspendCallback: suspend (String) -> Unit
+    fun record(entry: String)
+    fun size(): Int
+    fun latest(): SomeDirection
+    fun missing(): SomeDirection?
+    suspend fun load(): List<String>
+    // A parameter already holds a value of the type the caller chose, so it is the one returned.
+    fun <T : Any> convert(value: T): T
+    // Nothing holds a T here, so this one throws.
+    fun <T : Any> create(): T
+    // A vararg is an Array<out T>, not a T: it cannot stand in for the return value either.
+    fun <T : Any> first(vararg values: T): T
+    fun describe(): String = "$name/$count"
+}
+
+// One implementation is generated per faked instantiation, since a fake holds values and no value of
+// a type parameter can be produced. A star projection implements the parameter's bound.
+interface Box<T : Any> {
+    val content: T
+    fun replace(content: T): T
+}
+
+// Re-declares its identity members as abstract, which Kotlin requires an implementation for.
+interface IdentifiedService {
+    override fun equals(other: Any?): Boolean
+    override fun hashCode(): Int
+    fun doSomething()
+}
+
+// An abstract class is extended, not implemented: its constructor is called with faked arguments,
+// exactly as a concrete class fake would be.
+abstract class AbsService(val id: Int, val dir: SomeDirection) {
+    abstract val label: String
+    abstract fun handle(direction: Direction)
+    fun describe(): String = "$id:$label"
+}
