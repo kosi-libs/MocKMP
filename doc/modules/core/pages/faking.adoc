@@ -1,11 +1,14 @@
-= Faking concrete classes
+= Faking types
 // This page was published as `facking.adoc` up to 3.0. The alias keeps that URL redirecting here
 // rather than 404-ing.
 :page-aliases: facking.adoc
 
-CAUTION: Only *concrete trees* (concrete classes containing concrete classes) can be faked!
+A fake is an *inert instance*: a value with no behaviour, whose data is zero-valued.
 
-*Data classes* are ideal candidates for faking.
+*Data classes* are ideal candidates for faking: they are constructed with a faked value for each of
+their properties.
+Interfaces and abstract classes are faked as well, by xref:#interfaces[generating an implementation]
+of them.
 
 
 == Requesting generation
@@ -55,6 +58,53 @@ By using a `data class`, you can easily tweak your fakes according to your needs
 val user = fake<User>().copy(id = 42)
 ----
 ====
+
+
+[#interfaces]
+== Faking interfaces and abstract classes
+
+A type that cannot be constructed can still be implemented, so MocKMP fakes an interface (or an
+abstract class) by generating a class that implements it:
+
+[source,kotlin]
+----
+interface UserRepository {
+    val cacheName: String
+    fun record(user: User)
+    fun lastUser(): User
+    fun describe(): String = "$cacheName cache" //<1>
+}
+
+@UsesFakes(UserRepository::class)
+class MyTests {
+    val repository = fake<UserRepository>()
+}
+----
+<1> Not abstract, so it is not overridden: it runs, over the faked members it reads.
+
+Its members follow the same rules as everything else on this page:
+
+* Functions returning `Unit` do nothing.
+* Functions returning a value return a fake of their return type (`lastUser()` above returns a faked
+  `User`).
+* Properties hold a fake of their type (`cacheName` above is `""`), and a `var` keeps whatever it is
+  later assigned.
+* Only *abstract* members are overridden: a default implementation is left to run over them.
+* An abstract class is constructed with faked arguments, exactly as a concrete class would be.
+
+TIP: Prefer `@Mock` over `@Fake` for a collaborator whose calls the test needs to configure or
+verify: a fake records nothing and cannot be given behaviour.
+A fake is for the collaborators that merely need to *exist*.
+
+A function whose return type is one of its own type parameters returns the parameter that holds a
+value of that same type, if it has one: `fun <T> convert(value: T): T` is faked as
+`convert(value) = value`.
+If it has none (`fun <T> get(): T`), it is the one member that cannot be faked — no single value can
+satisfy every `T` a caller may ask for — and it throws when called; the rest of the fake is
+unaffected.
+
+CAUTION: A type that (transitively) contains a non-nullable value of itself — `interface Node { val parent: Node }` — cannot be faked: faking it would never terminate.
+Make the property nullable, or provide the fake yourself.
 
 
 == Providing fake instances
