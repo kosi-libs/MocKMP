@@ -1,4 +1,4 @@
-= Mocking interfaces
+= Mocking types
 
 [TIP]
 ====
@@ -7,13 +7,14 @@ MocKMP also provides a very useful abstract class helper for test classes.
 The `TestWithMocks` helper class usage is recommended when possible (as it makes your tests easier to read), and is documented later in xref:helper.adoc[] chapter.
 ====
 
-CAUTION: Only *interfaces* can be mocked!
+CAUTION: Only *interfaces* and *abstract classes* can be mocked!
+A mock is a generated implementation of its type, so a type that cannot be implemented (a concrete class, an object, an enum) cannot be mocked.
 This is by design and is not likely to change.
 
 
 == Requesting generation
 
-You can declare that a class or a function needs a specific mocked interface by using the `@UsesMocks` annotation.
+You can declare that a class or a function needs a specific mocked type by using the `@UsesMocks` annotation.
 
 [source,kotlin]
 ----
@@ -26,7 +27,40 @@ class DatabaseTests
 fun testDatabase() {}
 ----
 
-Once an interface appears in `@UsesMocks`, the processor will generate a mock class for it.
+Once a type appears in `@UsesMocks`, the processor will generate a mock class for it.
+
+
+[#abstract-classes]
+== Mocking abstract classes
+
+An abstract class is mocked exactly like an interface, save for two differences:
+
+* Only its *abstract* members are mocked.
+  A concrete member is left alone: it runs its real implementation, and can neither be given a behaviour with `every` nor be verified.
+* The generated mock *extends* it, so its constructor runs, with a xref:faking.adoc[faked] value for each of its parameters.
+
+[source,kotlin]
+----
+abstract class Repository(val name: String) {
+    abstract fun count(): Int
+    fun describe(): String = "$name repository" //<1>
+}
+
+@UsesMocks(Repository::class)
+class MyTests {
+    @Test fun test() {
+        val mocker = Mocker()
+        val repository = mocker.mock<Repository>()
+
+        mocker.every { repository.count() } returns 42
+        assertEquals(" repository", repository.describe()) //<2>
+    }
+}
+----
+<1> Not abstract, so it is not mocked: it runs, over the constructor arguments the mock was built with.
+<2> `name` is a faked `String`, so it is empty.
+
+NOTE: This is the reverse of an interface's default method, which *is* overridden and mocked, and therefore must be given a behaviour like any other function.
 
 
 == Defining behaviour
