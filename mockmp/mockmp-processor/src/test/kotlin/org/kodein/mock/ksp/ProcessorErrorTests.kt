@@ -28,10 +28,11 @@ class ProcessorErrorTests {
     // logged one.
     private val ProcessingErrorName = "MocKMPProcessor\$ProcessingError"
 
-    private fun compile(
+    /** The compilation itself, for the one test that reads what was generated rather than what was reported. */
+    private fun compilation(
         source: String,
         options: Map<String, String> = emptyMap(),
-    ): JvmCompilationResult =
+    ): KotlinCompilation =
         KotlinCompilation().apply {
             sources = listOf(SourceFile.kotlin("Fixture.kt", source))
             inheritClassPath = true
@@ -40,7 +41,12 @@ class ProcessorErrorTests {
                 symbolProcessorProviders += MocKMPProcessorProvider()
                 processorOptions.putAll(options)
             }
-        }.compile()
+        }
+
+    private fun compile(
+        source: String,
+        options: Map<String, String> = emptyMap(),
+    ): JvmCompilationResult = compilation(source, options).compile()
 
     @Test
     fun mockOnNonInterface() {
@@ -173,6 +179,77 @@ class ProcessorErrorTests {
         assertContains(result.messages, "Cannot generate a fake for NotConstructible")
         assertContains(result.messages, "annotation classes cannot be instantiated")
         assertContains(result.messages, "register a top-level @FakeProvider function")
+        // Nothing required it: the user asked for this type by name, so there is no chain to report.
+        assertFalse(
+            "Required by:" in result.messages,
+            "a directly requested type should not be explained by a path:\n${result.messages}",
+        )
+    }
+
+    // A fake is usually reached transitively, so naming only the type that failed leaves the user with
+    // nothing of theirs to look at. Every hop is reported: an interface property, an interface function
+    // return, then a constructor parameter — the three ways one type comes to require another.
+    @Test
+    fun unfakeableTypeReportsWhatRequiredIt() {
+        val result = compile(
+            """
+            import org.kodein.mock.UsesFakes
+
+            class TCPLayer private constructor()
+
+            class Network(val tcp: TCPLayer, val timeout: Int)
+
+            interface Connection {
+                fun connect(creds: String): Network
+            }
+
+            interface Database {
+                val con: Connection
+            }
+
+            @UsesFakes(Database::class)
+            class Tests
+            """
+        )
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertContains(result.messages, "Cannot generate a fake for TCPLayer")
+        assertContains(
+            result.messages,
+            "Required by: Database.con: Connection -> Connection.connect(String): Network -> Network(TCPLayer, Int)",
+        )
+    }
+
+    // The other half of the same wording: a type reached only from a *mocked* interface's signatures
+    // is implicit, so it does not fail the build — it gets a stub that throws if it is ever used. That
+    // stub is where the path matters most, since nothing about such a type appears in the user's code
+    // at all. Asserted on the generated source, as nothing is reported at compile time.
+    @Test
+    fun anImplicitlyRequiredUnfakeableTypeCarriesItsPathIntoTheGeneratedStub() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesMocks
+
+            class TCPLayer private constructor()
+
+            class Network(val tcp: TCPLayer, val timeout: Int)
+
+            interface Service {
+                fun net(id: String): Network
+            }
+
+            @UsesMocks(Service::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val stub = compilation.workingDir.walkTopDown().first { it.name == "fakefixture_TCPLayer.kt" }.readText()
+        assertContains(stub, "Cannot generate a fake for fixture.TCPLayer")
+        assertContains(stub, "Required by: Service.net(String): Network -> Network(TCPLayer, Int)")
     }
 
     // A function type resolves to an interface declaration (kotlin.Function1 & co.), so it would
