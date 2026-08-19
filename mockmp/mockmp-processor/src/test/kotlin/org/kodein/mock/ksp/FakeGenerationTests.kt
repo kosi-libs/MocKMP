@@ -178,4 +178,78 @@ class FakeGenerationTests {
         val source = compilation.workingDir.walkTopDown().first { it.name == "fakefixture_Api.kt" }.readText()
         assertEquals("override val list: List<String> by LazyFake { provideFakeStringList() }", source.propertyLine("list"))
     }
+
+    /**
+     * Regression test: `isAny<T>()` resolves its placeholder through the erased `T::class`, which
+     * cannot tell "T was Suit" apart from "T was Suit?" — so a type reachable only as a nullable
+     * parameter of a mocked interface still needs a real placeholder, exactly as a non-nullable
+     * reference to it would (see seedImplicitPlaceholder).
+     */
+    @Test
+    fun nullableOnlyReferencedEnumStillGetsAPlaceholder() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+
+            enum class Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
+
+            interface CardGame {
+                fun play(suit: Suit?)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var game: CardGame
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        assertTrue(
+            generated.any { it.name == "fakefixture_Suit.kt" },
+            "Expected a fakeSuit() function to be generated even though Suit is only ever referenced nullably",
+        )
+        val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
+        assertTrue("Suit::class ->" in placeholders, "Expected a providePlaceholder branch for Suit:\n$placeholders")
+    }
+
+    /**
+     * The mirror of [nullableOnlyReferencedEnumStillGetsAPlaceholder]: seedImplicitPlaceholder's fix
+     * is scoped to mocked-interface members only. A type reached only through a nullable `@Fake`
+     * constructor parameter is unaffected — it still fakes as a plain `null`, with no `fakeXxx()`
+     * function generated for it at all, exactly as before this fix (see valueTypeToFake, addFake).
+     */
+    @Test
+    fun nullableOnlyReferencedEnumInAFakeIsStillJustNullWithNoGeneratedFunction() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesFakes
+
+            enum class Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
+
+            data class Hand(val suit: Suit?)
+
+            @UsesFakes(Hand::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        val source = generated.first { it.name == "fakefixture_Hand.kt" }.readText()
+        assertTrue("suit = null" in source, "Expected suit to be faked as a plain null:\n$source")
+        assertFalse(
+            generated.any { it.name == "fakefixture_Suit.kt" },
+            "Did not expect a fakeSuit() function: Suit is never referenced non-nullably here",
+        )
+    }
 }

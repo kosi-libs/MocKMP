@@ -832,8 +832,35 @@ class MocKMPProcessor(
         /**
          * Registers one type reachable from a mocked interface's signatures as needing a
          * placeholder, unless it's already covered: [builtins], an existing [toMock] entry, or an
-         * existing [toFake] entry. Nullable types need no placeholder (`null` is a valid one). An
-         * unresolved type parameter is substituted with its first bound, same as [asBoundedType].
+         * existing [toFake] entry. An unresolved type parameter is substituted with its first bound,
+         * same as [asBoundedType].
+         *
+         * A nullable reference is registered under its non-nullable form ([KSType.makeNotNullable]),
+         * not skipped: `isAny<T>()` and every other `ArgConstraintsBuilder` constraint
+         * (`toReturn(constraint, T::class)`) resolves its placeholder through the *erased* `T::class`
+         * — never `typeOf<T>()`, which would preserve nullability but fails to compile wherever the
+         * same reified `T` might be inferred as a suspend functional type elsewhere ("Suspend
+         * functional types are not supported in typeOf", see
+         * [KT-47562](https://youtrack.jetbrains.com/projects/KT/issues/KT-47562)) — so there is no
+         * way, at that call site, to tell "`T` was `Suit`" apart from "`T` was `Suit?`". A real,
+         * non-null placeholder is needed either way, even for a parameter/property/return type that
+         * is only ever referenced nullably. Registering under the non-nullable form is also what
+         * correctly deduplicates onto the same entry a non-nullable reference to the same class would
+         * produce, instead of minting a separate, useless `fakeNulXxx(): Xxx?` one.
+         *
+         * Once KT-47562 is fixed, `typeOf<T>()` becomes usable in `ArgConstraintsBuilder`'s constraint
+         * functions regardless of what `T` might be — including a suspend functional type — and they
+         * could resolve a placeholder from it instead of from `T::class`. `typeOf<T>()`, unlike
+         * `T::class`, preserves nullability, so a nullable `T` could then be recognized and answered
+         * with `null` directly, without needing a real placeholder at all — at which point this
+         * workaround (registering a nullable-only-referenced type under its non-nullable form so
+         * *some* placeholder exists for it) could be undone, and nullable references could go back to
+         * being ignored here, the way they were before this fix.
+         *
+         * This is unrelated to whether a nullable *value* needs building — [KSType.needsLazyFake],
+         * [valueTypeToFake] and [fakeValueOf] still fake a nullable property/parameter/return as a
+         * plain `null` immediately, before ever consulting [builtins] or [toFake]; nothing here
+         * changes that.
          *
          * The dispatch *key* is always the original type — the one `isAny<T>()`/etc. will actually
          * ask for at runtime (e.g. `SItf::class`, not `SItf.C::class`) — even when [resolveSealedTarget]
@@ -857,14 +884,16 @@ class MocKMPProcessor(
         }
 
         private fun seedImplicitPlaceholder(type: KSType, path: List<String>) {
-            if (type.nullability != Nullability.NOT_NULL) return
-            var resolved = type.unwrapAliases()
+            var resolved = type.unwrapAliases().makeNotNullable()
             if (resolved.isAnyFunctionType) {
                 registerFunctionShape(resolved)
                 return
             }
             if (resolved.declaration is KSTypeParameter) {
-                resolved = (resolved.declaration as KSTypeParameter).bounds.first().resolve().unwrapAliases()
+                // The bound is a fresh KSType, independent of the makeNotNullable() above — an
+                // unbounded `<T>`'s implicit bound is `Any?`, and needs the same treatment, or the
+                // identical bug would remain for an unbounded generic parameter.
+                resolved = (resolved.declaration as KSTypeParameter).bounds.first().resolve().unwrapAliases().makeNotNullable()
                 if (resolved.isAnyFunctionType) {
                     registerFunctionShape(resolved)
                     return
