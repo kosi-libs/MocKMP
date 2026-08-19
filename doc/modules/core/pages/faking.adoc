@@ -48,6 +48,18 @@ Here are the rules the processor uses to generate fakes:
 * Numeric values are set to `0`.
 * `String` values are set to empty `""`.
 * `Nothing` values throw an `UnsupportedOperationException` when reached, since none can exist.
+* `List`, `Set`, `Map` and their concrete variants (`ArrayList`, `ArrayDeque`, `HashSet`,
+  `LinkedHashSet`, `HashMap`, `LinkedHashMap`) are faked empty, and `Array` is faked as an empty
+  array.
+* When `kotlinx.coroutines` is on the classpath, its types are faked as real, inert instances rather
+  than a generated implementation: `Flow` as `emptyFlow()`; `SharedFlow`/`MutableSharedFlow` as
+  `MutableSharedFlow()`; `StateFlow`/`MutableStateFlow` as `MutableStateFlow(<faked value>)` — the
+  wrapped value is faked exactly like any other property, so `StateFlow<User>` holds a faked `User`
+  and `StateFlow<User?>` holds `null`; `Channel`/`ReceiveChannel`/`SendChannel` as `Channel()`;
+  `Job`/`CompletableJob` as `Job()`; `Deferred`/`CompletableDeferred` as `CompletableDeferred()`;
+  `CoroutineScope` as `CoroutineScope(EmptyCoroutineContext)`; `Mutex` as `Mutex()`; `Semaphore` as
+  `Semaphore(1)`. `kotlin.coroutines.CoroutineContext` is always faked as `EmptyCoroutineContext`,
+  coroutines dependency or not, since it's part of the Kotlin standard library.
 * Other non-nullable non-primitive values are faked.
 
 [TIP]
@@ -144,6 +156,10 @@ fun provideFakeInstant() = Instant.fromEpochSeconds(0)
 ----
 
 CAUTION: There can be only one provider per type, and it needs to be a top-level function.
+
+TIP: A `@FakeProvider` also overrides how any of the types above — including collections and
+coroutines types — is faked, for that exact type. A provider for `List<String>` only replaces
+`emptyList()` where a `List<String>` is faked; a `List<Int>` elsewhere is unaffected.
 
 
 == Generics

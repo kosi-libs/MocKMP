@@ -50,6 +50,7 @@ kotlin {
             kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonMain/kotlin") })
             dependencies {
                 implementation(libs.kotlinx.datetime)
+                implementation(libs.kotlinx.coroutines.core)
             }
         }
         commonTest {
