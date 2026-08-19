@@ -69,6 +69,17 @@ class BehaviourTests {
     }
 
     @Test
+    fun testNothingReturningFunctionCanOnlyRunAThrow() {
+        // No value of type Nothing exists, so `newNever()` cannot be given a `returns` stub — only
+        // one that itself never returns.
+        val bar = mocker.mock<Bar>()
+        mocker.every { bar.newNever() } runs { error("This is a test!") }
+
+        val ex = assertFailsWith<IllegalStateException> { bar.newNever() }
+        assertEquals("This is a test!", ex.message)
+    }
+
+    @Test
     fun testReturnsNull() {
         val foo = mocker.mock<Foo<Bar>>()
         mocker.every { foo.newStringNullable() } returns null

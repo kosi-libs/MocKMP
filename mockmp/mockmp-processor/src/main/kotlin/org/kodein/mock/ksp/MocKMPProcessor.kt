@@ -46,6 +46,7 @@ class MocKMPProcessor(
 
     private companion object {
         val mockerTypeName = ClassName("org.kodein.mock", "Mocker")
+        val lazyFakeTypeName = ClassName("org.kodein.mock", "LazyFake")
 
         // Fully-qualified names of the annotations MocKMP looks for.
         const val ANNOTATION_MOCK = "org.kodein.mock.Mock"
@@ -65,35 +66,93 @@ class MocKMPProcessor(
         val IDENTITY_MEMBERS = listOf("equals", "hashCode")
 
         /**
-         * Types for which a literal placeholder can be emitted directly instead of generating (or
-         * looking up) a `fakeXxx()` function. Maps a type's qualified name to a KotlinPoet format
-         * string and its single format argument (a literal, or a [MemberName] to a factory function).
+         * A literal placeholder that can be emitted directly for a [builtins] type, instead of
+         * generating (or looking up) a `fakeXxx()` function.
+         *
+         * @property template A KotlinPoet format string.
+         * @property args Its format arguments — literals, or [MemberName]s to a factory function.
+         * @property typeArgArity How many type arguments [generatePlaceholderAccessor] must spell
+         *   out explicitly. That call site's target type is just `Any`, so — unlike every other use
+         *   of [template] ([fakeInitializerOf], always in a context with a known target type — a
+         *   named constructor argument, a typed property — that lets a generic factory infer its
+         *   argument) it is the one place arity has to be stated rather than inferred.
+         * @property external Not part of the Kotlin standard library, so unlike every other entry it
+         *   isn't guaranteed to be on the classpath of every module the processor runs in — its
+         *   [generatePlaceholderAccessor] branch has to be gated on the module actually having it.
+         */
+        data class Builtin(val template: String, val args: List<Any>, val typeArgArity: Int = 0, val external: Boolean = false) {
+            constructor(template: String, arg: Any, typeArgArity: Int = 0, external: Boolean = false) :
+                    this(template, listOf(arg), typeArgArity, external)
+        }
+
+        /**
+         * Types for which a [Builtin] placeholder exists, keyed by qualified name.
+         *
+         * `kotlin.Nothing` is the one entry that isn't a value: it has none by construction, so its
+         * "placeholder" is a throw expression instead — the only thing that can stand in for it at
+         * every use site ([fakeInitializerOf]'s callers).
+         *
+         * `kotlin.reflect.KClass`/`java.lang.Class`/`kotlinx.coroutines.flow.StateFlow`/
+         * `MutableStateFlow` are the only entries whose value depends on the *specific* type being
+         * faked — `KClass<String>` and `KClass<Int>` need different literals, and
+         * `StateFlow<Foo>`/`StateFlow<Bar>` need different faked contents, unlike an empty
+         * collection, which is valid for any element type. The entries here are only the fallback
+         * for callers with no such context ([generatePlaceholderAccessor]'s erased `KClass<*>`
+         * dispatch); [fakeInitializerOf] special-cases all four qualified names to derive the real
+         * value from the type argument instead of using this map.
          */
         val builtins = mapOf(
-            "kotlin.Unit" to ("%L" to "Unit"),
-            "kotlin.Boolean" to ("%L" to "false"),
-            "kotlin.Byte" to ("%L" to "0"),
-            "kotlin.Short" to ("%L" to "0"),
-            "kotlin.Int" to ("%L" to "0"),
-            "kotlin.Long" to ("%L" to "0L"),
-            "kotlin.Float" to ("%L" to "0f"),
-            "kotlin.Double" to ("%L" to "0.0"),
-            "kotlin.String" to ("%L" to "\"\""),
-            "kotlin.collections.List" to ("%M()" to MemberName("kotlin.collections", "emptyList")),
-            "kotlin.collections.ArrayList" to ("%M()" to MemberName("kotlin.collections", "ArrayList")),
-            "java.util.ArrayList" to ("%M()" to MemberName("kotlin.collections", "ArrayList")),
-            "kotlin.collections.ArrayDeque" to ("%M()" to MemberName("kotlin.collections", "ArrayDeque")),
-            "kotlin.collections.Set" to ("%M()" to MemberName("kotlin.collections", "emptySet")),
-            "kotlin.collections.HashSet" to ("%M()" to MemberName("kotlin.collections", "HashSet")),
-            "java.util.HashSet" to ("%M()" to MemberName("kotlin.collections", "HashSet")),
-            "kotlin.collections.LinkedHashSet" to ("%M()" to MemberName("kotlin.collections", "LinkedHashSet")),
-            "java.util.LinkedHashSet" to ("%M()" to MemberName("kotlin.collections", "LinkedHashSet")),
-            "kotlin.collections.Map" to ("%M()" to MemberName("kotlin.collections", "emptyMap")),
-            "kotlin.collections.HashMap" to ("%M()" to MemberName("kotlin.collections", "HashMap")),
-            "java.util.HashMap" to ("%M()" to MemberName("kotlin.collections", "HashMap")),
-            "kotlin.collections.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
-            "java.util.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
-            "kotlin.Array" to ("%M()" to MemberName("kotlin", "emptyArray"))
+            "kotlin.Nothing" to Builtin("throw %T(\"Nothing\")", ClassName("kotlin", "UnsupportedOperationException")),
+            "kotlin.Unit" to Builtin("%L", "Unit"),
+            "kotlin.Boolean" to Builtin("%L", "false"),
+            "kotlin.Byte" to Builtin("%L", "0"),
+            "kotlin.Short" to Builtin("%L", "0"),
+            "kotlin.Int" to Builtin("%L", "0"),
+            "kotlin.Long" to Builtin("%L", "0L"),
+            "kotlin.Float" to Builtin("%L", "0f"),
+            "kotlin.Double" to Builtin("%L", "0.0"),
+            "kotlin.String" to Builtin("%L", "\"\""),
+            "kotlin.collections.List" to Builtin("%M()", MemberName("kotlin.collections", "emptyList"), typeArgArity = 1),
+            "kotlin.collections.ArrayList" to Builtin("%M()", MemberName("kotlin.collections", "ArrayList"), typeArgArity = 1),
+            "java.util.ArrayList" to Builtin("%M()", MemberName("kotlin.collections", "ArrayList"), typeArgArity = 1),
+            "kotlin.collections.ArrayDeque" to Builtin("%M()", MemberName("kotlin.collections", "ArrayDeque"), typeArgArity = 1),
+            "kotlin.collections.Set" to Builtin("%M()", MemberName("kotlin.collections", "emptySet"), typeArgArity = 1),
+            "kotlin.collections.HashSet" to Builtin("%M()", MemberName("kotlin.collections", "HashSet"), typeArgArity = 1),
+            "java.util.HashSet" to Builtin("%M()", MemberName("kotlin.collections", "HashSet"), typeArgArity = 1),
+            "kotlin.collections.LinkedHashSet" to Builtin("%M()", MemberName("kotlin.collections", "LinkedHashSet"), typeArgArity = 1),
+            "java.util.LinkedHashSet" to Builtin("%M()", MemberName("kotlin.collections", "LinkedHashSet"), typeArgArity = 1),
+            "kotlin.collections.Map" to Builtin("%M()", MemberName("kotlin.collections", "emptyMap"), typeArgArity = 2),
+            "kotlin.collections.HashMap" to Builtin("%M()", MemberName("kotlin.collections", "HashMap"), typeArgArity = 2),
+            "java.util.HashMap" to Builtin("%M()", MemberName("kotlin.collections", "HashMap"), typeArgArity = 2),
+            "kotlin.collections.LinkedHashMap" to Builtin("%M()", MemberName("kotlin.collections", "LinkedHashMap"), typeArgArity = 2),
+            "java.util.LinkedHashMap" to Builtin("%M()", MemberName("kotlin.collections", "LinkedHashMap"), typeArgArity = 2),
+            "kotlin.Array" to Builtin("%M()", MemberName("kotlin", "emptyArray"), typeArgArity = 1),
+            "kotlin.reflect.KClass" to Builtin("%T::class", ClassName("kotlin", "Any")),
+            "java.lang.Class" to Builtin("%T::class.java", ClassName("kotlin", "Any")),
+            // EmptyCoroutineContext is a singleton object, not a top-level function or property, so
+            // it's referenced by its ClassName (%T), the same way any other object singleton is
+            // (see the sealedObjectSubclasses branch in generatePlaceholderAccessor) — not MemberName
+            // (%M), which every other entry here uses to call a top-level factory function.
+            "kotlin.coroutines.CoroutineContext" to Builtin("%T", ClassName("kotlin.coroutines", "EmptyCoroutineContext")),
+            "kotlinx.coroutines.flow.Flow" to Builtin("%M()", MemberName("kotlinx.coroutines.flow", "emptyFlow"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.flow.SharedFlow" to Builtin("%M()", MemberName("kotlinx.coroutines.flow", "MutableSharedFlow"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.flow.MutableSharedFlow" to Builtin("%M()", MemberName("kotlinx.coroutines.flow", "MutableSharedFlow"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.flow.StateFlow" to Builtin("%M<Any?>(null)", MemberName("kotlinx.coroutines.flow", "MutableStateFlow"), external = true),
+            "kotlinx.coroutines.flow.MutableStateFlow" to Builtin("%M<Any?>(null)", MemberName("kotlinx.coroutines.flow", "MutableStateFlow"), external = true),
+            "kotlinx.coroutines.channels.Channel" to Builtin("%M()", MemberName("kotlinx.coroutines.channels", "Channel"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.channels.ReceiveChannel" to Builtin("%M()", MemberName("kotlinx.coroutines.channels", "Channel"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.channels.SendChannel" to Builtin("%M()", MemberName("kotlinx.coroutines.channels", "Channel"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.Job" to Builtin("%M()", MemberName("kotlinx.coroutines", "Job"), external = true),
+            "kotlinx.coroutines.CompletableJob" to Builtin("%M()", MemberName("kotlinx.coroutines", "Job"), external = true),
+            // `CompletableDeferred` is both an interface name and a top-level factory function name
+            // (`fun <T> CompletableDeferred(parent: Job? = null): CompletableDeferred<T>`) — %M, not
+            // %T, since it's the function being called, not the interface being constructed (which,
+            // like Deferred, has none).
+            "kotlinx.coroutines.Deferred" to Builtin("%M()", MemberName("kotlinx.coroutines", "CompletableDeferred"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.CompletableDeferred" to Builtin("%M()", MemberName("kotlinx.coroutines", "CompletableDeferred"), typeArgArity = 1, external = true),
+            "kotlinx.coroutines.CoroutineScope" to Builtin("%M(%T)", listOf(MemberName("kotlinx.coroutines", "CoroutineScope"), ClassName("kotlin.coroutines", "EmptyCoroutineContext")), external = true),
+            "kotlinx.coroutines.sync.Mutex" to Builtin("%M()", MemberName("kotlinx.coroutines.sync", "Mutex"), external = true),
+            "kotlinx.coroutines.sync.Semaphore" to Builtin("%M(1)", MemberName("kotlinx.coroutines.sync", "Semaphore"), external = true),
         )
     }
 
@@ -117,6 +176,9 @@ class MocKMPProcessor(
 
     /** True when [this] type is `kotlin.Unit`, through any `typealias`. */
     private fun KSType.isUnit(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Unit"
+
+    /** True when [this] type is `kotlin.Nothing`, through any `typealias`. */
+    private fun KSType.isNothing(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Nothing"
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
@@ -383,6 +445,34 @@ class MocKMPProcessor(
         /** User-supplied `@FakeProvider` functions, keyed by the type they provide a fake for. */
         private val providedFakes = LinkedHashMap<KSType, KSFunctionDeclaration>()
 
+        /**
+         * True when a faked property of [this] type should be wrapped `by LazyFake { ... }` instead of
+         * getting a plain initializer — every case where [fakeValueOf] resolves to a nested `fakeXxx()`
+         * or `@FakeProvider` call rather than a literal. Deferring that call is what lets a
+         * self-referential type (`interface Node { val parent: Node }`) be faked at all: an eager
+         * `override val parent: Node = fakeNode()` would recurse building its own `parent`, forever.
+         *
+         * A member of [Round], unlike the rest of the small `KSType` predicates above it, because it
+         * has to consult [providedFakes]: a `@FakeProvider`-backed value is a function call too, and
+         * needs the same deferral as a nested `fakeXxx()` call.
+         *
+         * `null`, a lambda literal, and a plain (non-`StateFlow`) builtin (see [builtins]) are
+         * excluded: their value is already either not built at all, or built without recursing into
+         * another `fakeXxx()`/provider call. `StateFlow<T>`/`MutableStateFlow<T>` is a builtin that
+         * *can* need one — `MutableStateFlow(fakeFoo())` — so it defers to whether its type argument does.
+         */
+        private fun KSType.needsLazyFake(): Boolean {
+            if (nullability != Nullability.NOT_NULL) return false
+            if (isAnyFunctionType) return false
+            val resolvedType = unwrapAliases()
+            if (resolvedType in providedFakes) return true
+            val qualifiedName = resolvedType.declaration.qualifiedName?.asString()
+            if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
+                return resolvedType.arguments.first().type!!.resolve().needsLazyFake()
+            }
+            return qualifiedName !in builtins
+        }
+
         /** Properties annotated `@Mock`/`@Fake`, grouped by enclosing class — consumed by [generateInjector]. */
         private val toInject = LinkedHashMap<KSClassDeclaration, ArrayList<Pair<String, KSPropertyDeclaration>>>()
 
@@ -461,37 +551,78 @@ class MocKMPProcessor(
 
         /**
          * Registers [type] as needing a `fakeXxx()` function, or fails if it isn't a fakeable
-         * type. [type] is resolved through any `typealias` chain first (e.g. `kotlin.Exception`
-         * on the JVM target), so the registration key, and every check below, target the real
-         * underlying type. Sealed classes/interfaces are allowed through — [generateFakeFunction]
-         * resolves them to a constructible permitted subclass at generation time. [implicit] marks
-         * entries discovered by [seedImplicitPlaceholders] rather than requested directly, and [path]
-         * records what led here — reported by every rejection below, and by [reportUnfakeable] when
-         * the type only turns out to be unfakeable at generation time.
+         * type — resolved the same way [valueTypeToFake] resolves a nested occurrence, so the two
+         * agree on what "the type to fake" actually is here: nullable, builtin, and function types
+         * are silently skipped rather than validated, exactly as they would be if [type] were
+         * reached as a constructor parameter or an implemented member instead of directly (a
+         * nullable value is simply `null`; a builtin's value is a literal, see [fakeInitializerOf];
+         * a function type's value is an inline lambda, never a generated implementation of
+         * `Function1` & co. — which Kotlin/JS forbids a class from declaring as a supertype — so
+         * only its return type, if any, might still need registering). [type] is also resolved
+         * through any `typealias` chain (e.g. `kotlin.Exception` on the JVM target), so the
+         * registration key, and every check below, target the real underlying type. Sealed
+         * classes/interfaces are allowed through — [generateFakeFunction] resolves them to a
+         * constructible permitted subclass at generation time. [implicit] marks entries discovered
+         * by [seedImplicitPlaceholders] rather than requested directly, and [path] records what led
+         * here — reported by every rejection below, and by [reportUnfakeable] when the type only
+         * turns out to be unfakeable at generation time.
          *
          * Interfaces and abstract classes are fakeable too: rather than being instantiated, they get
-         * a generated `FakeXxx` implementation (see [addFakeImplementation]). What is left to reject
-         * here are the kinds that can be neither constructed nor implemented: annotation classes, and
-         * objects — which are already their own single instance.
+         * a generated `FakeXxx` implementation (see [addFakeImplementation]). Objects and annotation
+         * classes are fakeable as well — a bare reference to the singleton, and a constructor call,
+         * respectively (see [generateFakeFunction]). What is left to reject here is a type parameter
+         * or other non-class declaration, neither of which is a builtin either.
          */
         private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false, path: List<String> = emptyList()) {
-            val resolvedType = type.unwrapAliases()
+            // Syntactic nullability (`T?`), not KSP's semantic Nullability enum: unlike every other
+            // caller of this "skip if nullable" idiom (valueTypeToFake, fakeValueOf), [type] here can
+            // be a bare, unsubstituted type parameter straight off a property declaration — and KSP
+            // reports Nullability.NULLABLE for one of those whenever its bound is (or defaults to)
+            // nullable, same as it does for a genuinely nullable type, even though nothing marks it
+            // with `?`. Falling through on that would silently swallow `@Fake lateinit var x: T`
+            // (inside the very class `T` belongs to) as "nothing to do", instead of correctly still
+            // reaching the type-parameter rejection below — there is no concrete type to construct a
+            // value of, so not even `null` is a valid instance of a type that isn't marked nullable.
+            if (type.isMarkedNullable) return
+            var resolvedType = type.unwrapAliases()
+            if (resolvedType.isAnyFunctionType) {
+                // Two shapes can't be unwrapped to a fakeable return type: a raw, unparameterized
+                // reference — only reachable from a KClass literal (e.g.
+                // `@UsesFakes(Function1::class)`), never from a genuine declared type — has none at
+                // all; and a function *returning* a function, whose return type is itself a function
+                // type. Both are rejected the same way a plain function type always was: registering
+                // the inner function type would only "succeed" by generating exactly the shape this
+                // check exists to prevent — a class declaring Function1 & co. as a supertype, which
+                // Kotlin/JS forbids — since fakeValueOf's inline lambda generation only inlines one
+                // level itself (it calls fakeInitializerOf directly on the return type, which has no
+                // function-type handling of its own).
+                val returnType = resolvedType.arguments.lastOrNull()?.type?.resolve()
+                if (returnType == null || returnType.isAnyFunctionType) {
+                    error(node, "Cannot generate a fake for the function type ${resolvedType.toTypeName()}. Please use @Mock instead, which mocks a function type as a callable mock.")
+                }
+                resolvedType = returnType.unwrapAliases()
+            }
             val decl = resolvedType.declaration
+            val qualifiedName = decl.qualifiedName?.asString()
+
+            // Unlike every other builtin, StateFlow/MutableStateFlow's value embeds a faked instance
+            // of its type argument (see fakeInitializerOf) — so, unlike returning outright below,
+            // that argument still has to be registered here, exactly as a constructor parameter type
+            // would be by expandTransitiveFakes.
+            if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
+                resolvedType.arguments.firstOrNull()?.type?.resolve()
+                    ?.let { addFake(it, files, node, implicit, path) }
+                return
+            }
+
+            if (qualifiedName in builtins) return
 
             if (decl !is KSClassDeclaration) {
                 val reason = if (decl is KSTypeParameter) "it is a type parameter, which has no concrete type to construct" else "it is not a class"
                 cannotFake(node, decl.displayName(), reason, path)
             }
-            // Function types resolve to an interface declaration (`kotlin.Function1` & co.), so
-            // without this they would take the implementation path below — and Kotlin/JS rejects a
-            // class declaring a function interface as a supertype outright. A faked *value* of a
-            // function type is still supported everywhere it appears inside another fake, as a no-op
-            // lambda (see [fakeValueOf]); it is only faking one as a target of its own that isn't.
-            if (resolvedType.isAnyFunctionType) {
-                error(node, "Cannot generate a fake for the function type ${resolvedType.toTypeName()}. Please use @Mock instead, which mocks a function type as a callable mock.")
-            }
             val isSealed = Modifier.SEALED in decl.modifiers
-            if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE)) {
+            if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE, ClassKind.OBJECT, ClassKind.ANNOTATION_CLASS)) {
                 cannotFake(node, decl.displayName(), "${decl.classKind.plural()} cannot be instantiated", path)
             }
             toFake.getOrPut(resolvedType) { ToProcess().apply { this.implicit = implicit; this.path = path } }.let {
@@ -701,8 +832,35 @@ class MocKMPProcessor(
         /**
          * Registers one type reachable from a mocked interface's signatures as needing a
          * placeholder, unless it's already covered: [builtins], an existing [toMock] entry, or an
-         * existing [toFake] entry. Nullable types need no placeholder (`null` is a valid one). An
-         * unresolved type parameter is substituted with its first bound, same as [asBoundedType].
+         * existing [toFake] entry. An unresolved type parameter is substituted with its first bound,
+         * same as [asBoundedType].
+         *
+         * A nullable reference is registered under its non-nullable form ([KSType.makeNotNullable]),
+         * not skipped: `isAny<T>()` and every other `ArgConstraintsBuilder` constraint
+         * (`toReturn(constraint, T::class)`) resolves its placeholder through the *erased* `T::class`
+         * — never `typeOf<T>()`, which would preserve nullability but fails to compile wherever the
+         * same reified `T` might be inferred as a suspend functional type elsewhere ("Suspend
+         * functional types are not supported in typeOf", see
+         * [KT-47562](https://youtrack.jetbrains.com/projects/KT/issues/KT-47562)) — so there is no
+         * way, at that call site, to tell "`T` was `Suit`" apart from "`T` was `Suit?`". A real,
+         * non-null placeholder is needed either way, even for a parameter/property/return type that
+         * is only ever referenced nullably. Registering under the non-nullable form is also what
+         * correctly deduplicates onto the same entry a non-nullable reference to the same class would
+         * produce, instead of minting a separate, useless `fakeNulXxx(): Xxx?` one.
+         *
+         * Once KT-47562 is fixed, `typeOf<T>()` becomes usable in `ArgConstraintsBuilder`'s constraint
+         * functions regardless of what `T` might be — including a suspend functional type — and they
+         * could resolve a placeholder from it instead of from `T::class`. `typeOf<T>()`, unlike
+         * `T::class`, preserves nullability, so a nullable `T` could then be recognized and answered
+         * with `null` directly, without needing a real placeholder at all — at which point this
+         * workaround (registering a nullable-only-referenced type under its non-nullable form so
+         * *some* placeholder exists for it) could be undone, and nullable references could go back to
+         * being ignored here, the way they were before this fix.
+         *
+         * This is unrelated to whether a nullable *value* needs building — [KSType.needsLazyFake],
+         * [valueTypeToFake] and [fakeValueOf] still fake a nullable property/parameter/return as a
+         * plain `null` immediately, before ever consulting [builtins] or [toFake]; nothing here
+         * changes that.
          *
          * The dispatch *key* is always the original type — the one `isAny<T>()`/etc. will actually
          * ask for at runtime (e.g. `SItf::class`, not `SItf.C::class`) — even when [resolveSealedTarget]
@@ -726,14 +884,16 @@ class MocKMPProcessor(
         }
 
         private fun seedImplicitPlaceholder(type: KSType, path: List<String>) {
-            if (type.nullability != Nullability.NOT_NULL) return
-            var resolved = type.unwrapAliases()
+            var resolved = type.unwrapAliases().makeNotNullable()
             if (resolved.isAnyFunctionType) {
                 registerFunctionShape(resolved)
                 return
             }
             if (resolved.declaration is KSTypeParameter) {
-                resolved = (resolved.declaration as KSTypeParameter).bounds.first().resolve().unwrapAliases()
+                // The bound is a fresh KSType, independent of the makeNotNullable() above — an
+                // unbounded `<T>`'s implicit bound is `Any?`, and needs the same treatment, or the
+                // identical bug would remain for an unbounded generic parameter.
+                resolved = (resolved.declaration as KSTypeParameter).bounds.first().resolve().unwrapAliases().makeNotNullable()
                 if (resolved.isAnyFunctionType) {
                     registerFunctionShape(resolved)
                     return
@@ -853,7 +1013,10 @@ class MocKMPProcessor(
          * The type a fake has to be generated for, to produce a value of [type] — or `null` when no
          * generation is needed: [type] is nullable (the value is `null`), is a [builtins] type, or
          * already has a fake ([providedFakes] or [toFake]). A function type unwraps to its return
-         * type, since its value is a lambda returning a fake of that.
+         * type, since its value is a lambda returning a fake of that — and `StateFlow<T>`/
+         * `MutableStateFlow<T>` unwraps to `T`, since its value is `MutableStateFlow(<faked T>)`
+         * (see [fakeInitializerOf]) — unless [providedFakes] already covers the *whole* `StateFlow<T>`
+         * itself, in which case `T` needs no fake of its own either.
          *
          * The discovery-side counterpart of [fakeValueOf], which emits the value itself: the two
          * must agree on which types need a `fakeXxx()` function, or generation would emit a call to
@@ -864,7 +1027,12 @@ class MocKMPProcessor(
             val valueType = if (type.isAnyFunctionType) type.arguments.last().type!!.resolve() else type
             // Resolved so the result matches the keys addFake/providedFakes actually use (see unwrapAliases).
             val resolvedType = valueType.unwrapAliases()
-            return resolvedType.takeIf { it.declaration.qualifiedName?.asString() !in builtins && it !in providedFakes && it !in toFake }
+            if (resolvedType in providedFakes) return null
+            val qualifiedName = resolvedType.declaration.qualifiedName?.asString()
+            if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
+                return resolvedType.arguments.firstOrNull()?.type?.resolve()?.let { valueTypeToFake(it) }
+            }
+            return resolvedType.takeIf { qualifiedName !in builtins && it !in toFake }
         }
 
         /**
@@ -1255,13 +1423,24 @@ class MocKMPProcessor(
         // region Phase 4: fake generation
 
         /**
-         * Resolves how to initialize a value of [type], as a KotlinPoet `(format, arg)` pair
-         * suitable for `addStatement("... $template ...", ..., value)`:
-         *  1. a [builtins] literal or factory call, if [type] (after unwrapping any type alias) is one;
-         *  2. a call to the user's `@FakeProvider` function, if one was registered for [type];
-         *  3. otherwise, a call to the generated `fakeXxx()` function for [type].
+         * Resolves how to initialize a value of [type], as a KotlinPoet `(format, args)` pair
+         * suitable for `addStatement("... $template ...", ..., *args)`:
+         *  1. a call to the user's `@FakeProvider` function, if one was registered for [type] —
+         *     checked first so it can override any of the cases below, exactly the same way a
+         *     provider for a non-builtin type already takes priority over generating a `fakeXxx()`;
+         *  2. `T::class`, if [type] (after unwrapping any type alias) is `KClass<T>`/`Class<T>` — one
+         *     of three [builtins] entries whose value isn't context-free, so it can't be read off the
+         *     map like every other one below; a star-projected or otherwise unresolvable `T` falls
+         *     back to `Any::class`, exactly as the map entry itself does for callers with no [type]
+         *     to inspect ([generatePlaceholderAccessor]);
+         *  3. `MutableStateFlow(<faked T>)`, if [type] is `StateFlow<T>`/`MutableStateFlow<T>` — the
+         *     other two such entries: recursing through [fakeValueOf] is what makes a `StateFlow<Foo>`
+         *     hold a nested fake, `StateFlow<Foo?>` hold `null`, and so on, the same as any other
+         *     faked value of type `T`;
+         *  4. a [builtins] literal or factory call, if [type] is one;
+         *  5. otherwise, a call to the generated `fakeXxx()` function for [type].
          *
-         * Any file backing a case-2 provider is added to [filesDeps] so the generated file
+         * Any file backing a case-1 provider is added to [filesDeps] so the generated file
          * correctly depends on it.
          *
          * NOTE: this unifies what used to be two separately-inlined copies of this resolution (one
@@ -1270,18 +1449,32 @@ class MocKMPProcessor(
          * through [fakePackageName] — both are applied uniformly now; the difference is unreachable
          * for any type already covered by [builtins], which is the only stdlib case exercised today.
          */
-        private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, Any> {
+        private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, List<Any>> {
             val resolvedType = type.unwrapAliases()
             val decl = resolvedType.declaration
-            val builtIn = builtins[decl.qualifiedName!!.asString()]
+            val qualifiedName = decl.qualifiedName!!.asString()
+            if (resolvedType in providedFakes) {
+                val f = providedFakes[resolvedType]!!
+                f.containingFile?.let { filesDeps += it }
+                return "%M()" to listOf(MemberName(f.packageName.asString(), f.simpleName.asString()))
+            }
+            if (qualifiedName == "kotlin.reflect.KClass" || qualifiedName == "java.lang.Class") {
+                val argClassName = (resolvedType.arguments.firstOrNull()?.type?.resolve()?.declaration as? KSClassDeclaration)
+                    ?.toClassName()
+                    ?: ClassName("kotlin", "Any")
+                // `String::class` is a KClass<String>; `java.lang.Class<String>` needs the `.java`
+                // conversion property on top of it.
+                val template = if (qualifiedName == "java.lang.Class") "%T::class.java" else "%T::class"
+                return template to listOf(argClassName)
+            }
+            if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
+                val (innerTemplate, innerArgs) = fakeValueOf(resolvedType.arguments.first().type!!.resolve(), filesDeps)
+                return "%M($innerTemplate)" to (listOf(MemberName("kotlinx.coroutines.flow", "MutableStateFlow")) + innerArgs)
+            }
+            val builtIn = builtins[qualifiedName]
             return when {
-                builtIn != null -> builtIn
-                resolvedType in providedFakes -> {
-                    val f = providedFakes[resolvedType]!!
-                    f.containingFile?.let { filesDeps += it }
-                    "%M()" to MemberName(f.packageName.asString(), f.simpleName.asString())
-                }
-                else -> "%M()" to MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}")
+                builtIn != null -> builtIn.template to builtIn.args
+                else -> "%M()" to listOf(MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}"))
             }
         }
 
@@ -1345,14 +1538,11 @@ class MocKMPProcessor(
                 if (vReturnType.isUnit()) {
                     "{ $vLambdaParams-> }" to emptyList()
                 } else {
-                    val (template, value) = fakeInitializerOf(vReturnType, filesDeps)
-                    "{ $vLambdaParams-> $template }" to listOf(value)
+                    val (template, values) = fakeInitializerOf(vReturnType, filesDeps)
+                    "{ $vLambdaParams-> $template }" to values
                 }
             }
-            else -> {
-                val (template, value) = fakeInitializerOf(type, filesDeps)
-                template to listOf(value)
-            }
+            else -> fakeInitializerOf(type, filesDeps)
         }
 
         /**
@@ -1372,25 +1562,50 @@ class MocKMPProcessor(
 
         /**
          * The faked override of one abstract property of an implemented interface or abstract class,
-         * e.g. for `val bar: String` and mutable `var baz: Data`:
+         * e.g. for `val bar: String`, mutable `var baz: Data`, and `val dir: SomeDirection`:
          *
          * ```
          * override val bar: String = ""
          * override var baz: Data = fakeData()
+         * override val dir: SomeDirection by LazyFake { fakeSomeDirection() }
          * ```
          *
          * [vPropType] is the property's type *as a member of* the implemented instantiation, so a
-         * `val content: T` of `GenItf<String>` is faked as a `String`. Values are held, not
-         * recomputed on each access: a fake is a value, and a `var` needs a backing field anyway.
+         * `val content: T` of `GenItf<String>` is faked as a `String`.
+         *
+         * A property whose value is a nested `fakeXxx()`/`@FakeProvider` call ([KSType.needsLazyFake])
+         * is deferred through [LazyFake] rather than built eagerly: an eager `override val parent:
+         * Node = fakeNode()` would recurse forever faking a self-referential type
+         * (`interface Node { val parent: Node }`), where building `parent` requires building
+         * `parent.parent`, and so on. Deferring the call to first read breaks that chain — and, for
+         * every property, still holds the value rather than recomputing it, [LazyFake] itself doing
+         * what a plain initializer's backing field otherwise would.
+         *
+         * A `Nothing`-typed property (`val impossible: Nothing`) is the other exception: no value of
+         * that type exists to hold or defer, so instead of an initializer it gets a getter that
+         * throws — `override val impossible: Nothing get() = throw ...` — the same "throws if
+         * reached, but doesn't stop the fake from being constructed" contract a `Nothing`-returning
+         * function gets (see [fakedFunction]). A backing-field-less `var` also needs an explicit
+         * (no-op) setter, same as the `LazyFake` case needs none — [LazyFake] is itself the backing
+         * field there.
          */
         private fun fakedProperty(vProp: KSPropertyDeclaration, vPropType: KSType, filesDeps: MutableSet<KSFile>): PropertySpec {
             val (template, values) = fakeValueOf(vPropType, filesDeps)
-            return PropertySpec.builder(vProp.simpleName.asString(), vPropType.toMemberTypeName())
+            val builder = PropertySpec.builder(vProp.simpleName.asString(), vPropType.toMemberTypeName())
                 .addModifiers(KModifier.OVERRIDE)
                 .mutable(vProp.isMutable)
                 .addAnnotations(vProp.overrideAnnotations())
-                .initializer(template, *values.toTypedArray())
-                .build()
+            return when {
+                vPropType.isNothing() -> builder
+                    .getter(FunSpec.getterBuilder().addStatement(template, *values.toTypedArray()).build())
+                    .apply {
+                        if (vProp.isMutable) setter(FunSpec.setterBuilder().addParameter("value", vPropType.toMemberTypeName()).build())
+                    }
+                    .build()
+                vPropType.needsLazyFake() ->
+                    builder.delegate("%T { $template }", lazyFakeTypeName, *values.toTypedArray()).build()
+                else -> builder.initializer(template, *values.toTypedArray()).build()
+            }
         }
 
         /**
@@ -1435,6 +1650,12 @@ class MocKMPProcessor(
             gFun.returns(vReturnType.toMemberTypeName(typeParamResolver))
             when {
                 vReturnType.isUnit() -> {} // No body at all: a no-op function is what this generates.
+                vReturnType.isNothing() -> {
+                    // `return $template` would emit `return throw ...`, whose `return` is
+                    // unreachable and triggers a compiler warning; the throw alone is a valid body.
+                    val (template, values) = fakeValueOf(vReturnType, filesDeps)
+                    gFun.addStatement(template, *values.toTypedArray())
+                }
                 vReturnType.mentionsTypeParameter() -> {
                     // Nullability is part of KSType equality, so a `T?` parameter is not returned as
                     // a `T`. A vararg is excluded because KSP reports its element type: the generated
@@ -1543,17 +1764,19 @@ class MocKMPProcessor(
         /**
          * Generates the top-level `fakeXxx(): Xxx` function for [vType], into its own file. Sealed
          * classes/interfaces are first resolved to their first constructible permitted subclass, with
-         * that subclass's own type arguments (see [resolveSealedTargetType]) — a class fake then
-         * constructs the type via
-         * [addFakeClassConstructorCall], an enum fake returns its first entry via
-         * [addFakeFirstEnumEntry], an object fake is a plain reference, and an interface or abstract
-         * class fake instantiates the `FakeXxx` implementation [addFakeImplementation] generates into
-         * the same file:
+         * that subclass's own type arguments (see [resolveSealedTargetType]) — a class or annotation
+         * class fake constructs the type via [addFakeClassConstructorCall] (an annotation class's
+         * constructor is called the same way any other class's is, only its declared parameter
+         * types differ), an enum fake returns its first entry via [addFakeFirstEnumEntry], an object
+         * fake is a plain reference, and an interface or abstract class fake instantiates the
+         * `FakeXxx` implementation [addFakeImplementation] generates into the same file:
          *
          * ```
          * internal fun fakeFoo(): Foo = Foo(bar = "")
          * internal fun fakeDirection(): Direction = Direction.NORTH
          * internal fun fakeSCls(): SCls = SCls.O
+         * internal fun fakeSingleton(): Singleton = Singleton
+         * internal fun fakeAnno(): Anno = Anno(name = "")
          * internal fun fakeApi(): Api = FakeApi()
          * ```
          *
@@ -1572,7 +1795,8 @@ class MocKMPProcessor(
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when {
                 targetCls.isFakedByImplementing() -> addFakeImplementation(gFile, gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers ->
+                targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
+                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) ->
                     addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process)
                 targetCls.classKind == ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())
@@ -1628,10 +1852,15 @@ class MocKMPProcessor(
             }
         }
 
-        /** Appends the `@Fake` assignment for [vProp] to [gFun], via [fakeInitializerOf]. */
+        /**
+         * Appends the `@Fake` assignment for [vProp] to [gFun], via [fakeValueOf] — not
+         * [fakeInitializerOf] directly, since [vPropType] can be nullable (the assignment is then
+         * simply `null`) or a function type (an inline no-op lambda, never a named `fakeXxx()`);
+         * [fakeInitializerOf] handles neither.
+         */
         private fun addFakeInjection(gFun: FunSpec.Builder, vProp: KSPropertyDeclaration, vPropType: KSType, filesDeps: MutableSet<KSFile>) {
-            val (template, value) = fakeInitializerOf(vPropType, filesDeps)
-            gFun.addStatement("receiver.%N = $template", vProp.simpleName.asString(), value)
+            val (template, values) = fakeValueOf(vPropType, filesDeps)
+            gFun.addStatement("receiver.%N = $template", vProp.simpleName.asString(), *values.toTypedArray())
         }
 
         /**
@@ -1924,22 +2153,30 @@ class MocKMPProcessor(
                 .forEach { sealed -> sealed.getSealedSubclasses().forEach { sub -> if (sub.classKind == ClassKind.OBJECT) sealedObjectSubclasses += sub } }
             sealedObjectSubclasses.forEach { obj -> gFun.addStatement("%T::class -> %T", obj.toClassName(), obj.toClassName()) }
 
-            builtins.entries.filter { !it.key.startsWith("java.") }.forEach { (qualifiedName, templateValue) ->
-                val (template, value) = templateValue
-                // Unlike fakeInitializerOf's use of these same templates (always in a context with a
-                // known target type, e.g. a named constructor argument), this `when` branch's target
-                // type is just `Any` — none of these generic factories (constructors or top-level
-                // `emptyXxx()`/`emptyArray()` functions alike) can infer a type argument there.
-                val typeArgArity = when (qualifiedName) {
-                    "kotlin.collections.Map", "kotlin.collections.HashMap", "kotlin.collections.LinkedHashMap" -> 2
-                    else -> if (template == "%M()") 1 else 0
+            // `kotlin.Nothing` is excluded alongside the `java.` ones: nothing can ever hold a value
+            // of type Nothing, so a `Nothing::class -> throw ...` branch could never be reached —
+            // and, unlike every other entry, its "value" isn't one placeholders can hand back.
+            //
+            // An `external` entry (kotlinx.coroutines, not the Kotlin stdlib) is additionally skipped
+            // when the module being processed doesn't have it on its classpath — unlike every stdlib
+            // entry, it can't be assumed present, and emitting a `Flow::class -> emptyFlow<Any?>()`
+            // branch unconditionally would fail to compile in a module that never mentions Flow.
+            builtins.entries
+                .filter { (qualifiedName, _) -> !qualifiedName.startsWith("java.") && qualifiedName != "kotlin.Nothing" }
+                .filter { (qualifiedName, b) -> !b.external || resolver.getClassDeclarationByName(resolver.getKSNameFromString(qualifiedName)) != null }
+                .forEach { (qualifiedName, b) ->
+                    // Unlike fakeInitializerOf's use of these same templates (always in a context with
+                    // a known target type, e.g. a named constructor argument), this `when` branch's
+                    // target type is just `Any` — none of these generic factories (constructors or
+                    // top-level `emptyXxx()`/`Xxx()` functions alike) can infer a type argument there,
+                    // so it has to be spelled out explicitly, right after the callee name.
+                    val placeholderTemplate =
+                        if (b.typeArgArity > 0) b.template.replaceFirst("()", "<${List(b.typeArgArity) { "Any?" }.joinToString(", ")}>()")
+                        else b.template
+                    val pkg = qualifiedName.substringBeforeLast('.')
+                    val simple = qualifiedName.substringAfterLast('.')
+                    gFun.addStatement("%T::class -> $placeholderTemplate", ClassName(pkg, simple), *b.args.toTypedArray())
                 }
-                val placeholderTemplate =
-                    if (typeArgArity > 0) "%M<${List(typeArgArity) { "Any?" }.joinToString(", ")}>()" else template
-                val pkg = qualifiedName.substringBeforeLast('.')
-                val simple = qualifiedName.substringAfterLast('.')
-                gFun.addStatement("%T::class -> $placeholderTemplate", ClassName(pkg, simple), value)
-            }
 
             placeholderArrayTypes.forEach { arrType ->
                 val componentType = arrType.arguments.first().type!!.resolve().toTypeName()

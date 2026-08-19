@@ -47,6 +47,19 @@ Here are the rules the processor uses to generate fakes:
 * `Boolean` values are set to `false`.
 * Numeric values are set to `0`.
 * `String` values are set to empty `""`.
+* `Nothing` values throw an `UnsupportedOperationException` when reached, since none can exist.
+* `List`, `Set`, `Map` and their concrete variants (`ArrayList`, `ArrayDeque`, `HashSet`,
+  `LinkedHashSet`, `HashMap`, `LinkedHashMap`) are faked empty, and `Array` is faked as an empty
+  array.
+* When `kotlinx.coroutines` is on the classpath, its types are faked as real, inert instances rather
+  than a generated implementation: `Flow` as `emptyFlow()`; `SharedFlow`/`MutableSharedFlow` as
+  `MutableSharedFlow()`; `StateFlow`/`MutableStateFlow` as `MutableStateFlow(<faked value>)` — the
+  wrapped value is faked exactly like any other property, so `StateFlow<User>` holds a faked `User`
+  and `StateFlow<User?>` holds `null`; `Channel`/`ReceiveChannel`/`SendChannel` as `Channel()`;
+  `Job`/`CompletableJob` as `Job()`; `Deferred`/`CompletableDeferred` as `CompletableDeferred()`;
+  `CoroutineScope` as `CoroutineScope(EmptyCoroutineContext)`; `Mutex` as `Mutex()`; `Semaphore` as
+  `Semaphore(1)`. `kotlin.coroutines.CoroutineContext` is always faked as `EmptyCoroutineContext`,
+  coroutines dependency or not, since it's part of the Kotlin standard library.
 * Other non-nullable non-primitive values are faked.
 
 [TIP]
@@ -89,6 +102,12 @@ Its members follow the same rules as everything else on this page:
   `User`).
 * Properties hold a fake of their type (`cacheName` above is `""`), and a `var` keeps whatever it is
   later assigned.
+* A property holding another fake is generated `by LazyFake { }`, so — unlike a function's return
+  value, which was already only built when the function is called — it is not built until that
+  property is first read. Reading it again reuses the same value.
+* A member typed `Nothing` throws when reached instead: no value of that type exists, so a fake of an
+  interface with `val impossible: Nothing` or `fun fail(): Nothing` still constructs — it is only
+  *that* member that fails, if something ever reads or calls it.
 * Only *abstract* members are overridden: a default implementation is left to run over them.
 * An abstract class is constructed with faked arguments, exactly as a concrete class would be.
 
@@ -103,8 +122,26 @@ If it has none (`fun <T> get(): T`), it is the one member that cannot be faked �
 satisfy every `T` a caller may ask for — and it throws when called; the rest of the fake is
 unaffected.
 
-CAUTION: A type that (transitively) contains a non-nullable value of itself — `interface Node { val parent: Node }` — cannot be faked: faking it would never terminate.
-Make the property nullable, or provide the fake yourself.
+Deferring a property's value until it is read (see above) is what makes a self-referential
+*interface* or *abstract class* fakeable at all:
+
+[source,kotlin]
+----
+interface Node {
+    val name: String
+    val parent: Node
+}
+----
+
+`fake<Node>()` builds only the root; each further `.parent` is built the moment it is read, so
+`node.parent.parent.parent` works even though nothing about `Node` bounds how deep it can go.
+
+CAUTION: A *constructor* parameter is resolved eagerly — the instance cannot exist without a value
+for it — so a type that (transitively) requires a non-nullable value of itself as a constructor
+parameter, e.g. `class Node(val parent: Node)` or an abstract class of the same shape, still cannot
+be faked: faking it would never terminate.
+Make the parameter nullable, turn it into an interface property as above, or provide the fake
+yourself.
 
 
 == Providing fake instances
@@ -119,6 +156,10 @@ fun provideFakeInstant() = Instant.fromEpochSeconds(0)
 ----
 
 CAUTION: There can be only one provider per type, and it needs to be a top-level function.
+
+TIP: A `@FakeProvider` also overrides how any of the types above — including collections and
+coroutines types — is faked, for that exact type. A provider for `List<String>` only replaces
+`emptyList()` where a `List<String>` is faked; a `List<Int>` elsewhere is unaffected.
 
 
 == Generics

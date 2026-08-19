@@ -1,8 +1,22 @@
 package data
 
+import kotlin.reflect.KClass
 import kotlin.time.Instant
 
 enum class Direction { LEFT, RIGHT }
+
+// A bare reference to the singleton — objects are already their own single instance.
+object Singleton {
+    val x: Int = 42
+}
+
+// Faked by calling its constructor exactly as any other class's would be.
+annotation class Labeled(val name: String, val count: Int)
+
+// KClass<T>'s value has to be the actual T being faked — String::class for Typed<String>, not a
+// context-free literal the way an empty collection is valid for any element type.
+annotation class Typed<T : Any>(val cls: KClass<T>)
+class HoldsTyped(val typed: Typed<String>)
 
 data class SomeDirection(
     val dir: Direction,
@@ -75,7 +89,12 @@ interface Service {
     // A var keeps a backing field, so a faked value can be replaced.
     var count: Int
     val dir: SomeDirection
+    // A var of a non-builtin type is backed by LazyFake too — its initializer is only deferred, not
+    // dropped, so assigning to it still wins over the fake it would otherwise have built.
+    var altDir: SomeDirection
     val optional: SomeDirection?
+    // Nothing has no values: this getter throws instead of holding one, and the fake still constructs.
+    val impossible: Nothing
     val callback: (String) -> GenData<String>
     val suspendCallback: suspend (String) -> Unit
     fun record(entry: String)
@@ -89,7 +108,17 @@ interface Service {
     fun <T : Any> create(): T
     // A vararg is an Array<out T>, not a T: it cannot stand in for the return value either.
     fun <T : Any> first(vararg values: T): T
+    // Same as `impossible` above: no value of type Nothing exists, so this throws when called.
+    fun fail(): Nothing
     fun describe(): String = "$name/$count"
+}
+
+// A property holding another fake (`parent` here) is built on first read rather than at construction
+// (see LazyFake), which is what makes a self-referential type fakeable at all: an eager
+// `override val parent: Node = fakeNode()` would recurse building its own `parent`, forever.
+interface Node {
+    val name: String
+    val parent: Node
 }
 
 // One implementation is generated per faked instantiation, since a fake holds values and no value of
@@ -97,6 +126,14 @@ interface Service {
 interface Box<T : Any> {
     val content: T
     fun replace(content: T): T
+}
+
+// A star-projected Container<*, *> is fully bound before content's type is resolved as a member
+// (see KSType.withBoundArguments): T's bound is Any, U's is the undeclared-bound default Any?, so
+// content ends up Content<Any?> — a concrete, ordinary fake target, not a bare type parameter.
+class Content<T>(val value: T)
+interface Container<T : Any, U> {
+    abstract val content: Content<U>
 }
 
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.

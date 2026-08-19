@@ -16,6 +16,7 @@ android.sourceSets {
         kotlin.directories.add("${layout.buildDirectory.get().asFile}/src/commonMain/kotlin")
         dependencies {
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.coroutines.core)
         }
     }
     named("test") {

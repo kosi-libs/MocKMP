@@ -20,6 +20,9 @@ dependencies {
     testImplementation(libs.kctfork.ksp)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(projects.mockmpRuntime)
+    // The fixtures compiled by FakeGenerationTests/ProcessorErrorTests use kotlinx.coroutines types
+    // (Flow, Job, ...) to exercise the builtins map — same rationale as mockmpRuntime above.
+    testImplementation(libs.kotlinx.coroutines.core)
 }
 
 mavenPublishing {
