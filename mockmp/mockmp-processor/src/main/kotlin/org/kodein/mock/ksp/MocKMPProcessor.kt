@@ -73,6 +73,13 @@ class MocKMPProcessor(
          * `kotlin.Nothing` is the one entry that isn't a value: it has none by construction, so its
          * "placeholder" is a throw expression instead — the only thing that can stand in for it at
          * every use site ([fakeInitializerOf]'s callers).
+         *
+         * `kotlin.reflect.KClass`/`java.lang.Class` are the only entries whose value depends on the
+         * *specific* type being faked — `KClass<String>` and `KClass<Int>` need different literals,
+         * unlike an empty collection, which is valid for any element type. The `Any::class` here is
+         * only the fallback for callers with no such context ([generatePlaceholderAccessor]'s erased
+         * `KClass<*>` dispatch); [fakeInitializerOf] special-cases both qualified names to derive the
+         * real one from the type argument instead of using this pair.
          */
         val builtins = mapOf(
             "kotlin.Nothing" to ("throw %T(\"Nothing\")" to ClassName("kotlin", "UnsupportedOperationException")),
@@ -99,7 +106,9 @@ class MocKMPProcessor(
             "java.util.HashMap" to ("%M()" to MemberName("kotlin.collections", "HashMap")),
             "kotlin.collections.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
             "java.util.LinkedHashMap" to ("%M()" to MemberName("kotlin.collections", "LinkedHashMap")),
-            "kotlin.Array" to ("%M()" to MemberName("kotlin", "emptyArray"))
+            "kotlin.Array" to ("%M()" to MemberName("kotlin", "emptyArray")),
+            "kotlin.reflect.KClass" to ("%T::class" to ClassName("kotlin", "Any")),
+            "java.lang.Class" to ("%T::class.java" to ClassName("kotlin", "Any")),
         )
     }
 
@@ -503,10 +512,10 @@ class MocKMPProcessor(
          * turns out to be unfakeable at generation time.
          *
          * Interfaces and abstract classes are fakeable too: rather than being instantiated, they get
-         * a generated `FakeXxx` implementation (see [addFakeImplementation]). What is left to reject
-         * here are the kinds that can be neither constructed nor implemented: annotation classes, and
-         * objects — which are already their own single instance — plus a type parameter or other
-         * non-class declaration, neither of which is a builtin either.
+         * a generated `FakeXxx` implementation (see [addFakeImplementation]). Objects and annotation
+         * classes are fakeable as well — a bare reference to the singleton, and a constructor call,
+         * respectively (see [generateFakeFunction]). What is left to reject here is a type parameter
+         * or other non-class declaration, neither of which is a builtin either.
          */
         private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false, path: List<String> = emptyList()) {
             // Syntactic nullability (`T?`), not KSP's semantic Nullability enum: unlike every other
@@ -546,7 +555,7 @@ class MocKMPProcessor(
                 cannotFake(node, decl.displayName(), reason, path)
             }
             val isSealed = Modifier.SEALED in decl.modifiers
-            if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE)) {
+            if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE, ClassKind.OBJECT, ClassKind.ANNOTATION_CLASS)) {
                 cannotFake(node, decl.displayName(), "${decl.classKind.plural()} cannot be instantiated", path)
             }
             toFake.getOrPut(resolvedType) { ToProcess().apply { this.implicit = implicit; this.path = path } }.let {
@@ -1312,11 +1321,16 @@ class MocKMPProcessor(
         /**
          * Resolves how to initialize a value of [type], as a KotlinPoet `(format, arg)` pair
          * suitable for `addStatement("... $template ...", ..., value)`:
-         *  1. a [builtins] literal or factory call, if [type] (after unwrapping any type alias) is one;
-         *  2. a call to the user's `@FakeProvider` function, if one was registered for [type];
-         *  3. otherwise, a call to the generated `fakeXxx()` function for [type].
+         *  1. `T::class`, if [type] (after unwrapping any type alias) is `KClass<T>`/`Class<T>` — the
+         *     one [builtins] entry whose value isn't context-free, so it can't be read off the map
+         *     like every other one below; a star-projected or otherwise unresolvable `T` falls back
+         *     to `Any::class`, exactly as the map entry itself does for callers with no [type] to
+         *     inspect ([generatePlaceholderAccessor]);
+         *  2. a [builtins] literal or factory call, if [type] is one;
+         *  3. a call to the user's `@FakeProvider` function, if one was registered for [type];
+         *  4. otherwise, a call to the generated `fakeXxx()` function for [type].
          *
-         * Any file backing a case-2 provider is added to [filesDeps] so the generated file
+         * Any file backing a case-3 provider is added to [filesDeps] so the generated file
          * correctly depends on it.
          *
          * NOTE: this unifies what used to be two separately-inlined copies of this resolution (one
@@ -1328,7 +1342,17 @@ class MocKMPProcessor(
         private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, Any> {
             val resolvedType = type.unwrapAliases()
             val decl = resolvedType.declaration
-            val builtIn = builtins[decl.qualifiedName!!.asString()]
+            val qualifiedName = decl.qualifiedName!!.asString()
+            if (qualifiedName == "kotlin.reflect.KClass" || qualifiedName == "java.lang.Class") {
+                val argClassName = (resolvedType.arguments.firstOrNull()?.type?.resolve()?.declaration as? KSClassDeclaration)
+                    ?.toClassName()
+                    ?: ClassName("kotlin", "Any")
+                // `String::class` is a KClass<String>; `java.lang.Class<String>` needs the `.java`
+                // conversion property on top of it.
+                val template = if (qualifiedName == "java.lang.Class") "%T::class.java" else "%T::class"
+                return template to argClassName
+            }
+            val builtIn = builtins[qualifiedName]
             return when {
                 builtIn != null -> builtIn
                 resolvedType in providedFakes -> {
@@ -1629,17 +1653,19 @@ class MocKMPProcessor(
         /**
          * Generates the top-level `fakeXxx(): Xxx` function for [vType], into its own file. Sealed
          * classes/interfaces are first resolved to their first constructible permitted subclass, with
-         * that subclass's own type arguments (see [resolveSealedTargetType]) — a class fake then
-         * constructs the type via
-         * [addFakeClassConstructorCall], an enum fake returns its first entry via
-         * [addFakeFirstEnumEntry], an object fake is a plain reference, and an interface or abstract
-         * class fake instantiates the `FakeXxx` implementation [addFakeImplementation] generates into
-         * the same file:
+         * that subclass's own type arguments (see [resolveSealedTargetType]) — a class or annotation
+         * class fake constructs the type via [addFakeClassConstructorCall] (an annotation class's
+         * constructor is called the same way any other class's is, only its declared parameter
+         * types differ), an enum fake returns its first entry via [addFakeFirstEnumEntry], an object
+         * fake is a plain reference, and an interface or abstract class fake instantiates the
+         * `FakeXxx` implementation [addFakeImplementation] generates into the same file:
          *
          * ```
          * internal fun fakeFoo(): Foo = Foo(bar = "")
          * internal fun fakeDirection(): Direction = Direction.NORTH
          * internal fun fakeSCls(): SCls = SCls.O
+         * internal fun fakeSingleton(): Singleton = Singleton
+         * internal fun fakeAnno(): Anno = Anno(name = "")
          * internal fun fakeApi(): Api = FakeApi()
          * ```
          *
@@ -1658,7 +1684,8 @@ class MocKMPProcessor(
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
             when {
                 targetCls.isFakedByImplementing() -> addFakeImplementation(gFile, gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers ->
+                targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
+                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) ->
                     addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process)
                 targetCls.classKind == ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())

@@ -1,8 +1,22 @@
 package data
 
+import kotlin.reflect.KClass
 import kotlin.time.Instant
 
 enum class Direction { LEFT, RIGHT }
+
+// A bare reference to the singleton — objects are already their own single instance.
+object Singleton {
+    val x: Int = 42
+}
+
+// Faked by calling its constructor exactly as any other class's would be.
+annotation class Labeled(val name: String, val count: Int)
+
+// KClass<T>'s value has to be the actual T being faked — String::class for Typed<String>, not a
+// context-free literal the way an empty collection is valid for any element type.
+annotation class Typed<T : Any>(val cls: KClass<T>)
+class HoldsTyped(val typed: Typed<String>)
 
 data class SomeDirection(
     val dir: Direction,

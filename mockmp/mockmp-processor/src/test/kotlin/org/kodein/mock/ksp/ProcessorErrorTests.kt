@@ -271,15 +271,15 @@ class ProcessorErrorTests {
     }
 
     // The wording shared by the compile-time error and the runtime stub (unfakeableMessage): a concrete
-    // reason, then the @FakeProvider suggestion. An annotation class can be neither constructed nor
-    // implemented, which is what is left once interfaces and abstract classes are fakeable.
+    // reason, then the @FakeProvider suggestion. A private constructor is what's left once interfaces,
+    // abstract classes, objects and annotation classes are all fakeable.
     @Test
     fun unfakeableTypeStatesAReasonAndSuggestsFakeProvider() {
         val result = compile(
             """
             import org.kodein.mock.UsesFakes
 
-            annotation class NotConstructible
+            class NotConstructible private constructor()
 
             @UsesFakes(NotConstructible::class)
             class Tests
@@ -287,7 +287,7 @@ class ProcessorErrorTests {
         )
         assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
         assertContains(result.messages, "Cannot generate a fake for NotConstructible")
-        assertContains(result.messages, "annotation classes cannot be instantiated")
+        assertContains(result.messages, "it has no public constructor")
         assertContains(result.messages, "register a top-level @FakeProvider function")
         // Nothing required it: the user asked for this type by name, so there is no chain to report.
         assertFalse(
@@ -544,5 +544,109 @@ class ProcessorErrorTests {
         assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
         assertContains(result.messages, "Cannot generate a fake for the function type")
         assertContains(result.messages, "Please use @Mock instead")
+    }
+
+    // An object is already its own single instance: generateFakeFunction already had a working
+    // ClassKind.OBJECT branch (a bare reference to the singleton), previously reachable only via a
+    // sealed permitted subclass — addFake's classKind check rejected a directly-requested object
+    // before that branch was ever consulted.
+    @Test
+    fun fakeOnAnObjectReturnsTheSingleton() {
+        val compilation = compilation(
+            """
+            import org.kodein.mock.UsesFakes
+
+            object Foo {
+                val x: Int = 42
+            }
+
+            @UsesFakes(Foo::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val fake = compilation.workingDir.walkTopDown().first { it.name == "fakeFoo.kt" }.readText()
+        assertContains(fake, "fun fakeFoo(): Foo = Foo")
+    }
+
+    // An annotation class's constructor is called exactly like any other class's — generateFakeFunction
+    // had no branch for ClassKind.ANNOTATION_CLASS at all, so even removing addFake's rejection would
+    // only have swapped which check reported "cannot be instantiated".
+    @Test
+    fun fakeOnAnAnnotationClassCallsItsConstructor() {
+        val compilation = compilation(
+            """
+            import org.kodein.mock.UsesFakes
+
+            annotation class Foo(val name: String, val count: Int)
+
+            @UsesFakes(Foo::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val fake = compilation.workingDir.walkTopDown().first { it.name == "fakeFoo.kt" }.readText()
+        assertContains(fake, "fun fakeFoo(): Foo = Foo(name = \"\", count = 0)")
+    }
+
+    // KClass<T>'s value depends on which T is actually being faked — String::class for Foo<String>,
+    // not a context-free literal the way an empty collection is valid for any element type.
+    // fakeInitializerOf derives it from the resolved type argument instead of reading a fixed value
+    // off builtins, which is why KClass/Class need special-casing there and not just a map entry.
+    @Test
+    fun fakeConstructorParameterOfKClassTypeUsesTheActualTypeArgument() {
+        val compilation = compilation(
+            """
+            import org.kodein.mock.UsesFakes
+            import kotlin.reflect.KClass
+
+            annotation class Foo<T : Any>(val cls: KClass<T>)
+
+            class Bar(val foo: Foo<String>)
+
+            @UsesFakes(Bar::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val fake = compilation.workingDir.walkTopDown()
+            .first { it.name.startsWith("fakeFoo") && it.name.endsWith(".kt") }
+            .readText()
+        assertContains(fake, "cls = String::class")
+    }
+
+    // java.lang.Class<T> is builtins' other context-dependent entry, alongside KClass<T> above —
+    // same special-casing in fakeInitializerOf, same derivation from the resolved type argument.
+    @Test
+    fun fakeConstructorParameterOfJavaClassTypeUsesTheActualTypeArgument() {
+        val compilation = compilation(
+            """
+            import org.kodein.mock.UsesFakes
+
+            class Foo<T : Any>(val cls: Class<T>)
+
+            class Bar(val foo: Foo<String>)
+
+            @UsesFakes(Bar::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val fake = compilation.workingDir.walkTopDown()
+            .first { it.name.startsWith("fakeFoo") && it.name.endsWith(".kt") }
+            .readText()
+        assertContains(fake, "cls = String::class")
     }
 }
