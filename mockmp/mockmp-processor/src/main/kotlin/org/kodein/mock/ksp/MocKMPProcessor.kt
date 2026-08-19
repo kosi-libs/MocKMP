@@ -486,34 +486,64 @@ class MocKMPProcessor(
 
         /**
          * Registers [type] as needing a `fakeXxx()` function, or fails if it isn't a fakeable
-         * type. [type] is resolved through any `typealias` chain first (e.g. `kotlin.Exception`
-         * on the JVM target), so the registration key, and every check below, target the real
-         * underlying type. Sealed classes/interfaces are allowed through — [generateFakeFunction]
-         * resolves them to a constructible permitted subclass at generation time. [implicit] marks
-         * entries discovered by [seedImplicitPlaceholders] rather than requested directly, and [path]
-         * records what led here — reported by every rejection below, and by [reportUnfakeable] when
-         * the type only turns out to be unfakeable at generation time.
+         * type — resolved the same way [valueTypeToFake] resolves a nested occurrence, so the two
+         * agree on what "the type to fake" actually is here: nullable, builtin, and function types
+         * are silently skipped rather than validated, exactly as they would be if [type] were
+         * reached as a constructor parameter or an implemented member instead of directly (a
+         * nullable value is simply `null`; a builtin's value is a literal, see [fakeInitializerOf];
+         * a function type's value is an inline lambda, never a generated implementation of
+         * `Function1` & co. — which Kotlin/JS forbids a class from declaring as a supertype — so
+         * only its return type, if any, might still need registering). [type] is also resolved
+         * through any `typealias` chain (e.g. `kotlin.Exception` on the JVM target), so the
+         * registration key, and every check below, target the real underlying type. Sealed
+         * classes/interfaces are allowed through — [generateFakeFunction] resolves them to a
+         * constructible permitted subclass at generation time. [implicit] marks entries discovered
+         * by [seedImplicitPlaceholders] rather than requested directly, and [path] records what led
+         * here — reported by every rejection below, and by [reportUnfakeable] when the type only
+         * turns out to be unfakeable at generation time.
          *
          * Interfaces and abstract classes are fakeable too: rather than being instantiated, they get
          * a generated `FakeXxx` implementation (see [addFakeImplementation]). What is left to reject
          * here are the kinds that can be neither constructed nor implemented: annotation classes, and
-         * objects — which are already their own single instance.
+         * objects — which are already their own single instance — plus a type parameter or other
+         * non-class declaration, neither of which is a builtin either.
          */
         private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false, path: List<String> = emptyList()) {
-            val resolvedType = type.unwrapAliases()
+            // Syntactic nullability (`T?`), not KSP's semantic Nullability enum: unlike every other
+            // caller of this "skip if nullable" idiom (valueTypeToFake, fakeValueOf), [type] here can
+            // be a bare, unsubstituted type parameter straight off a property declaration — and KSP
+            // reports Nullability.NULLABLE for one of those whenever its bound is (or defaults to)
+            // nullable, same as it does for a genuinely nullable type, even though nothing marks it
+            // with `?`. Falling through on that would silently swallow `@Fake lateinit var x: T`
+            // (inside the very class `T` belongs to) as "nothing to do", instead of correctly still
+            // reaching the type-parameter rejection below — there is no concrete type to construct a
+            // value of, so not even `null` is a valid instance of a type that isn't marked nullable.
+            if (type.isMarkedNullable) return
+            var resolvedType = type.unwrapAliases()
+            if (resolvedType.isAnyFunctionType) {
+                // Two shapes can't be unwrapped to a fakeable return type: a raw, unparameterized
+                // reference — only reachable from a KClass literal (e.g.
+                // `@UsesFakes(Function1::class)`), never from a genuine declared type — has none at
+                // all; and a function *returning* a function, whose return type is itself a function
+                // type. Both are rejected the same way a plain function type always was: registering
+                // the inner function type would only "succeed" by generating exactly the shape this
+                // check exists to prevent — a class declaring Function1 & co. as a supertype, which
+                // Kotlin/JS forbids — since fakeValueOf's inline lambda generation only inlines one
+                // level itself (it calls fakeInitializerOf directly on the return type, which has no
+                // function-type handling of its own).
+                val returnType = resolvedType.arguments.lastOrNull()?.type?.resolve()
+                if (returnType == null || returnType.isAnyFunctionType) {
+                    error(node, "Cannot generate a fake for the function type ${resolvedType.toTypeName()}. Please use @Mock instead, which mocks a function type as a callable mock.")
+                }
+                resolvedType = returnType.unwrapAliases()
+            }
             val decl = resolvedType.declaration
+
+            if (decl.qualifiedName?.asString() in builtins) return
 
             if (decl !is KSClassDeclaration) {
                 val reason = if (decl is KSTypeParameter) "it is a type parameter, which has no concrete type to construct" else "it is not a class"
                 cannotFake(node, decl.displayName(), reason, path)
-            }
-            // Function types resolve to an interface declaration (`kotlin.Function1` & co.), so
-            // without this they would take the implementation path below — and Kotlin/JS rejects a
-            // class declaring a function interface as a supertype outright. A faked *value* of a
-            // function type is still supported everywhere it appears inside another fake, as a no-op
-            // lambda (see [fakeValueOf]); it is only faking one as a target of its own that isn't.
-            if (resolvedType.isAnyFunctionType) {
-                error(node, "Cannot generate a fake for the function type ${resolvedType.toTypeName()}. Please use @Mock instead, which mocks a function type as a callable mock.")
             }
             val isSealed = Modifier.SEALED in decl.modifiers
             if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE)) {
@@ -1684,10 +1714,15 @@ class MocKMPProcessor(
             }
         }
 
-        /** Appends the `@Fake` assignment for [vProp] to [gFun], via [fakeInitializerOf]. */
+        /**
+         * Appends the `@Fake` assignment for [vProp] to [gFun], via [fakeValueOf] — not
+         * [fakeInitializerOf] directly, since [vPropType] can be nullable (the assignment is then
+         * simply `null`) or a function type (an inline no-op lambda, never a named `fakeXxx()`);
+         * [fakeInitializerOf] handles neither.
+         */
         private fun addFakeInjection(gFun: FunSpec.Builder, vProp: KSPropertyDeclaration, vPropType: KSType, filesDeps: MutableSet<KSFile>) {
-            val (template, value) = fakeInitializerOf(vPropType, filesDeps)
-            gFun.addStatement("receiver.%N = $template", vProp.simpleName.asString(), value)
+            val (template, values) = fakeValueOf(vPropType, filesDeps)
+            gFun.addStatement("receiver.%N = $template", vProp.simpleName.asString(), *values.toTypedArray())
         }
 
         /**

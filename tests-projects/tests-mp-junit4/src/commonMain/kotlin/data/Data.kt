@@ -114,6 +114,14 @@ interface Box<T : Any> {
     fun replace(content: T): T
 }
 
+// A star-projected Container<*, *> is fully bound before content's type is resolved as a member
+// (see KSType.withBoundArguments): T's bound is Any, U's is the undeclared-bound default Any?, so
+// content ends up Content<Any?> — a concrete, ordinary fake target, not a bare type parameter.
+class Content<T>(val value: T)
+interface Container<T : Any, U> {
+    abstract val content: Content<U>
+}
+
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.
 interface IdentifiedService {
     override fun equals(other: Any?): Boolean

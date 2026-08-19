@@ -2,6 +2,7 @@ package tests
 
 import data.AbsService
 import data.Box
+import data.Container
 import data.Direction
 import data.GenData
 import data.IdentifiedService
@@ -24,7 +25,7 @@ import kotlin.test.assertTrue
 
 // An interface (or abstract class) has no constructor to call, so its fake is a generated class
 // implementing it: abstract functions do nothing, abstract properties hold fakes.
-@UsesFakes(Service::class, Box::class, IdentifiedService::class, AbsService::class, Node::class)
+@UsesFakes(Service::class, Box::class, IdentifiedService::class, AbsService::class, Node::class, Container::class)
 class InterfaceFakeTests {
 
     private val someDirection = SomeDirection(Direction.LEFT, SomeDirection.SubData(null))
@@ -151,6 +152,17 @@ class InterfaceFakeTests {
         // reused — but two independently-faked roots build their own, distinct chain.
         assertSame(node.parent, node.parent)
         assertNotSame(node.parent, fake<Node>().parent)
+    }
+
+    @Test
+    fun testFakingAGenericInterfaceWithASiblingBoundedPropertyDoesNotThrow() {
+        // Container<*, *> is fully bound (T -> Any, U -> Any?) before `content`'s type is resolved
+        // as a member, so it ends up Content<Any?> — a concrete fake target — rather than a bare,
+        // unfakeable type parameter (the failure this shape can hit via a *constructor* parameter,
+        // see ProcessorErrorTests.fakeTransitivelyRequiringASiblingBoundedTypeParameter).
+        val container = fake<Container<*, *>>()
+        assertNotNull(container.content)
+        assertNull(container.content.value)
     }
 
     @Test
