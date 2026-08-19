@@ -32,6 +32,15 @@ kotlin {
     }
 
     explicitApi()
+
+    sourceSets {
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test.junit)
+        }
+    }
 }
 
 mavenPublishing {

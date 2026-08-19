@@ -5,6 +5,7 @@ import data.Box
 import data.Direction
 import data.GenData
 import data.IdentifiedService
+import data.Node
 import data.Service
 import data.SomeDirection
 import kotlinx.coroutines.test.runTest
@@ -15,13 +16,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 
 // An interface (or abstract class) has no constructor to call, so its fake is a generated class
 // implementing it: abstract functions do nothing, abstract properties hold fakes.
-@UsesFakes(Service::class, Box::class, IdentifiedService::class, AbsService::class)
+@UsesFakes(Service::class, Box::class, IdentifiedService::class, AbsService::class, Node::class)
 class InterfaceFakeTests {
 
     private val someDirection = SomeDirection(Direction.LEFT, SomeDirection.SubData(null))
@@ -35,6 +38,26 @@ class InterfaceFakeTests {
         // Nullable values are `null`, here as everywhere else in faking.
         assertNull(service.optional)
         assertEquals(GenData("", 0), service.callback(""))
+    }
+
+    @Test
+    fun testLazilyFakedPropertyIsBuiltOnceAndReused() {
+        // `dir` is backed by LazyFake, since SomeDirection is neither a builtin nor null: its value
+        // should still be read as the very same instance every time, exactly as an eagerly-built
+        // property would be.
+        val service = fake<Service>()
+        assertSame(service.dir, service.dir)
+    }
+
+    @Test
+    fun testLazilyFakedVarKeepsAnAssignedValue() {
+        // Assigning to a LazyFake-backed var must win over the deferred fake it would otherwise
+        // build, exactly as it does for a builtin-backed var (testFakedVarKeepsItsValue below).
+        val service = fake<Service>()
+        val other = SomeDirection(Direction.RIGHT, SomeDirection.SubData(null))
+        service.altDir = other
+        assertEquals(other, service.altDir)
+        assertNotSame(someDirection, service.altDir)
     }
 
     @Test
@@ -114,6 +137,20 @@ class InterfaceFakeTests {
         assertNotEquals(one, two)
         assertEquals(one.hashCode(), one.hashCode())
         one.doSomething()
+    }
+
+    @Test
+    fun testSelfReferentialInterfaceFakeTerminates() {
+        // `Node.parent` is faked lazily: constructing the fake never touches it, and each read simply
+        // builds one more level of the chain, rather than the whole (infinite) chain recursing up
+        // front. Reached this way, faking a self-referential type terminates at all.
+        val node = fake<Node>()
+        assertEquals("", node.name)
+        assertEquals("", node.parent.parent.parent.name)
+        // Like any other LazyFake-backed property, a given instance's `parent` is built once and
+        // reused — but two independently-faked roots build their own, distinct chain.
+        assertSame(node.parent, node.parent)
+        assertNotSame(node.parent, fake<Node>().parent)
     }
 
     @Test

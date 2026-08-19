@@ -46,6 +46,7 @@ class MocKMPProcessor(
 
     private companion object {
         val mockerTypeName = ClassName("org.kodein.mock", "Mocker")
+        val lazyFakeTypeName = ClassName("org.kodein.mock", "LazyFake")
 
         // Fully-qualified names of the annotations MocKMP looks for.
         const val ANNOTATION_MOCK = "org.kodein.mock.Mock"
@@ -125,6 +126,22 @@ class MocKMPProcessor(
 
     /** True when [this] type is `kotlin.Nothing`, through any `typealias`. */
     private fun KSType.isNothing(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Nothing"
+
+    /**
+     * True when a faked property of [this] type should be wrapped `by LazyFake { ... }` instead of
+     * getting a plain initializer — every case where [fakeValueOf] resolves to a nested `fakeXxx()`
+     * or `@FakeProvider` call rather than a literal. Deferring that call is what lets a
+     * self-referential type (`interface Node { val parent: Node }`) be faked at all: an eager
+     * `override val parent: Node = fakeNode()` would recurse building its own `parent`, forever.
+     *
+     * `null`, a builtin (see [builtins]) and a lambda literal are excluded: their value is already
+     * either not built at all, or built without recursing into another `fakeXxx()`.
+     */
+    private fun KSType.needsLazyFake(): Boolean = when {
+        nullability != Nullability.NOT_NULL -> false
+        isAnyFunctionType -> false
+        else -> unwrapAliases().declaration.qualifiedName?.asString() !in builtins
+    }
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
@@ -1380,22 +1397,32 @@ class MocKMPProcessor(
 
         /**
          * The faked override of one abstract property of an implemented interface or abstract class,
-         * e.g. for `val bar: String` and mutable `var baz: Data`:
+         * e.g. for `val bar: String`, mutable `var baz: Data`, and `val dir: SomeDirection`:
          *
          * ```
          * override val bar: String = ""
          * override var baz: Data = fakeData()
+         * override val dir: SomeDirection by LazyFake { fakeSomeDirection() }
          * ```
          *
          * [vPropType] is the property's type *as a member of* the implemented instantiation, so a
-         * `val content: T` of `GenItf<String>` is faked as a `String`. Values are held, not
-         * recomputed on each access: a fake is a value, and a `var` needs a backing field anyway.
+         * `val content: T` of `GenItf<String>` is faked as a `String`.
          *
-         * The one exception is a `Nothing`-typed property (`val impossible: Nothing`): no value of
-         * that type exists to hold, so instead of an initializer it gets a getter that throws —
-         * `override val impossible: Nothing get() = throw ...` — the same "throws if reached, but
-         * doesn't stop the fake from being constructed" contract a `Nothing`-returning function gets
-         * (see [fakedFunction]). A backing-field-less `var` also needs an explicit (no-op) setter.
+         * A property whose value is a nested `fakeXxx()`/`@FakeProvider` call ([KSType.needsLazyFake])
+         * is deferred through [LazyFake] rather than built eagerly: an eager `override val parent:
+         * Node = fakeNode()` would recurse forever faking a self-referential type
+         * (`interface Node { val parent: Node }`), where building `parent` requires building
+         * `parent.parent`, and so on. Deferring the call to first read breaks that chain — and, for
+         * every property, still holds the value rather than recomputing it, [LazyFake] itself doing
+         * what a plain initializer's backing field otherwise would.
+         *
+         * A `Nothing`-typed property (`val impossible: Nothing`) is the other exception: no value of
+         * that type exists to hold or defer, so instead of an initializer it gets a getter that
+         * throws — `override val impossible: Nothing get() = throw ...` — the same "throws if
+         * reached, but doesn't stop the fake from being constructed" contract a `Nothing`-returning
+         * function gets (see [fakedFunction]). A backing-field-less `var` also needs an explicit
+         * (no-op) setter, same as the `LazyFake` case needs none — [LazyFake] is itself the backing
+         * field there.
          */
         private fun fakedProperty(vProp: KSPropertyDeclaration, vPropType: KSType, filesDeps: MutableSet<KSFile>): PropertySpec {
             val (template, values) = fakeValueOf(vPropType, filesDeps)
@@ -1403,14 +1430,16 @@ class MocKMPProcessor(
                 .addModifiers(KModifier.OVERRIDE)
                 .mutable(vProp.isMutable)
                 .addAnnotations(vProp.overrideAnnotations())
-            return if (vPropType.isNothing()) {
-                builder.getter(FunSpec.getterBuilder().addStatement(template, *values.toTypedArray()).build())
+            return when {
+                vPropType.isNothing() -> builder
+                    .getter(FunSpec.getterBuilder().addStatement(template, *values.toTypedArray()).build())
                     .apply {
                         if (vProp.isMutable) setter(FunSpec.setterBuilder().addParameter("value", vPropType.toMemberTypeName()).build())
                     }
                     .build()
-            } else {
-                builder.initializer(template, *values.toTypedArray()).build()
+                vPropType.needsLazyFake() ->
+                    builder.delegate("%T { $template }", lazyFakeTypeName, *values.toTypedArray()).build()
+                else -> builder.initializer(template, *values.toTypedArray()).build()
             }
         }
 

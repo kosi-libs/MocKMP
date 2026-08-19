@@ -75,6 +75,9 @@ interface Service {
     // A var keeps a backing field, so a faked value can be replaced.
     var count: Int
     val dir: SomeDirection
+    // A var of a non-builtin type is backed by LazyFake too — its initializer is only deferred, not
+    // dropped, so assigning to it still wins over the fake it would otherwise have built.
+    var altDir: SomeDirection
     val optional: SomeDirection?
     // Nothing has no values: this getter throws instead of holding one, and the fake still constructs.
     val impossible: Nothing
@@ -94,6 +97,14 @@ interface Service {
     // Same as `impossible` above: no value of type Nothing exists, so this throws when called.
     fun fail(): Nothing
     fun describe(): String = "$name/$count"
+}
+
+// A property holding another fake (`parent` here) is built on first read rather than at construction
+// (see LazyFake), which is what makes a self-referential type fakeable at all: an eager
+// `override val parent: Node = fakeNode()` would recurse building its own `parent`, forever.
+interface Node {
+    val name: String
+    val parent: Node
 }
 
 // One implementation is generated per faked instantiation, since a fake holds values and no value of
