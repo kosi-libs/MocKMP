@@ -88,6 +88,9 @@ interface Bar : Foo<Bar> {
     // suspend callback above also claims as its JVM fallback.
     fun comboCallback(cb: (String, Int) -> Boolean)
     fun <T: Comparable<T>> order(c: Iterable<T>) : List<T>
+    // Nothing has no values: unlike doNothing() above, this can never be given a `returns` stub, only
+    // a `runs` one that itself throws.
+    fun newNever(): Nothing
 
     interface Sub {
         fun doOp()

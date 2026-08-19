@@ -300,6 +300,36 @@ class ProcessorErrorTests {
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
     }
 
+    // `Nothing` has no values, so a member typed `Nothing` cannot hold or return one — see
+    // MocKMPProcessor.builtins. This used to fail the compilation regardless of whether the type was
+    // reached by faking (fail()/impossible below) or only implicitly, through a mocked interface's own
+    // signature (seedImplicitPlaceholder): either path queued `kotlin.Nothing` for generation, and the
+    // resulting `fakes.kt` declared `private val type_kotlin_Nothing: KType = typeOf<Nothing>()`, which
+    // the Kotlin compiler rejects ("Cannot use 'Nothing' as reified type parameter"). Mocking and faking
+    // the same interface here exercises both paths in one compilation.
+    @Test
+    fun nothingTypedMembersAreFakeable() {
+        val result = compile(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesFakes
+            import org.kodein.mock.UsesMocks
+
+            interface Service {
+                val impossible: Nothing
+                fun fail(): Nothing
+            }
+
+            @UsesFakes(Service::class)
+            @UsesMocks(Service::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+    }
+
     // The two halves of the throwErrors option, over one bad input. Both fail the compilation and both
     // log the reason; what the option adds is that the ProcessingError *escapes* the processor, so KSP
     // reports its own "Error occurred in KSP" on top and the stack trace reaches the output. The pair

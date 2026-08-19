@@ -88,6 +88,15 @@ class InterfaceFakeTests {
     }
 
     @Test
+    fun testNothingTypedMembersThrowWhenReached() {
+        // No value of type Nothing exists, so the fake still constructs — only reaching one of these
+        // members throws, exactly as a generic member with no matching parameter does above.
+        val service = fake<Service>()
+        assertFailsWith<UnsupportedOperationException> { service.impossible }
+        assertFailsWith<UnsupportedOperationException> { service.fail() }
+    }
+
+    @Test
     fun testGenericInterfaceFake() {
         // A star projection is implemented as its parameter's bound, so `content` is an Any.
         val box = fake<Box<*>>()

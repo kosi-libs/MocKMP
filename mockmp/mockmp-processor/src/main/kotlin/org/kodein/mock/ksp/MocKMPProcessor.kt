@@ -68,8 +68,13 @@ class MocKMPProcessor(
          * Types for which a literal placeholder can be emitted directly instead of generating (or
          * looking up) a `fakeXxx()` function. Maps a type's qualified name to a KotlinPoet format
          * string and its single format argument (a literal, or a [MemberName] to a factory function).
+         *
+         * `kotlin.Nothing` is the one entry that isn't a value: it has none by construction, so its
+         * "placeholder" is a throw expression instead — the only thing that can stand in for it at
+         * every use site ([fakeInitializerOf]'s callers).
          */
         val builtins = mapOf(
+            "kotlin.Nothing" to ("throw %T(\"Nothing\")" to ClassName("kotlin", "UnsupportedOperationException")),
             "kotlin.Unit" to ("%L" to "Unit"),
             "kotlin.Boolean" to ("%L" to "false"),
             "kotlin.Byte" to ("%L" to "0"),
@@ -117,6 +122,9 @@ class MocKMPProcessor(
 
     /** True when [this] type is `kotlin.Unit`, through any `typealias`. */
     private fun KSType.isUnit(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Unit"
+
+    /** True when [this] type is `kotlin.Nothing`, through any `typealias`. */
+    private fun KSType.isNothing(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Nothing"
 
     private val visibilityModifier = if (public) KModifier.PUBLIC else KModifier.INTERNAL
 
@@ -1382,15 +1390,28 @@ class MocKMPProcessor(
          * [vPropType] is the property's type *as a member of* the implemented instantiation, so a
          * `val content: T` of `GenItf<String>` is faked as a `String`. Values are held, not
          * recomputed on each access: a fake is a value, and a `var` needs a backing field anyway.
+         *
+         * The one exception is a `Nothing`-typed property (`val impossible: Nothing`): no value of
+         * that type exists to hold, so instead of an initializer it gets a getter that throws —
+         * `override val impossible: Nothing get() = throw ...` — the same "throws if reached, but
+         * doesn't stop the fake from being constructed" contract a `Nothing`-returning function gets
+         * (see [fakedFunction]). A backing-field-less `var` also needs an explicit (no-op) setter.
          */
         private fun fakedProperty(vProp: KSPropertyDeclaration, vPropType: KSType, filesDeps: MutableSet<KSFile>): PropertySpec {
             val (template, values) = fakeValueOf(vPropType, filesDeps)
-            return PropertySpec.builder(vProp.simpleName.asString(), vPropType.toMemberTypeName())
+            val builder = PropertySpec.builder(vProp.simpleName.asString(), vPropType.toMemberTypeName())
                 .addModifiers(KModifier.OVERRIDE)
                 .mutable(vProp.isMutable)
                 .addAnnotations(vProp.overrideAnnotations())
-                .initializer(template, *values.toTypedArray())
-                .build()
+            return if (vPropType.isNothing()) {
+                builder.getter(FunSpec.getterBuilder().addStatement(template, *values.toTypedArray()).build())
+                    .apply {
+                        if (vProp.isMutable) setter(FunSpec.setterBuilder().addParameter("value", vPropType.toMemberTypeName()).build())
+                    }
+                    .build()
+            } else {
+                builder.initializer(template, *values.toTypedArray()).build()
+            }
         }
 
         /**
@@ -1435,6 +1456,12 @@ class MocKMPProcessor(
             gFun.returns(vReturnType.toMemberTypeName(typeParamResolver))
             when {
                 vReturnType.isUnit() -> {} // No body at all: a no-op function is what this generates.
+                vReturnType.isNothing() -> {
+                    // `return $template` would emit `return throw ...`, whose `return` is
+                    // unreachable and triggers a compiler warning; the throw alone is a valid body.
+                    val (template, values) = fakeValueOf(vReturnType, filesDeps)
+                    gFun.addStatement(template, *values.toTypedArray())
+                }
                 vReturnType.mentionsTypeParameter() -> {
                     // Nullability is part of KSType equality, so a `T?` parameter is not returned as
                     // a `T`. A vararg is excluded because KSP reports its element type: the generated
@@ -1924,7 +1951,10 @@ class MocKMPProcessor(
                 .forEach { sealed -> sealed.getSealedSubclasses().forEach { sub -> if (sub.classKind == ClassKind.OBJECT) sealedObjectSubclasses += sub } }
             sealedObjectSubclasses.forEach { obj -> gFun.addStatement("%T::class -> %T", obj.toClassName(), obj.toClassName()) }
 
-            builtins.entries.filter { !it.key.startsWith("java.") }.forEach { (qualifiedName, templateValue) ->
+            // `kotlin.Nothing` is excluded alongside the `java.` ones: nothing can ever hold a value
+            // of type Nothing, so a `Nothing::class -> throw ...` branch could never be reached —
+            // and, unlike every other entry, its "value" isn't one placeholders can hand back.
+            builtins.entries.filter { !it.key.startsWith("java.") && it.key != "kotlin.Nothing" }.forEach { (qualifiedName, templateValue) ->
                 val (template, value) = templateValue
                 // Unlike fakeInitializerOf's use of these same templates (always in a context with a
                 // known target type, e.g. a named constructor argument), this `when` branch's target

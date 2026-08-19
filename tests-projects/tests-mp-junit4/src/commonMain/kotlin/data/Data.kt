@@ -76,6 +76,8 @@ interface Service {
     var count: Int
     val dir: SomeDirection
     val optional: SomeDirection?
+    // Nothing has no values: this getter throws instead of holding one, and the fake still constructs.
+    val impossible: Nothing
     val callback: (String) -> GenData<String>
     val suspendCallback: suspend (String) -> Unit
     fun record(entry: String)
@@ -89,6 +91,8 @@ interface Service {
     fun <T : Any> create(): T
     // A vararg is an Array<out T>, not a T: it cannot stand in for the return value either.
     fun <T : Any> first(vararg values: T): T
+    // Same as `impossible` above: no value of type Nothing exists, so this throws when called.
+    fun fail(): Nothing
     fun describe(): String = "$name/$count"
 }
 
