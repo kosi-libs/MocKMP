@@ -111,6 +111,9 @@ Its members follow the same rules as everything else on this page:
 * Only *abstract* members are overridden: a default implementation is left to run over them.
 * An abstract class is constructed with faked arguments, exactly as a concrete class would be.
 
+The generated implementation class itself is private to the file it is generated in — `fake<T>()` (or
+an injected `@Fake` property) is the only way to obtain an instance of it.
+
 TIP: Prefer `@Mock` over `@Fake` for a collaborator whose calls the test needs to configure or
 verify: a fake records nothing and cannot be given behaviour.
 A fake is for the collaborators that merely need to *exist*.

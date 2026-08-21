@@ -39,6 +39,84 @@ class FakeGenerationTests {
     private fun String.propertyLine(name: String): String =
         lineSequence().map { it.trim() }.first { it.startsWith("override val $name:") || it.startsWith("override var $name:") }
 
+    /**
+     * The generated `FakeXxx` implementation class is a detail of the `fakeXxx()` function that
+     * builds it — it must stay `private` to its file, so it can never collide with a user
+     * declaration in the faked type's own package, and it must be declared *after* that function, so
+     * the file reads as "here is how to get a fake" before "here is how it's implemented".
+     */
+    @Test
+    fun fakeImplementationClassIsPrivateAndDeclaredAfterItsFakeFunction() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesFakes
+
+            interface Api {
+                val name: String
+                fun greet(): String
+            }
+
+            abstract class AbsApi(val id: Int) {
+                abstract val name: String
+            }
+
+            @UsesFakes(Api::class, AbsApi::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        listOf("fakefixture_Api.kt" to "FakeApi", "fakefixture_AbsApi.kt" to "FakeAbsApi").forEach { (fileName, className) ->
+            val source = generated.first { it.name == fileName }.readText()
+            val funLine = source.lineSequence().map { it.trim() }.indexOfFirst { it.startsWith("internal fun fake") }
+            val classLine = source.lineSequence().map { it.trim() }.indexOfFirst { it.startsWith("private class $className") }
+
+            assertTrue(funLine >= 0, "Expected a fakeXxx() function in $fileName:\n$source")
+            assertTrue(classLine >= 0, "Expected `private class $className` in $fileName:\n$source")
+            assertTrue(funLine < classLine, "Expected the fakeXxx() function to be declared before $className in $fileName:\n$source")
+
+            assertFalse("internal class $className" in source, "Did not expect $className to be internal:\n$source")
+            assertFalse("public class $className" in source, "Did not expect $className to be public:\n$source")
+        }
+    }
+
+    /**
+     * Companion of the test above, with `org.kodein.mock.visibility=public`: the generated
+     * `fakeXxx()` function becomes `public`, but the `FakeXxx` class it returns stays `private` — a
+     * `private` type returned by a wider-visibility function is legal in Kotlin only because the
+     * function's declared return type is the faked interface itself, never the private class (see
+     * addFakeImplementation's KDoc). This must still compile.
+     */
+    @Test
+    fun fakeImplementationClassStaysPrivateEvenWhenTheFakeFunctionIsPublic() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.UsesFakes
+
+            interface Api {
+                val name: String
+            }
+
+            @UsesFakes(Api::class)
+            class Tests
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false", "org.kodein.mock.visibility" to "public"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val source = compilation.workingDir.walkTopDown().first { it.name == "fakefixture_Api.kt" }.readText()
+        assertTrue("public fun fakefixture_Api" in source, "Expected the fake function to be public:\n$source")
+        assertTrue("private class FakeApi" in source, "Expected the fake class to stay private:\n$source")
+    }
+
     @Test
     fun onlyReferenceTypedPropertiesAreBackedByLazyFake() {
         val compilation = compilation(

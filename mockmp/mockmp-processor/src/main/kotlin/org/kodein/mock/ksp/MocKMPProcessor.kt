@@ -401,6 +401,11 @@ class MocKMPProcessor(
      * [toMockName], it carries the type arguments ([baseName]): a `MockXxx` is generic and defers
      * every member to its `Mocker`, whereas a fake has to *hold* values, so one class is generated
      * per faked instantiation (`FakeFooXkotlin_StringX : Foo<String>`).
+     *
+     * The class itself is always generated `private` ([addFakeImplementation]): it is an
+     * implementation detail reached only through its `fakeXxx()` function, and being `private` keeps
+     * this name — which drops the package prefix on purpose, see [baseName] — from ever colliding
+     * with a declaration of the user's in the faked type's own package.
      */
     private fun KSType.toFakeClassName(): String = "Fake" + baseName()
 
@@ -1683,18 +1688,21 @@ class MocKMPProcessor(
         }
 
         /**
-         * Adds the `FakeXxx` class implementing interface (or extending abstract class) [vCls] to
-         * [gFile], and appends `return FakeXxx()` to [gFun] — the path taken for a type that cannot
-         * be constructed but *can* be implemented:
+         * Builds the `private FakeXxx` class implementing interface (or extending abstract class)
+         * [vCls], and appends `return FakeXxx()` to [gFun] — the path taken for a type that cannot
+         * be constructed but *can* be implemented. Returns the built class for the caller
+         * ([generateFakeFunction]) to add to its `FileSpec` *after* the `fakeXxx()` function, so the
+         * function — the only supported way to reach a fake — reads first; `null` if [vCls] turned
+         * out to be [reportUnfakeable] instead (no public constructor to extend):
          *
          * ```
-         * internal class FakeApi : Api {
+         * internal fun fakefoo_Api(): Api = FakeApi()
+         *
+         * private class FakeApi : Api {
          *     override val name: String = ""
          *     override fun log(m: String) {}
          *     override fun user(): User = fakeUser()
          * }
-         *
-         * internal fun fakefoo_Api(): Api = FakeApi()
          * ```
          *
          * Only *abstract* members are overridden: an interface's default implementations are left to
@@ -1707,18 +1715,23 @@ class MocKMPProcessor(
          * : Itf<String>` — since, unlike a `MockXxx`, it has to hold real values, and no value of a
          * type parameter can be produced. Its members are resolved against
          * [KSType.withBoundArguments], the instantiation actually implemented.
+         *
+         * The class is always `private` ([KSType.toFakeClassName]): it is an implementation detail,
+         * unreachable except through the `fakeXxx()` function generated alongside it, and a
+         * `private class Xxx` returned by a `public`/`internal fun fakeXxx(): Xxx` does not expose a
+         * private type — the function's own return type is [vType], never the class.
          */
-        private fun addFakeImplementation(gFile: FileSpec.Builder, gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess) {
+        private fun addFakeImplementation(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess): TypeSpec? {
             val implementedType = vType.withBoundArguments()
             val fakeClassName = vType.toFakeClassName()
-            val gCls = TypeSpec.classBuilder(fakeClassName).addModifiers(visibilityModifier)
+            val gCls = TypeSpec.classBuilder(fakeClassName).addModifiers(KModifier.PRIVATE)
 
             if (vCls.classKind == ClassKind.INTERFACE) {
                 gCls.addSuperinterface(implementedType.toTypeName())
             } else {
                 if (vCls.firstPublicConstructor() == null) {
                     reportUnfakeable(gFun, vCls, "it has no public constructor", process)
-                    return
+                    return null
                 }
                 gCls.superclass(implementedType.toTypeName())
                 addSuperclassConstructorArgs(gCls, vCls, implementedType, filesDeps)
@@ -1743,8 +1756,8 @@ class MocKMPProcessor(
                 else gCls.addFunction(fakedFunction(vFun, vFun.asMemberOf(implementedType), filesDeps))
             }
 
-            gFile.addType(gCls.build())
             gFun.addStatement("return %N()", fakeClassName)
+            return gCls.build()
         }
 
         /**
@@ -1769,7 +1782,9 @@ class MocKMPProcessor(
          * constructor is called the same way any other class's is, only its declared parameter
          * types differ), an enum fake returns its first entry via [addFakeFirstEnumEntry], an object
          * fake is a plain reference, and an interface or abstract class fake instantiates the
-         * `FakeXxx` implementation [addFakeImplementation] generates into the same file:
+         * `FakeXxx` implementation [addFakeImplementation] builds — added to the same file, but only
+         * *after* the function below, so the function — the only supported way to reach a fake —
+         * reads first and the `private` implementation class reads as the detail it is:
          *
          * ```
          * internal fun fakeFoo(): Foo = Foo(bar = "")
@@ -1793,13 +1808,21 @@ class MocKMPProcessor(
             val gFun = FunSpec.builder(mockFunName)
                 .addModifiers(visibilityModifier)
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
-            when {
-                targetCls.isFakedByImplementing() -> addFakeImplementation(gFile, gFun, targetCls, targetType, filesDeps, process)
+            val gCls: TypeSpec? = when {
+                targetCls.isFakedByImplementing() -> addFakeImplementation(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
-                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) ->
+                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
                     addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process)
-                targetCls.classKind == ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())
+                    null
+                }
+                targetCls.classKind == ClassKind.ENUM_CLASS -> {
+                    addFakeFirstEnumEntry(gFun, targetCls, process)
+                    null
+                }
+                targetCls.classKind == ClassKind.OBJECT -> {
+                    gFun.addStatement("return %T", targetCls.toClassName())
+                    null
+                }
                 else -> {
                     val reason = when {
                         targetCls != vCls -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
@@ -1807,9 +1830,11 @@ class MocKMPProcessor(
                         else -> "${targetCls.classKind.plural()} cannot be instantiated"
                     }
                     reportUnfakeable(gFun, vCls, reason, process)
+                    null
                 }
             }
             gFile.addFunction(gFun.build().also { fakes[vType] = MemberName(mockPkg, mockFunName) })
+            gCls?.let { gFile.addType(it) }
             gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
         }
 
