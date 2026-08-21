@@ -372,12 +372,16 @@ class MocKMPProcessor(
         val references = LinkedHashSet<KSNode>()
 
         /**
-         * True when this entry was discovered implicitly — as a type reachable from a mocked
-         * interface's signatures (see [Round.seedImplicitPlaceholders]), not requested directly via
-         * `@Mock`/`@Fake`/`@UsesMocks`/`@UsesFakes`. Implicit entries that turn out to be
-         * unconstructible get a generated function that throws at runtime instead of aborting the
+         * True for a [Round.toPlaceholder] entry, false for a [Round.toMock] or [Round.toFake] one —
+         * every mock and fake is now requested directly, via `@Mock`/`@Fake`/`@UsesMocks`/
+         * `@UsesFakes`/`@FakeProvider`, or transitively required by one of those; every placeholder is
+         * discovered implicitly, as a type reachable from a mocked interface's signatures (see
+         * [Round.seedPlaceholder]) or from a placeholder's own constructor (see
+         * [Round.expandTransitivePlaceholders]). An implicit entry that turns out to be
+         * unconstructible gets a generated function that throws at runtime instead of aborting the
          * KSP round — nobody asked for that type directly, so failing the whole build over it would
-         * be disproportionate. Explicit entries keep failing fast at compile time.
+         * be disproportionate. An explicit entry keeps failing fast at compile time (see
+         * [Round.reportUnfakeable]).
          */
         var implicit: Boolean = false
 
@@ -394,13 +398,12 @@ class MocKMPProcessor(
 
         /**
          * `@UsesFakes on foo.Tests` / `@Mock foo.Tests.service` — the user annotation that started
-         * the chain [path] walks from, or `null` when it isn't known (an implicit entry seeded by
-         * [Round.seedImplicitPlaceholders], whose [ToProcess] is created before any annotation site is
-         * involved).
+         * the chain [path] walks from, or `null` when it isn't known (a hand-built [ToProcess] in a
+         * test, with no real annotation site behind it).
          *
          * Set once, on first registration, and simply carried forward by every further hop
-         * ([Round.expandTransitiveFakes], [Round.seedImplicitPlaceholder]) — same "recorded at
-         * discovery, first registration wins" reasoning as [path].
+         * ([Round.expandTransitiveFakes], [Round.seedPlaceholder], [Round.expandTransitivePlaceholders])
+         * — same "recorded at discovery, first registration wins" reasoning as [path].
          */
         var origin: String? = null
     }
@@ -468,6 +471,14 @@ class MocKMPProcessor(
      */
     private fun KSType.toFakeClassName(): String = "Fake" + baseName()
 
+    /**
+     * The `PlaceholderXxx` class name generated for [this] type's placeholder implementation — the
+     * placeholder counterpart of [toFakeClassName], same reasoning: `private`, one class per
+     * instantiation (here always [KSClassDeclaration.asBoundedType]'s, since [Round.toPlaceholder] is
+     * declaration-keyed).
+     */
+    private fun KSType.toPlaceholderClassName(): String = "Placeholder" + baseName()
+
     /** The `MockXxx` class name generated for [this] mocked interface. */
     private fun KSDeclaration.toMockName(): String = "Mock" + parentPrefix() + simpleName.asString()
 
@@ -508,6 +519,24 @@ class MocKMPProcessor(
 
         /** User-supplied `@FakeProvider` functions, keyed by the type they provide a fake for. */
         private val providedFakes = LinkedHashMap<KSType, KSFunctionDeclaration>()
+
+        /**
+         * Declarations reachable from a mocked interface's abstract property types and abstract
+         * function *parameter* types — the only shapes `providePlaceholder` is ever asked to answer,
+         * via `isAny()`/`isEqual()`/etc. inside an argument-constraint call (see [Round.seedPlaceholder])
+         * — plus their own constructor dependencies (see [Round.expandTransitivePlaceholders]), for
+         * every such type not already covered by a [toMock] or [toFake] entry. Keyed by declaration,
+         * like [toMock] and unlike [toFake]: `providePlaceholder`'s `when (cls)` dispatches on an
+         * erased [KClass], so one branch per declaration is all it can ever use.
+         *
+         * A placeholder carries constructor transitivity — it has to be constructible — but never
+         * abstract-member transitivity: every abstract member of a generated `PlaceholderXxx` throws
+         * (see [Round.addPlaceholderImplementation]), since nothing is ever meant to actually call one.
+         */
+        private val toPlaceholder = LinkedHashMap<KSClassDeclaration, ToProcess>()
+
+        /** Generated `placeholderXxx()` function name, per placeholder declaration — consumed by [generatePlaceholderAccessor]. */
+        private val placeholders = LinkedHashMap<KSClassDeclaration, MemberName>()
 
         /**
          * True when a faked property of [this] type should be wrapped `by LazyFake { ... }` instead of
@@ -566,11 +595,13 @@ class MocKMPProcessor(
         fun run(): List<KSAnnotated> {
             collectAnnotatedSymbols()
             collectFakeProviders()
-            seedImplicitPlaceholders()
             expandTransitiveFakes()
+            seedPlaceholders()
+            expandTransitivePlaceholders()
 
             toMock.forEach { (vItf, process) -> generateMockClass(vItf, process) }
             toFake.forEach { (vType, process) -> generateFakeFunction(vType, process) }
+            toPlaceholder.forEach { (decl, process) -> generatePlaceholderFunction(decl, process) }
             toInject.forEach { (vCls, _) -> generateInjector(vCls) }
 
             // Unconditionally, even with nothing to dispatch: the Gradle plugin always writes the
@@ -593,10 +624,9 @@ class MocKMPProcessor(
 
         /**
          * Registers [type] as needing a `MockXxx` class, or fails if it isn't an interface or an
-         * abstract class. [origin] names the annotation that started this chain (see
-         * [ToProcess.origin]), [implicit] marks entries discovered by [seedImplicitPlaceholders]
-         * rather than requested directly, and [path] records what led here (see [ToProcess.path]) — a
-         * mock never reports either, but the fakes discovered from its members inherit both.
+         * abstract class. Always called with [origin] naming the annotation that requested it (see
+         * [ToProcess.origin]) and [implicit] `false`: a mock is only ever requested directly, via
+         * `@Mock`/`@UsesMocks` — never discovered transitively, unlike a fake or a placeholder.
          */
         private fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode, origin: String? = null, implicit: Boolean = false, path: List<String> = emptyList()) {
             // Suspend function types included: KSP presents `kotlin.coroutines.SuspendFunctionN` as an
@@ -628,10 +658,11 @@ class MocKMPProcessor(
          * registration key, and every check below, target the real underlying type. Sealed
          * classes/interfaces are allowed through — [generateFakeFunction] resolves them to a
          * constructible permitted subclass at generation time. [origin] names the annotation that
-         * started this chain (see [ToProcess.origin]), [implicit] marks entries discovered by
-         * [seedImplicitPlaceholders] rather than requested directly, and [path] records what led here
-         * (see [ToProcess.path]) — [path] is reported by every rejection below, and by
-         * [reportUnfakeable] when the type only turns out to be unfakeable at generation time.
+         * started this chain (see [ToProcess.origin]); [implicit] is always `false` here too — every
+         * [toFake] entry is requested directly or reached by [expandTransitiveFakes] from one that
+         * was — and [path] records what led here (see [ToProcess.path]) — [path] is reported by every
+         * rejection below, and by [reportUnfakeable] when the type only turns out to be unfakeable at
+         * generation time.
          *
          * Interfaces and abstract classes are fakeable too: rather than being instantiated, they get
          * a generated `FakeXxx` implementation (see [addFakeImplementation]). Objects and annotation
@@ -779,7 +810,7 @@ class MocKMPProcessor(
 
         // endregion
 
-        // region Phase 1.5: implicit placeholders
+        // region Phase 1.5: placeholder seeding
 
         /**
          * A representative [KSType] for [this] declaration, substituting each type parameter with
@@ -972,7 +1003,7 @@ class MocKMPProcessor(
             placeholderFunctionShapes[decl] = resolved.isSuspendFunctionType to (resolved.arguments.size - 1)
         }
 
-        private fun seedImplicitPlaceholder(type: KSType, origin: String?, path: List<String>) {
+        private fun seedPlaceholder(type: KSType, origin: String?, path: List<String>) {
             var resolved = type.unwrapAliases().makeNotNullable()
             if (resolved.isAnyFunctionType) {
                 registerFunctionShape(resolved)
@@ -999,55 +1030,48 @@ class MocKMPProcessor(
                 return
             }
             if (decl.qualifiedName?.asString() in builtins) return
-            if (decl in toMock || resolved in toFake) return
-            val target = resolveSealedTarget(decl)
-            when {
-                target != decl -> toFake[resolved] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
-                decl.classKind == ClassKind.INTERFACE || (decl.classKind == ClassKind.CLASS && Modifier.ABSTRACT in decl.modifiers) ->
-                    toMock[decl] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
-                decl.classKind == ClassKind.CLASS || decl.classKind == ClassKind.ENUM_CLASS ->
-                    toFake[resolved] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
-                else -> {}
-            }
+            if (decl in toMock || decl in toPlaceholder) return
+            // A Fake or a @FakeProvider already covers this exact instantiation — valueTypeToFake
+            // returns null in precisely that case (see its own doc) — so nothing needs a Placeholder:
+            // the value can be resolved from the Fake instead (see fakeInitializerOf's placeholder
+            // mode). Never register a redundant Placeholder for a type another kind already covers.
+            if (valueTypeToFake(resolved) == null) return
+            toPlaceholder[decl] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
         }
 
         /**
-         * Walks every interface/abstract class already in [toMock] and seeds a placeholder for
-         * every parameter, return, and property type reachable from its members — the set of types
-         * `isAny()`/`isEqual()`/etc. may need to return a value for. For an *implicit* entry, only
-         * abstract members are walked, mirroring [generateMockClass]'s decision to only override
-         * abstract members for such a target — walking (and then generating an override for) a JDK
-         * default method like `Iterable.forEach(Consumer)` has repeatedly proven to be a source of
-         * variance conflicts and out-of-bounds package restrictions for no benefit, since a
-         * placeholder is never meant to be genuinely invoked anyway. Runs as a worklist since a
-         * newly-seeded abstract class or interface may itself reference further types.
+         * Walks every mocked interface's abstract property types and abstract function *parameter*
+         * types — the only shapes `providePlaceholder` is ever asked to answer (see [toPlaceholder]) —
+         * and seeds a placeholder for each, via [seedPlaceholder]. Return types are deliberately not
+         * walked: inside a definition block, [org.kodein.mock.Mocker.process] throws `CallDefinition`
+         * before a mocked member would ever produce one, so nothing needs a value for it.
+         *
+         * Every [toMock] entry is explicit now — a mock is never discovered transitively — so, unlike
+         * the walk this replaces, every mocked interface's non-abstract (default) members are
+         * overridden too, and there is no worklist: nothing here can add a new [toMock] entry for this
+         * loop to revisit. [expandTransitivePlaceholders] is what continues the walk from here, one
+         * step further, into each seeded type's own constructor.
          */
-        private fun seedImplicitPlaceholders() {
-            val toExplore = ArrayDeque(toMock.keys)
-            while (toExplore.isNotEmpty()) {
-                val vItf = toExplore.removeFirst()
-                val process = toMock.getValue(vItf)
-                val overrideAll = vItf.classKind == ClassKind.INTERFACE && !process.implicit
+        private fun seedPlaceholders() {
+            toMock.forEach { (vItf, process) ->
+                val overrideAll = vItf.classKind == ClassKind.INTERFACE
                 val owner = vItf.simpleName.asString()
-                val before = HashSet(toMock.keys)
                 vItf.getAllProperties()
                     .filter { it.isAbstract() }
                     .forEach { vProp ->
                         val vPropType = vProp.type.resolve()
-                        seedImplicitPlaceholder(vPropType, process.origin, process.path + propertyPathStep(owner, vProp, vPropType))
+                        seedPlaceholder(vPropType, process.origin, process.path + propertyPathStep(owner, vProp, vPropType))
                     }
                 vItf.getAllFunctions()
                     .filter { it.simpleName.asString() !in IDENTITY_MEMBERS && (overrideAll || it.isAbstract) }
                     .forEach { vFun ->
                         val vParamTypes = vFun.parameters.map { it.type.resolve() }
                         val vReturnType = vFun.returnType?.resolve()
-                        // One step for the whole member: which of its types needed the placeholder is
-                        // not what a reader is after — where it came from is.
+                        // One step for the whole member: which of its parameter types needed the
+                        // placeholder is not what a reader is after — where it came from is.
                         val path = process.path + functionPathStep(owner, vFun, vParamTypes, vReturnType)
-                        vParamTypes.forEach { seedImplicitPlaceholder(it, process.origin, path) }
-                        vReturnType?.let { seedImplicitPlaceholder(it, process.origin, path) }
+                        vParamTypes.forEach { seedPlaceholder(it, process.origin, path) }
                     }
-                toMock.keys.forEach { if (it !in before) toExplore.add(it) }
             }
         }
 
@@ -1194,18 +1218,15 @@ class MocKMPProcessor(
          * constructor parameter types (a `data class Foo(val bar: Bar)` needs `fakeBar()` too), or —
          * when it is faked by implementing an interface or an abstract class — for its abstract
          * member types (see [implementedMemberTypes]), so this walks both graphs and adds any type
-         * not already covered. Also seeds from [toMock]'s abstract-class entries (see [addMock]) —
-         * their superclass constructor call (built by [addSuperclassConstructorArgs]) needs the same
-         * treatment. Discovered types inherit their parent's [ToProcess.implicit] flag: if the whole
-         * chain exists only because of an implicit placeholder need, nobody asked for any of it
-         * directly, so none of it should be able to abort the KSP round. They also inherit their
-         * parent's [ToProcess.origin], unchanged — only [ToProcess.path] grows a step at each hop.
+         * not already covered. Every [toFake] entry is requested directly (`@Fake`/`@UsesFakes`/a
+         * `@Fake`-annotated property) or reached from one by this very walk — a mocked interface's own
+         * members are never a seed here; see [Round.seedPlaceholder]/[Round.expandTransitivePlaceholders]
+         * for that graph instead. Discovered types inherit their parent's [ToProcess.implicit] flag —
+         * always `false` here, since nothing that starts this walk is implicit — and their parent's
+         * [ToProcess.origin], unchanged; only [ToProcess.path] grows a step at each hop.
          */
         private fun expandTransitiveFakes() {
-            val abstractMockSeeds = toMock.entries
-                .filter { (decl, _) -> Modifier.ABSTRACT in decl.modifiers }
-                .map { (decl, process) -> decl.asBoundedType() to process }
-            val toExplore = ArrayDeque(toFake.map { it.toPair() } + abstractMockSeeds)
+            val toExplore = ArrayDeque(toFake.map { it.toPair() })
             while (toExplore.isNotEmpty()) {
                 val (type, process) = toExplore.removeFirst()
                 // The constructor that will be called is the sealed target's, not the sealed parent's
@@ -1232,19 +1253,110 @@ class MocKMPProcessor(
 
         // endregion
 
+        // region Phase 2.5: transitive placeholders
+
+        /**
+         * The placeholder counterpart of [valueTypeToFake]: the type a placeholder has to be
+         * generated for, to produce a value of [type] — or `null` when none is needed, because
+         * [valueTypeToFake] already says so (nullable, a [builtins] type, a `@FakeProvider`, or
+         * already in [toFake] — every one of those is resolved through the Fake path instead, see
+         * [Round.fakeInitializerOf]'s placeholder mode), or because [type]'s declaration is already in
+         * [toMock] (resolved through the Mock path instead, same place).
+         */
+        private fun valueTypeToPlaceholder(type: KSType): KSType? {
+            val resolvedType = valueTypeToFake(type) ?: return null
+            val decl = resolvedType.declaration
+            if (decl !is KSClassDeclaration) return null
+            return resolvedType.takeIf { decl !in toMock }
+        }
+
+        /**
+         * The placeholder counterpart of [constructorParamTypeToFake]: resolves the type a placeholder
+         * is needed for, for constructor [param] of class [vCls] (whose placeholder is being generated
+         * for [vType]) — or `null` if [param] needs no placeholder: it has a default value, or
+         * [valueTypeToPlaceholder] says so.
+         */
+        private fun constructorParamTypeToPlaceholder(vCls: KSClassDeclaration, vType: KSType, param: KSValueParameter, process: ToProcess): KSType? {
+            if (param.hasDefault) return null
+            val paramType = substituteTypeParameters(param.type.resolve(), vCls, vType)
+                ?: error(param, "Could not resolve generic parameter $param (${process.references.firstOrNull()?.location})")
+            return valueTypeToPlaceholder(paramType)
+        }
+
+        /**
+         * Breadth-first expansion of [toPlaceholder]: a placeholder may itself require placeholders
+         * for its own constructor parameter types, exactly as [expandTransitiveFakes] walks a fake's —
+         * but never for abstract member types, which is the one thing that keeps a placeholder from
+         * growing into a full fake (see [toPlaceholder]'s own doc). Also seeds from [toMock]'s
+         * abstract-*class* entries — unlike [expandTransitiveFakes]'s old, removed equivalent, this
+         * deliberately excludes mocked *interfaces*, which have no superclass constructor call to
+         * satisfy — for [addSuperclassConstructorArgs]' sake. Discovered types are always implicit:
+         * nothing that reaches [toPlaceholder] was requested directly.
+         */
+        private fun expandTransitivePlaceholders() {
+            val abstractMockSeeds = toMock.entries
+                .filter { (decl, _) -> decl.classKind == ClassKind.CLASS && Modifier.ABSTRACT in decl.modifiers }
+                .map { (decl, process) -> decl.asBoundedType() to process }
+            val toExplore = ArrayDeque(toPlaceholder.map { (decl, process) -> decl.asBoundedType() to process } + abstractMockSeeds)
+            while (toExplore.isNotEmpty()) {
+                val (type, process) = toExplore.removeFirst()
+                val targetType = resolveSealedTargetType(type)
+                val cls = targetType.declaration as? KSClassDeclaration ?: continue
+                val vCstr = cls.firstPublicConstructor() ?: continue
+                val path = process.path + constructorPathStep(targetType.pathName(), vCstr)
+                vCstr.parameters.forEach { param ->
+                    val paramType = constructorParamTypeToPlaceholder(cls, targetType, param, process) ?: return@forEach
+                    val paramDecl = paramType.declaration as KSClassDeclaration
+                    val childProcess = toPlaceholder.getOrPut(paramDecl) {
+                        ToProcess().apply { this.origin = process.origin; implicit = true; this.path = path }
+                    }
+                    childProcess.files.addAll(process.files)
+                    childProcess.references.add(param)
+                    toExplore.add(paramDecl.asBoundedType() to childProcess)
+                }
+            }
+        }
+
+        // endregion
+
         // region Phase 3: mock generation
 
         /**
          * Appends `: SuperClass(arg1, arg2, ...)` superclass constructor arguments to [gCls] for
          * abstract class [vCls]'s primary constructor, as instantiated by [vType] and resolved the
          * same way fake-class constructor arguments are (see [resolveConstructorArgs]) — the
-         * generated instance still has to satisfy its supertype's real constructor.
+         * generated instance still has to satisfy its supertype's real constructor. [asPlaceholder]
+         * distinguishes the two callers: `false` for a faked abstract class ([addFakeImplementation]),
+         * `true` for a *mocked* one ([mockClassBuilder]) — its superclass constructor's own
+         * dependencies are placeholders (see [expandTransitivePlaceholders]'s abstract-class seeds),
+         * never a redundant fake generated solely to feed this one call.
          */
-        private fun addSuperclassConstructorArgs(gCls: TypeSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>) {
+        private fun addSuperclassConstructorArgs(gCls: TypeSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, asPlaceholder: Boolean = false) {
             val vCstr = vCls.firstPublicConstructor() ?: return
-            resolveConstructorArgs(vCls, vCstr, vType, filesDeps).forEach { (format, values) ->
+            resolveConstructorArgs(vCls, vCstr, vType, filesDeps, asPlaceholder).forEach { (format, values) ->
                 gCls.addSuperclassConstructorParameter(format, *values.toTypedArray())
             }
+        }
+
+        /**
+         * `MockXxx(Mocker())` for [decl] — the expression every "use the existing Mock" branch needs,
+         * shared by [fakeInitializerOf]'s placeholder mode and [generatePlaceholderAccessor]. Builds
+         * the class name by the same convention [generateMockClass] used to generate it
+         * ([KSDeclaration.fakePackageName], [KSDeclaration.toMockName]) rather than reading it back
+         * from [mocks] — [fakeInitializerOf] can run before every mock has been generated (a mocked
+         * abstract class's own superclass constructor argument may itself be a *different* mocked
+         * type, generated later in [toMock]'s iteration order), so the name has to be computable
+         * without waiting on that map, exactly as [addMockInjection] already does for the same reason.
+         */
+        private fun mockConstructorCall(decl: KSClassDeclaration): Pair<String, List<Any>> {
+            val mockClassName = ClassName(decl.fakePackageName(), decl.toMockName())
+            val mockTypeName: TypeName =
+                if (decl.typeParameters.isNotEmpty()) {
+                    mockClassName.parameterizedBy(*decl.typeParameters.map { it.bounds.first().resolve().toTypeName() }.toTypedArray())
+                } else {
+                    mockClassName
+                }
+            return "%T(%T())" to listOf(mockTypeName, mockerTypeName)
         }
 
         /**
@@ -1264,7 +1376,7 @@ class MocKMPProcessor(
                 gCls.addSuperinterface(superType)
             } else {
                 gCls.superclass(superType)
-                addSuperclassConstructorArgs(gCls, vItf, vItf.asBoundedType(), filesDeps)
+                addSuperclassConstructorArgs(gCls, vItf, vItf.asBoundedType(), filesDeps, asPlaceholder = true)
             }
             vItf.typeParameters.forEach { vParam -> gCls.addTypeVariable(vParam.toTypeVariableName()) }
             gCls.primaryConstructor(
@@ -1442,8 +1554,8 @@ class MocKMPProcessor(
         }
 
         /**
-         * Generates the `MockXxx` class implementing interface (or, for a placeholder-only target,
-         * overriding abstract class) [vItf], into its own file, e.g. for
+         * Generates the `MockXxx` class implementing interface (or, for an abstract class, extending
+         * it) [vItf], into its own file, e.g. for
          * `interface Foo { val bar: String; fun baz(i: Int): String }`:
          *
          * ```
@@ -1454,14 +1566,14 @@ class MocKMPProcessor(
          * }
          * ```
          *
-         * For an *explicitly* requested interface, every member is overridden — abstract members
-         * through the mocker, non-abstract (default) ones with a `default = { super.foo() }`
-         * fallback so mocking them remains optional. For an abstract class, or an *implicitly*
-         * discovered interface (see [ToProcess.implicit]), only the abstract members are overridden:
-         * a placeholder is never meant to be genuinely invoked, so there's no need to touch concrete
-         * members (which may be `final`, or — as JDK interop default methods like
-         * `Iterable.forEach(Consumer)` have shown — carry variance that only conflicts when
-         * re-declared as an explicit override).
+         * A [toMock] entry is always explicit — a mock is never discovered transitively — so, for an
+         * interface, every member is overridden: abstract members through the mocker, non-abstract
+         * (default) ones with a `default = { super.foo() }` fallback so mocking them remains optional.
+         * An abstract class only ever has abstract members overridden — mirroring the "abstract only"
+         * rule a faked abstract class follows too ([addFakeImplementation]) — since a default method
+         * has no meaning there; and JDK interop default methods like `Iterable.forEach(Consumer)` have
+         * repeatedly proven to carry variance that only conflicts when re-declared as an explicit
+         * override.
          *
          * Generated into [KSDeclaration.fakePackageName] rather than [vItf]'s own package: besides
          * the same Kotlin-stdlib/JDK write restriction fakes already redirect around, some
@@ -1477,7 +1589,10 @@ class MocKMPProcessor(
             val filesDeps = LinkedHashSet(process.files)
             val (gCls, mocker) = mockClassBuilder(vItf, mockClassName, filesDeps)
             requirementComment(process)?.let { gCls.addKdoc(it) }
-            val overrideAll = vItf.classKind == ClassKind.INTERFACE && !process.implicit
+            // Every toMock entry is explicit now — a mock is never discovered transitively — so every
+            // interface's non-abstract (default) members are always overridden too, matching an
+            // abstract class's own always-abstract-only rule (a default method has no meaning there).
+            val overrideAll = vItf.classKind == ClassKind.INTERFACE
 
             val vProps = vItf.getAllProperties().filter { it.isAbstract() }.toList()
             val vFuns = vItf.getAllFunctions().filter { overrideAll || it.isAbstract }.toList()
@@ -1539,8 +1654,16 @@ class MocKMPProcessor(
          * ([addFakeInjection]) did not previously unwrap type aliases nor redirect stdlib packages
          * through [fakePackageName] — both are applied uniformly now; the difference is unreachable
          * for any type already covered by [builtins], which is the only stdlib case exercised today.
+         *
+         * [asPlaceholder] switches step 5 for a placeholder's own constructor arguments
+         * ([addPlaceholderImplementation], and [addSuperclassConstructorArgs]'s mocked-abstract-class
+         * caller): a Fake, if [type] already has one — the most faithful value available; else a Mock,
+         * if [type] is [toMock] — a mocked instance is inert, which is faithful enough; else the
+         * generated `placeholderXxx()` for [type], which [expandTransitivePlaceholders] guarantees
+         * exists whenever neither of the above does. A plain fake never falls back to either: it is
+         * meant to be *used*, so it must never bottom out in a throwing placeholder.
          */
-        private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, List<Any>> {
+        private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>, asPlaceholder: Boolean = false): Pair<String, List<Any>> {
             val resolvedType = type.unwrapAliases()
             val decl = resolvedType.declaration
             val qualifiedName = decl.qualifiedName!!.asString()
@@ -1559,13 +1682,19 @@ class MocKMPProcessor(
                 return template to listOf(argClassName)
             }
             if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
-                val (innerTemplate, innerArgs) = fakeValueOf(resolvedType.arguments.first().type!!.resolve(), filesDeps)
+                val (innerTemplate, innerArgs) = fakeValueOf(resolvedType.arguments.first().type!!.resolve(), filesDeps, asPlaceholder)
                 return "%M($innerTemplate)" to (listOf(MemberName("kotlinx.coroutines.flow", "MutableStateFlow")) + innerArgs)
             }
             val builtIn = builtins[qualifiedName]
             return when {
                 builtIn != null -> builtIn.template to builtIn.args
-                else -> "%M()" to listOf(MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}"))
+                !asPlaceholder -> "%M()" to listOf(MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}"))
+                resolvedType in toFake -> "%M()" to listOf(MemberName(decl.fakePackageName(), "fake${resolvedType.toFunName()}"))
+                decl is KSClassDeclaration && decl in toMock -> mockConstructorCall(decl)
+                else -> {
+                    val boundedType = (decl as KSClassDeclaration).asBoundedType()
+                    "%M()" to listOf(MemberName(decl.fakePackageName(), "placeholder${boundedType.toFunName()}"))
+                }
             }
         }
 
@@ -1596,13 +1725,13 @@ class MocKMPProcessor(
          * fake-class generation ([addFakeClassConstructorCall]) and abstract-class mock generation
          * ([addSuperclassConstructorArgs]).
          */
-        private fun resolveConstructorArgs(vCls: KSClassDeclaration, vCstr: KSFunctionDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>): List<Pair<String, List<Any>>> {
+        private fun resolveConstructorArgs(vCls: KSClassDeclaration, vCstr: KSFunctionDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, asPlaceholder: Boolean = false): List<Pair<String, List<Any>>> {
             val args = ArrayList<Pair<String, List<Any>>>()
             vCstr.parameters.forEach { vParam ->
                 if (!vParam.hasDefault) {
                     val vParamType = substituteTypeParameters(vParam.type.resolve(), vCls, vType)
                         ?: error(vParam, "Could not resolve generic parameter $vParam of ${vCls.qualifiedName?.asString()}")
-                    val (template, values) = fakeValueOf(vParamType, filesDeps)
+                    val (template, values) = fakeValueOf(vParamType, filesDeps, asPlaceholder)
                     args.add("${vParam.name!!.asString()} = $template" to values)
                 }
             }
@@ -1621,7 +1750,7 @@ class MocKMPProcessor(
          * ([addFakeImplementation]) alike. [valueTypeToFake] decides, from the same [type], whether a
          * `fakeXxx()` function has to be generated for the call this emits.
          */
-        private fun fakeValueOf(type: KSType, filesDeps: MutableSet<KSFile>): Pair<String, List<Any>> = when {
+        private fun fakeValueOf(type: KSType, filesDeps: MutableSet<KSFile>, asPlaceholder: Boolean = false): Pair<String, List<Any>> = when {
             type.nullability != Nullability.NOT_NULL -> "%L" to listOf("null")
             type.isAnyFunctionType -> {
                 val vLambdaParams = "_, ".repeat(type.arguments.size - 1)
@@ -1629,11 +1758,11 @@ class MocKMPProcessor(
                 if (vReturnType.isUnit()) {
                     "{ $vLambdaParams-> }" to emptyList()
                 } else {
-                    val (template, values) = fakeInitializerOf(vReturnType, filesDeps)
+                    val (template, values) = fakeInitializerOf(vReturnType, filesDeps, asPlaceholder)
                     "{ $vLambdaParams-> $template }" to values
                 }
             }
-            else -> fakeInitializerOf(type, filesDeps)
+            else -> fakeInitializerOf(type, filesDeps, asPlaceholder)
         }
 
         /**
@@ -1641,13 +1770,13 @@ class MocKMPProcessor(
          * *implicit* target with no public constructor, [reportUnfakeable] instead of aborting
          * the KSP round.
          */
-        private fun addFakeClassConstructorCall(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess) {
+        private fun addFakeClassConstructorCall(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess, asPlaceholder: Boolean = false) {
             val vCstr = vCls.firstPublicConstructor()
             if (vCstr == null) {
                 reportUnfakeable(gFun, vCls, "it has no public constructor", process)
                 return
             }
-            val args = resolveConstructorArgs(vCls, vCstr, vType, filesDeps)
+            val args = resolveConstructorArgs(vCls, vCstr, vType, filesDeps, asPlaceholder)
             gFun.addStatement("return %T(${args.joinToString { it.first }})", *(listOf(vCls.toClassName()) + args.flatMap { it.second }).toTypedArray())
         }
 
@@ -1927,6 +2056,188 @@ class MocKMPProcessor(
 
         // endregion
 
+        // region Phase 4.5: placeholder generation
+
+        /**
+         * The throwing override of one abstract property of an implemented interface or abstract
+         * class — the placeholder counterpart of [fakedProperty]: every getter, and every setter of a
+         * mutable property, is `error("Placeholders are not meant to be used")` rather than a faked
+         * value, e.g. for `val bar: String` and mutable `var baz: Int`:
+         *
+         * ```
+         * override val bar: String get() = error("Placeholders are not meant to be used")
+         * override var baz: Int
+         *     get() = error("Placeholders are not meant to be used")
+         *     set(value) { error("Placeholders are not meant to be used") }
+         * ```
+         *
+         * A placeholder is only ever reached through `providePlaceholder`, answering an argument
+         * constraint — never through a property read a test's own assertions could depend on — so
+         * there is nothing to hold or defer here, unlike [fakedProperty]'s [LazyFake]/`Nothing` cases.
+         */
+        private fun placeholderProperty(vProp: KSPropertyDeclaration, vPropType: KSType): PropertySpec {
+            val gPropType = vPropType.toMemberTypeName()
+            val builder = PropertySpec.builder(vProp.simpleName.asString(), gPropType)
+                .addModifiers(KModifier.OVERRIDE)
+                .mutable(vProp.isMutable)
+                .addAnnotations(vProp.overrideAnnotations())
+                .getter(FunSpec.getterBuilder().addStatement("error(%S)", "Placeholders are not meant to be used").build())
+            if (vProp.isMutable) {
+                builder.setter(
+                    FunSpec.setterBuilder()
+                        .addParameter("value", gPropType)
+                        .addStatement("error(%S)", "Placeholders are not meant to be used")
+                        .build()
+                )
+            }
+            return builder.build()
+        }
+
+        /**
+         * The throwing override of one abstract function of an implemented interface or abstract
+         * class — the placeholder counterpart of [fakedFunction]: `error("Placeholders are not meant
+         * to be used")` as its sole body statement, whatever the declared return type, e.g. for
+         * `fun log(m: String)` and `fun user(): User`:
+         *
+         * ```
+         * override fun log(m: String) { error("Placeholders are not meant to be used") }
+         * override fun user(): User = error("Placeholders are not meant to be used")
+         * ```
+         *
+         * Unlike [fakedFunction], this needs no per-return-type handling at all — not for `Unit`, not
+         * for `Nothing`, not for a function returning one of its own type parameters: a bare `error(...)`
+         * statement is `Nothing`-typed, which Kotlin's control-flow analysis accepts as terminating a
+         * block body regardless of its declared return type, exactly as [fakedFunction] already relies
+         * on for its own `Nothing`-typed case.
+         */
+        private fun placeholderFunction(vFun: KSFunctionDeclaration, vFunSig: KSFunction): FunSpec {
+            val gFun = FunSpec.builder(vFun.simpleName.asString())
+                .addModifiers(KModifier.OVERRIDE)
+            val typeParamResolver = vFun.typeParameters.toTypeParameterResolver()
+            vFun.typeParameters.forEach { vParam -> gFun.addTypeVariable(vParam.toTypeVariableName(typeParamResolver)) }
+            gFun.addModifiers((vFun.modifiers - Modifier.ABSTRACT - Modifier.OPEN - Modifier.OPERATOR).mapNotNull { it.toKModifier() })
+            gFun.addAnnotations(vFun.overrideAnnotations())
+            val vParamTypes = vFun.parameters.mapIndexed { index, vParam -> vFunSig.parameterTypes.getOrNull(index) ?: vParam.type.resolve() }
+            vFun.parameters.forEachIndexed { index, vParam ->
+                gFun.addParameter(
+                    vParam.name!!.asString(),
+                    vParamTypes[index].toMemberTypeName(typeParamResolver),
+                    if (vParam.isVararg) listOf(KModifier.VARARG) else emptyList()
+                )
+            }
+            val vReturnType = vFunSig.returnType ?: vFun.returnType!!.resolve()
+            gFun.returns(vReturnType.toMemberTypeName(typeParamResolver))
+            gFun.addStatement("error(%S)", "Placeholders are not meant to be used")
+            return gFun.build()
+        }
+
+        /**
+         * Builds the `private PlaceholderXxx` class implementing interface (or extending abstract
+         * class) [vCls], and appends `return PlaceholderXxx()` to [gFun] — the placeholder counterpart
+         * of [addFakeImplementation]: same shape (supertype/superclass, constructor arguments,
+         * `@Suppress("OVERRIDE_DEPRECATION")`, identity members kept real via [addIdentityOverride],
+         * `private` declared after the function that returns it), except every non-identity abstract
+         * member throws (see [placeholderProperty]/[placeholderFunction]) instead of being faked —
+         * this is what keeps a placeholder from carrying abstract-member transitivity the way a fake
+         * does. Its own constructor arguments are resolved in placeholder mode too
+         * ([addSuperclassConstructorArgs]'s `asPlaceholder = true`), so a constructor dependency that
+         * needs one gets a nested `placeholderXxx()` call rather than a redundant fake.
+         *
+         * `null` if [vCls] turned out to be [reportUnfakeable] instead (no public constructor to
+         * extend) — always the throwing-stub branch, never a compile error: every [ToProcess] reaching
+         * here has [ToProcess.implicit] set, since nothing requests a placeholder directly.
+         */
+        private fun addPlaceholderImplementation(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess): TypeSpec? {
+            val implementedType = vType.withBoundArguments()
+            val placeholderClassName = vType.toPlaceholderClassName()
+            val gCls = TypeSpec.classBuilder(placeholderClassName).addModifiers(KModifier.PRIVATE)
+
+            if (vCls.classKind == ClassKind.INTERFACE) {
+                gCls.addSuperinterface(implementedType.toTypeName())
+            } else {
+                if (vCls.firstPublicConstructor() == null) {
+                    reportUnfakeable(gFun, vCls, "it has no public constructor", process)
+                    return null
+                }
+                gCls.superclass(implementedType.toTypeName())
+                addSuperclassConstructorArgs(gCls, vCls, implementedType, filesDeps, asPlaceholder = true)
+            }
+
+            val vProps = vCls.getAllProperties().filter { it.isAbstract() }.toList()
+            val vFuns = vCls.getAllFunctions().filter { it.isAbstract }.toList()
+
+            if (vProps.any { it.isDeprecated() } || vFuns.any { it.isDeprecated() }) {
+                gCls.addAnnotation(
+                    AnnotationSpec.builder(Suppress::class).addMember("%S", "OVERRIDE_DEPRECATION").build()
+                )
+            }
+
+            vProps.forEach { vProp -> gCls.addProperty(placeholderProperty(vProp, vProp.asMemberOf(implementedType))) }
+            vFuns.forEach { vFun ->
+                if (vFun.simpleName.asString() in IDENTITY_MEMBERS) addIdentityOverride(gCls, vFun, vCls)
+                else gCls.addFunction(placeholderFunction(vFun, vFun.asMemberOf(implementedType)))
+            }
+
+            gFun.addStatement("return %N()", placeholderClassName)
+            return gCls.build()
+        }
+
+        /**
+         * Generates the top-level `placeholderXxx(): Xxx` function for [decl], into its own file —
+         * the placeholder counterpart of [generateFakeFunction]: same dispatch (sealed types resolved
+         * to a constructible permitted subclass, a class/annotation class constructed via
+         * [addFakeClassConstructorCall] in placeholder mode, an enum via [addFakeFirstEnumEntry], an
+         * object a plain reference, an interface or abstract class via
+         * [addPlaceholderImplementation]), targeting [KSClassDeclaration.asBoundedType] rather than a
+         * specific instantiation — [toPlaceholder] is declaration-keyed, unlike [toFake].
+         *
+         * Records the generated function name into [placeholders], consumed by
+         * [generatePlaceholderAccessor].
+         */
+        private fun generatePlaceholderFunction(decl: KSClassDeclaration, process: ToProcess) {
+            val vType = decl.asBoundedType()
+            val targetType = resolveSealedTargetType(vType)
+            val targetCls = targetType.declaration as KSClassDeclaration
+            val filesDeps = LinkedHashSet(process.files)
+            val funName = "placeholder${vType.toFunName()}"
+            val pkg = decl.fakePackageName()
+            val gFile = FileSpec.builder(pkg, funName)
+            val gFun = FunSpec.builder(funName)
+                .addModifiers(visibilityModifier)
+                .returns(vType.toTypeName(decl.typeParameters.toTypeParameterResolver()))
+            requirementComment(process)?.let { gFun.addKdoc(it) }
+            val gCls: TypeSpec? = when {
+                targetCls.isFakedByImplementing() -> addPlaceholderImplementation(gFun, targetCls, targetType, filesDeps, process)
+                targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
+                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
+                    addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process, asPlaceholder = true)
+                    null
+                }
+                targetCls.classKind == ClassKind.ENUM_CLASS -> {
+                    addFakeFirstEnumEntry(gFun, targetCls, process)
+                    null
+                }
+                targetCls.classKind == ClassKind.OBJECT -> {
+                    gFun.addStatement("return %T", targetCls.toClassName())
+                    null
+                }
+                else -> {
+                    val reason = when {
+                        targetCls != decl -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
+                        Modifier.SEALED in decl.modifiers -> "it is a sealed ${decl.classKind.type} with no permitted subclasses"
+                        else -> "${targetCls.classKind.plural()} cannot be instantiated"
+                    }
+                    reportUnfakeable(gFun, decl, reason, process)
+                    null
+                }
+            }
+            gFile.addFunction(gFun.build().also { placeholders[decl] = MemberName(pkg, funName) })
+            gCls?.let { gFile.addType(it) }
+            writeWithRequirementComment(gFile, Dependencies(true, *filesDeps.toTypedArray()))
+        }
+
+        // endregion
+
         // region Phase 5: injectors
 
         /**
@@ -2187,22 +2498,29 @@ class MocKMPProcessor(
          * `References` falls back to when it has no builtin and no user-registered reference for a
          * type — i.e. what `isAny()`/`isEqual()`/etc. need to return from inside an `every { }`.
          *
-         * One `when` branch per: mocked interface/abstract class (`MockFoo(Mocker())`), fake
-         * class/enum (`fakeFoo()`, deduped to one representative per raw class since `KClass`
-         * erases generic type arguments — `isAny<GenData<String>>()` and `isAny<GenData<Int>>()`
-         * share a branch, and get the most general instantiation available, see [fakes]), concrete array type (see
-         * [placeholderArrayTypes] — `Array<T>` is the one case that *isn't* erased on the JVM),
-         * function-type arity (a plain lambda cast to the right shape, matched by the same raw
-         * `Function1::class`/etc. `T::class` already erases to — see [placeholderFunctionShapes];
+         * One `when` branch per declaration, in priority order — Fake, then Mock, then Placeholder,
+         * each pass skipping a declaration a higher-priority one already claimed, since only the
+         * first matching branch of a `when` ever runs and a repeat would be dead code the compiler
+         * warns about: fake class/enum first (`fakeFoo()` — the most faithful value available,
+         * deduped to one representative per raw class since `KClass` erases generic type arguments —
+         * `isAny<GenData<String>>()` and `isAny<GenData<Int>>()` share a branch, and get the most
+         * general instantiation available, see [fakes]); mocked interface/abstract class next
+         * (`MockFoo(Mocker())` — inert, but a genuine instance of the real type); then placeholder
+         * (`placeholderFoo()` — never meant to be genuinely used, and only ever generated for a
+         * declaration neither of the above already covers, see [toPlaceholder]). After those: concrete
+         * array type (see [placeholderArrayTypes] — `Array<T>` is the one case that *isn't* erased on
+         * the JVM), function-type arity (a plain lambda cast to the right shape, matched by the same
+         * raw `Function1::class`/etc. `T::class` already erases to — see [placeholderFunctionShapes];
          * one branch per `KClass`, a suspend shape's JVM fallback key never displacing a genuine one),
          * and non-numeric builtin (a literal or factory call matching [builtins] — the numeric ones
          * are already handled by `References`'s own hardcoded primitive map and never reach here):
          *
          * ```
          * internal actual fun providePlaceholder(cls: KClass<*>): Any = when (cls) {
-         *     Bar::class -> MockBar(Mocker())
-         *     Function1::class -> ({ _ -> error("...") }) as (Any?) -> Any?
          *     Data::class -> fakeData()
+         *     Bar::class -> MockBar(Mocker())
+         *     Config::class -> placeholderConfig()
+         *     Function1::class -> ({ _ -> error("...") }) as (Any?) -> Any?
          *     String::class -> ""
          *     else -> error("Could not find placeholder for type $cls")
          * }
@@ -2217,21 +2535,13 @@ class MocKMPProcessor(
 
             gFun.beginControlFlow("return when (cls)")
 
-            mocks.forEach { (itf, mock) ->
-                val mockTypeName: TypeName =
-                    if (itf.typeParameters.isNotEmpty()) {
-                        mock.parameterizedBy(*itf.typeParameters.map { it.bounds.first().resolve().toTypeName() }.toTypedArray())
-                    } else {
-                        mock
-                    }
-                gFun.addStatement("%T::class -> %T(%T())", itf.toClassName(), mockTypeName, mockerTypeName)
-            }
-
-            // `cls` is erased, so all of a generic type's instantiations share one branch and one of
-            // them has to stand for the rest. Take the most general — every argument its parameter's
-            // bound, `GenData<Any>` — which is the same stand-in the mock branches above already use;
-            // failing that, the first by generated function name. Both beat `fakes`' hash order, which
-            // silently reshuffled the choice whenever an unrelated declaration was added.
+            // Fake first: its members answer with fixed values, the most faithful placeholder
+            // available whenever one exists. `cls` is erased, so all of a generic type's
+            // instantiations share one branch and one of them has to stand for the rest. Take the most
+            // general — every argument its parameter's bound, `GenData<Any>` — the same stand-in the
+            // mock branches below use; failing that, the first by generated function name. Both beat
+            // `fakes`' hash order, which silently reshuffled the choice whenever an unrelated
+            // declaration was added.
             //
             // A fake keyed by a sealed type (e.g. SItf) is generated by constructing a concrete
             // permitted subclass (SItf.C — see resolveSealedTarget). Register both KClasses against
@@ -2248,19 +2558,45 @@ class MocKMPProcessor(
                     val target = resolveSealedTarget(decl)
                     if (target != decl) fakesByDecl.getOrPut(target) { member }
                 }
-            // An interface can now legitimately be both mocked and faked, which would emit its
-            // `::class` twice — only the first branch of a `when` ever runs, so the second would be
-            // dead code the compiler warns about. The mock branch, emitted above, is the one kept:
-            // a placeholder is never meant to be genuinely used, and a mock stays inert whatever is
-            // called on it, whereas a fake's members answer with fixed values.
-            fakesByDecl.keys.removeAll(mocks.keys)
             fakesByDecl.forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
 
+            // Mock second, minus anything a Fake above already claims: an interface (or abstract
+            // class) can legitimately have both — a mock is never discovered transitively any more, so
+            // this can now only happen when a type is both explicitly requested via @Mock/@UsesMocks
+            // and explicitly requested (or transitively required) via @Fake/@UsesFakes.
+            mocks.keys
+                .filter { itf -> itf !in fakesByDecl }
+                .forEach { itf ->
+                    val (template, values) = mockConstructorCall(itf)
+                    gFun.addStatement("%T::class -> $template", itf.toClassName(), *values.toTypedArray())
+                }
+
+            // Placeholder last, minus anything a Fake or a Mock above already claims — which
+            // [toPlaceholder] already guarantees never happens (see [seedPlaceholder]/
+            // [valueTypeToPlaceholder]), but the filter is repeated here for the same reason the mock
+            // pass filters against the fake one: this table is the one place all three kinds meet.
+            // [placeholders] is declaration-keyed already, unlike [fakes] — one raw class, one entry —
+            // but a sealed declaration's placeholder is still generated by constructing a concrete
+            // permitted subclass ([generatePlaceholderFunction] resolves it the same way
+            // [generateFakeFunction] does), so its resolved target needs the same extra branch
+            // [fakesByDecl] registers above: isInstanceOf<SItf.C>() asks for it directly, not for the
+            // sealed parent isAny<SItf>() asks for.
+            val placeholdersByDecl = LinkedHashMap<KSClassDeclaration, MemberName>()
+            placeholders.forEach { (decl, member) ->
+                placeholdersByDecl.getOrPut(decl) { member }
+                val target = resolveSealedTarget(decl)
+                if (target != decl) placeholdersByDecl.getOrPut(target) { member }
+            }
+            placeholdersByDecl.entries
+                .filter { (decl, _) -> decl !in fakesByDecl && decl !in mocks }
+                .forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
+
             // isInstanceOf<T>()/isEqual<T>() can also target one of a sealed type's OTHER permitted
-            // subclasses — not just the one resolveSealedTarget picked for the fake function above.
-            // An object subclass needs no function call at all: just reference the singleton.
+            // subclasses — not just the one resolveSealedTarget picked for the fake/placeholder
+            // function above. An object subclass needs no function call at all: just reference the
+            // singleton.
             val sealedObjectSubclasses = LinkedHashSet<KSClassDeclaration>()
-            fakes.keys.mapNotNull { it.declaration as? KSClassDeclaration }
+            (fakes.keys.mapNotNull { it.declaration as? KSClassDeclaration } + placeholders.keys)
                 .filter { Modifier.SEALED in it.modifiers }
                 .forEach { sealed -> sealed.getSealedSubclasses().forEach { sub -> if (sub.classKind == ClassKind.OBJECT) sealedObjectSubclasses += sub } }
             sealedObjectSubclasses.forEach { obj -> gFun.addStatement("%T::class -> %T", obj.toClassName(), obj.toClassName()) }

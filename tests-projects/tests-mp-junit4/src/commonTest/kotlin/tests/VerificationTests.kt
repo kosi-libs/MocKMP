@@ -11,7 +11,9 @@ import org.kodein.mock.generated.mock
 import kotlin.test.*
 
 
-@UsesMocks(Foo::class)
+// Identified is explicit here: a mock is only ever generated on request now, never transitively
+// through a mocked interface's own return type (Foo.newIdentified() below never calls this one).
+@UsesMocks(Foo::class, Identified::class)
 @UsesFakes(Data::class)
 class VerificationTests {
 

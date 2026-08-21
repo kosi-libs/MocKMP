@@ -261,7 +261,9 @@ class FakeGenerationTests {
      * Regression test: `isAny<T>()` resolves its placeholder through the erased `T::class`, which
      * cannot tell "T was Suit" apart from "T was Suit?" — so a type reachable only as a nullable
      * parameter of a mocked interface still needs a real placeholder, exactly as a non-nullable
-     * reference to it would (see seedImplicitPlaceholder).
+     * reference to it would (see seedPlaceholder). It is a Placeholder, not a Fake: nothing here
+     * requests Suit directly, or transitively through an explicit Fake, so `placeholderSuit()` is
+     * generated (and registered in `providePlaceholder`) instead of a `fakeSuit()`.
      */
     @Test
     fun nullableOnlyReferencedEnumStillGetsAPlaceholder() {
@@ -289,16 +291,20 @@ class FakeGenerationTests {
 
         val generated = compilation.workingDir.walkTopDown().toList()
         assertTrue(
+            generated.any { it.name == "placeholderfixture_Suit.kt" },
+            "Expected a placeholderSuit() function to be generated even though Suit is only ever referenced nullably",
+        )
+        assertFalse(
             generated.any { it.name == "fakefixture_Suit.kt" },
-            "Expected a fakeSuit() function to be generated even though Suit is only ever referenced nullably",
+            "Did not expect a fakeSuit() function: nothing requests Suit directly or through a Fake",
         )
         val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
         assertTrue("Suit::class ->" in placeholders, "Expected a providePlaceholder branch for Suit:\n$placeholders")
     }
 
     /**
-     * The mirror of [nullableOnlyReferencedEnumStillGetsAPlaceholder]: seedImplicitPlaceholder's fix
-     * is scoped to mocked-interface members only. A type reached only through a nullable `@Fake`
+     * The mirror of [nullableOnlyReferencedEnumStillGetsAPlaceholder]: seedPlaceholder's fix is
+     * scoped to mocked-interface members only. A type reached only through a nullable `@Fake`
      * constructor parameter is unaffected — it still fakes as a plain `null`, with no `fakeXxx()`
      * function generated for it at all, exactly as before this fix (see valueTypeToFake, addFake).
      */

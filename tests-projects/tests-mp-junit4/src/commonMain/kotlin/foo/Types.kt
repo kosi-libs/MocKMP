@@ -98,7 +98,8 @@ interface Bar : Foo<Bar> {
 }
 
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.
-// Only ever reached implicitly, through Foo.newIdentified below.
+// Reached implicitly through Foo.newIdentified below (a return type, so that alone generates
+// nothing), and explicitly mocked in VerificationTests to exercise identity-override behavior.
 interface Identified {
     override fun equals(other: Any?): Boolean
     override fun hashCode(): Int
