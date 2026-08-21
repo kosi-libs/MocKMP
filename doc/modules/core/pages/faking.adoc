@@ -28,6 +28,22 @@ fun testUser() {}
 
 Once a type appears in `@UsesFakes`, the processor will generate a fake function for it.
 
+[CAUTION]
+====
+`fake<T>()` only works for a type that is requested directly — with `@UsesFakes`, or a `@Fake`
+property.
+
+A type your code never names, but that MocKMP still needs — e.g. a constructor parameter of a type
+you did request — is faked internally too, so whatever needs it keeps working, but `fake<T>()` cannot
+return it: it exists only to satisfy the type that reached it, not as something of its own you asked
+for.
+
+This is deliberate. If you called `fake<T>()` on such a type and it later stopped being needed there —
+or started meaning something else — your call would break or silently change behavior, in a test that
+has nothing to do with the type that used to need it. Requesting it yourself, with `@UsesFakes` or a
+`@Fake` property, turns that into a compile error at the declaration that actually needs updating.
+====
+
 
 == Instantiating
 

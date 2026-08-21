@@ -393,6 +393,13 @@ class MocKMPProcessor(
          * turns out to be unfakeable, whether in [Round.addFake] or as late as generation, the walk
          * that reached it is long over. Since entries are deduplicated on first registration and the
          * expansion worklist is breadth-first, this is the shortest chain that reaches the type.
+         *
+         * Also what [Round.generateFakeAccessor]/[Round.generateMockAccessor] filter `fake<T>()`/
+         * `mock<T>()` on: `path.isEmpty()` is "was this exact type named directly," which is distinct
+         * from — and a stricter question than — [implicit]. A type explicitly requested (an empty
+         * path) always keeps it even if some other chain also reaches it transitively, since
+         * `collectAnnotatedSymbols` registers every explicit entry before [expandTransitiveFakes] ever
+         * runs, and first registration wins.
          */
         var path: List<String> = emptyList()
 
@@ -2365,8 +2372,9 @@ class MocKMPProcessor(
         }
 
         /**
-         * Generates the `Mocker.mock(KClass<T>): T` dispatcher, with one `when` branch per mocked
-         * interface:
+         * Generates the `Mocker.mock(KClass<T>): T` dispatcher, with one `when` branch per
+         * *explicitly*-mocked interface — `@Mock`/`@UsesMocks`, filtered by [ToProcess.path] being
+         * empty:
          *
          * ```
          * internal actual fun <T : Any> Mocker.mock(type: KClass<T>): T = when (type) {
@@ -2374,6 +2382,13 @@ class MocKMPProcessor(
          *     else -> error("Could not find mock for type $type")
          * }
          * ```
+         *
+         * The filter is a no-op today — nothing writes [toMock] except [addMock], called only from
+         * `@Mock`/`@UsesMocks` sites, so every entry already has an empty [ToProcess.path] — but it is
+         * applied the same way [generateFakeAccessor] applies it to [fakes], for the same reason: a
+         * mock is only ever meant to be reachable through `mock<T>()` if something requested it
+         * directly, and this keeps that true by construction rather than by a coincidence of what else
+         * happens not to write [toMock].
          */
         private fun generateMockAccessor() {
             @Suppress("LocalVariableName")
@@ -2385,10 +2400,11 @@ class MocKMPProcessor(
                 .addTypeVariable(T)
                 .returns(T)
 
-            if (mocks.isNotEmpty()) {
+            val explicitMocks = mocks.filterKeys { itf -> toMock.getValue(itf).path.isEmpty() }
+            if (explicitMocks.isNotEmpty()) {
                 gFun.addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "UNCHECKED_CAST").build())
                 gFun.beginControlFlow("return when (type)")
-                mocks.forEach { (itf, mock) ->
+                explicitMocks.forEach { (itf, mock) ->
                     val mockTypeName: TypeName =
                         if (itf.typeParameters.isNotEmpty()) {
                             mock.parameterizedBy(*itf.typeParameters.map { it.bounds.first().resolve().toTypeName() }.toTypedArray())
@@ -2408,8 +2424,9 @@ class MocKMPProcessor(
         }
 
         /**
-         * Generates the `fake(KType): T` dispatcher, with one `when` branch per faked type, keyed
-         * by a generated `private val type_pkg_Xxx: KType = typeOf<Xxx>()` (faked types can be
+         * Generates the `fake(KType): T` dispatcher, with one `when` branch per *explicitly*-faked
+         * type — `@Fake`/`@UsesFakes`/a `@Fake` property, filtered by [ToProcess.path] being empty —
+         * keyed by a generated `private val type_pkg_Xxx: KType = typeOf<Xxx>()` (faked types can be
          * generic, and `KType` equality — unlike [KClass] — accounts for type arguments). The
          * package is folded into the name (via [toFunName]) because every one of these properties
          * lives in the same generated `fakes.kt` file, where a bare simple name is not unique
@@ -2422,12 +2439,23 @@ class MocKMPProcessor(
          *     else -> error("Could not find fake for type $type")
          * }
          * ```
+         *
+         * A type reached only *transitively* — a constructor parameter or abstract member of another
+         * explicitly-faked type (see [expandTransitiveFakes]) — still gets its own `fakeXxx()`
+         * function (referenced by whatever needed it, and still a candidate in
+         * [generatePlaceholderAccessor]'s Fake-priority branch), but is deliberately left out of this
+         * dispatcher: it exists only to satisfy whatever reached it, so if that type's shape changes
+         * tomorrow the transitive fake may change or disappear with it. Reaching it through `fake<T>()`
+         * directly would make that an unrelated test's runtime failure instead of a compile error at
+         * the type that actually needs declaring — `@UsesFakes` (or a `@Fake` property) it yourself if
+         * you need it directly.
          */
         private fun generateFakeAccessor() {
             @Suppress("LocalVariableName")
             val T = TypeVariableName("T", Any::class)
             val gFile = FileSpec.builder(accessorsPackage, "fakes")
-            fakes.forEach { (type, _) ->
+            val explicitFakes = fakes.filterKeys { type -> toFake.getValue(type).path.isEmpty() }
+            explicitFakes.forEach { (type, _) ->
                 gFile.addProperty(
                     PropertySpec.builder("type_${type.toFunName()}", KType::class)
                         .addModifiers(KModifier.PRIVATE)
@@ -2441,10 +2469,13 @@ class MocKMPProcessor(
                 .addTypeVariable(T)
                 .returns(T)
 
-            if (fakes.isNotEmpty()) {
+            if (explicitFakes.isNotEmpty()) {
                 gFun.beginControlFlow("return when (type)")
-                fakes.forEach { (type, fake) -> gFun.addStatement("type_${type.toFunName()} -> %M() as T", fake) }
-                gFun.addStatement("else -> error(\"Could not find fake for type \$type\")")
+                explicitFakes.forEach { (type, fake) -> gFun.addStatement("type_${type.toFunName()} -> %M() as T", fake) }
+                gFun.addStatement(
+                    "else -> error(\"Could not find fake for type \$type. If it exists only as a transitive dependency of " +
+                            "another fake, declare it directly with @UsesFakes (or a @Fake property) to make it accessible.\")"
+                )
                 gFun.endControlFlow()
             } else {
                 gFun.addStatement("error(\"No fakes declared\")")
