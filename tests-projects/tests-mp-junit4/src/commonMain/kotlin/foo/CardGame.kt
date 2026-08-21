@@ -12,6 +12,25 @@ package foo
 // looking for a Suit placeholder that generation never produced.
 enum class Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
 
+// AgeRestriction is reached only as PlayerConfig's own abstract member type — never as a mocked
+// interface's own property/parameter, and never as a constructor parameter (PlayerConfig is an
+// interface, with no constructor to walk) — so nothing should ever be generated for it at all: a
+// Placeholder's abstract members throw rather than being faked, which is what keeps
+// PlaceholderPlayerConfig.ageRestriction from needing one.
+interface AgeRestriction {
+    val minAge: Int
+    val reason: String
+}
+
+// Reached only as CardGame's own (mocked) abstract property type, so it needs a Placeholder — not a
+// Mock (nothing requests one directly) and not a Fake (a Fake would recurse into ageRestriction,
+// which is exactly the abstract-member transitivity a Placeholder must not have).
+interface PlayerConfig {
+    var playerCount: Int
+    var ageRestriction: AgeRestriction
+}
+
 interface CardGame {
+    val config: PlayerConfig
     fun play(suit: Suit?)
 }

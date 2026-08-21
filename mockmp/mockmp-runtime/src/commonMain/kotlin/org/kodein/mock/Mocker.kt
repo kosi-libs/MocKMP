@@ -39,7 +39,7 @@ public class Mocker {
 
     private var specialMode: SpecialMode? = null
 
-    internal class CallDefinition(val isSuspend: Boolean, val receiver: Any?, val method: String, val args: Array<*>) : RuntimeException("This exception should have been caught!")
+    internal class CallDefinition(val isSuspend: Boolean, val receiver: Any?, val method: String, val args: Array<*>) : RuntimeNoSTException("This exception should have been caught!")
 
     private val regFuns = RegistrationMap<Every<*>>()
     private val regSuspendFuns = RegistrationMap<EverySuspend<*>>()

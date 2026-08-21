@@ -12,10 +12,11 @@ import kotlin.test.assertTrue
 
 /**
  * Asserts the `/* Required by: ... */` comment [MocKMPProcessor.requirementComment] attaches above
- * every generated `MockXxx` class and `fakeXxx()` function — the annotation that started the chain
- * ([ToProcess.origin]), then each hop of [ToProcess.path] that led from it to this exact declaration.
- * [FakeGenerationTests] covers generated member shape; this covers the comment that explains why the
- * declaration exists at all, so it reads the source KSP actually wrote.
+ * every generated `MockXxx` class, `fakeXxx()` function, and `placeholderXxx()` function — the
+ * annotation that started the chain ([ToProcess.origin]), then each hop of [ToProcess.path] that led
+ * from it to this exact declaration. [FakeGenerationTests] covers generated member shape; this covers
+ * the comment that explains why the declaration exists at all, so it reads the source KSP actually
+ * wrote.
  *
  * KSP2, matching the build (`symbol-processing-aa-embeddable`); [useKsp2] is what selects it.
  */
@@ -132,15 +133,17 @@ class RequirementCommentTests {
     }
 
     /**
-     * The two ways a type can be discovered without ever being named by the user: as a return type of
-     * an *interface*'s abstract member (routed to [MocKMPProcessor.addMock], since it can be
-     * implemented), and as a return type resolving to a plain *class* (routed to
-     * [MocKMPProcessor.addFake], since it can be constructed). Both inherit the mocked interface's own
-     * origin — there is nothing else to attribute them to — plus one path hop for the member that
-     * needed them.
+     * A type reachable only as a *parameter* type of a mocked interface's own member is discovered
+     * without ever being named by the user — whether it resolves to a plain *class* (constructed, see
+     * [MocKMPProcessor.addFakeClassConstructorCall]) or to an *interface* (implemented, throwing on
+     * every member, see [MocKMPProcessor.addPlaceholderImplementation]) — and either way it is a
+     * Placeholder, not a Mock or a Fake: nothing requests either type directly, and nothing but
+     * `providePlaceholder`'s argument-constraint fallback is ever meant to reach one. Both inherit the
+     * mocked interface's own origin — there is nothing else to attribute them to — plus one path hop
+     * for the member that needed them.
      */
     @Test
-    fun implicitlySeededMockAndFakeInheritTheMockedInterfacesOriginPlusAHop() {
+    fun implicitlySeededPlaceholdersInheritTheMockedInterfacesOriginPlusAHop() {
         val compilation = compilation(
             """
             package fixture
@@ -156,8 +159,8 @@ class RequirementCommentTests {
             }
 
             interface Service {
-                fun payload(): Payload
-                fun identify(): Identified
+                fun handle(payload: Payload)
+                fun identify(id: Identified)
             }
 
             class Tests {
@@ -172,12 +175,15 @@ class RequirementCommentTests {
 
         val generated = compilation.workingDir.walkTopDown().toList()
 
-        val fakePayload = generated.first { it.name == "fakefixture_Payload.kt" }.readText()
-        assertTrue("@Mock fixture.Tests.service" in fakePayload)
-        assertTrue("-> Service.payload(): Payload" in fakePayload)
+        val placeholderPayload = generated.first { it.name == "placeholderfixture_Payload.kt" }.readText()
+        assertTrue("@Mock fixture.Tests.service" in placeholderPayload)
+        assertTrue("-> Service.handle(Payload): Unit" in placeholderPayload)
 
-        val mockIdentified = generated.first { it.name == "MockIdentified.kt" }.readText()
-        assertTrue("@Mock fixture.Tests.service" in mockIdentified)
-        assertTrue("-> Service.identify(): Identified" in mockIdentified)
+        val placeholderIdentified = generated.first { it.name == "placeholderfixture_Identified.kt" }.readText()
+        assertTrue("@Mock fixture.Tests.service" in placeholderIdentified)
+        assertTrue("-> Service.identify(Identified): Unit" in placeholderIdentified)
+
+        assertFalse(generated.any { it.name == "fakefixture_Payload.kt" }, "Did not expect a Fake for Payload")
+        assertFalse(generated.any { it.name == "MockIdentified.kt" }, "Did not expect a Mock for Identified")
     }
 }

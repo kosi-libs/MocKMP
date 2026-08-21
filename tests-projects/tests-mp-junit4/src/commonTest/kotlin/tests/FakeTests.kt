@@ -38,9 +38,9 @@ class FakeTests {
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 SomeDirection(Direction.LEFT, SomeDirection.SubData(null)),
                 Instant.fromEpochSeconds(0),
-                // java.lang.Exception has no structural equals(), so reuse the faked instance's own
-                // exception reference here; `code` is still checked against the literal below.
-                Error(0, data.special2.exception),
+                // java.lang.Exception and KSerializer have no structural equals(), so reuse the faked
+                // instance's own references here; `code` is still checked against the literal below.
+                Error(0, data.special2.exception, data.special2.serializer),
                 emptyList(),
                 ArrayList(),
                 ArrayDeque(),
@@ -50,6 +50,7 @@ class FakeTests {
                 emptyMap(),
                 HashMap(),
                 LinkedHashMap(),
+                data.serializer,
             ),
             data
         )

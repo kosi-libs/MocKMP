@@ -9,6 +9,7 @@ kotlin = "2.3.21"                   # https://kotlinlang.org/docs/releases.html#
 kotlinPoet = "2.3.0"                # https://github.com/square/kotlinpoet/releases
 ksp = "2.3.10"                      # https://github.com/google/ksp/releases
 mavenPublish = "0.37.0"             # https://github.com/vanniktech/gradle-maven-publish-plugin/releases
+serialization = "1.11.0"            # https://github.com/Kotlin/kotlinx.serialization/releases
 
 [plugins]
 android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
@@ -29,6 +30,7 @@ kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5", versi
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlinPoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinPoet" }
 kctfork-ksp = { module = "dev.zacsweers.kctfork:ksp", version.ref = "kctfork" }

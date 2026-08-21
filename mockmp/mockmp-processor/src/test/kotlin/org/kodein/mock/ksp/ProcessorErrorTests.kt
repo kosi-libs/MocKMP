@@ -329,10 +329,11 @@ class ProcessorErrorTests {
         )
     }
 
-    // The other half of the same wording: a type reached only from a *mocked* interface's signatures
-    // is implicit, so it does not fail the build — it gets a stub that throws if it is ever used. That
-    // stub is where the path matters most, since nothing about such a type appears in the user's code
-    // at all. Asserted on the generated source, as nothing is reported at compile time.
+    // The other half of the same wording: a type reached only from a *mocked* interface's parameter
+    // types is a Placeholder, always implicit, so it does not fail the build — it gets a stub that
+    // throws if it is ever used. That stub is where the path matters most, since nothing about such a
+    // type appears in the user's code at all. Asserted on the generated source, as nothing is
+    // reported at compile time.
     @Test
     fun anImplicitlyRequiredUnfakeableTypeCarriesItsPathIntoTheGeneratedStub() {
         val compilation = compilation(
@@ -346,7 +347,7 @@ class ProcessorErrorTests {
             class Network(val tcp: TCPLayer, val timeout: Int)
 
             interface Service {
-                fun net(id: String): Network
+                fun net(n: Network)
             }
 
             @UsesMocks(Service::class)
@@ -357,9 +358,9 @@ class ProcessorErrorTests {
         val result = compilation.compile()
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
 
-        val stub = compilation.workingDir.walkTopDown().first { it.name == "fakefixture_TCPLayer.kt" }.readText()
+        val stub = compilation.workingDir.walkTopDown().first { it.name == "placeholderfixture_TCPLayer.kt" }.readText()
         assertContains(stub, "Cannot generate a fake for fixture.TCPLayer")
-        assertContains(stub, "Required by: Service.net(String): Network -> Network(TCPLayer, Int)")
+        assertContains(stub, "Required by: Service.net(Network): Unit -> Network(TCPLayer, Int)")
     }
 
     // A function type never needs a named fakeXxx() of its own: its value is an inline no-op lambda
