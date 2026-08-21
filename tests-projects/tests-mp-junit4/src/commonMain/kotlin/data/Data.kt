@@ -1,5 +1,6 @@
 package data
 
+import kotlinx.serialization.KSerializer
 import kotlin.reflect.KClass
 import kotlin.time.Instant
 
@@ -31,7 +32,8 @@ typealias NamesMap<K> = Map<K, Set<String>>
 
 data class Error<T>(
     val code: T,
-    val exception: Exception
+    val exception: Exception,
+    val serializer: KSerializer<T>,
 )
 
 data class Data(
@@ -53,6 +55,7 @@ data class Data(
     val map: NamesMap<Int>,
     val hashMap: HashMap<String, Long>,
     val linkedHashMap: LinkedHashMap<String, Long>,
+    val serializer: KSerializer<String>,
 ) {
     data class SubData(
         val nStr: String?,

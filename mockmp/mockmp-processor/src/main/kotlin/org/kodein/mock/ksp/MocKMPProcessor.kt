@@ -1346,6 +1346,82 @@ class MocKMPProcessor(
         }
 
         /**
+         * `kotlin.SubclassOptInRequired`'s marker classes on [this] declaration, if any — the
+         * annotation placed on an interface/abstract class (e.g. kotlinx.serialization's
+         * `SerialDescriptor`, itself annotated `@SubclassOptInRequired(SealedSerializationApi::class)`)
+         * that makes extending or implementing it require an explicit opt-in ("This class or interface
+         * should not be inherited/implemented outside of kotlinx.serialization library. Note it is
+         * still permitted to use it directly."). Empty when [this] carries none — the overwhelmingly
+         * common case.
+         *
+         * `(anno.arguments.first().value as List<*>)` reads a `vararg _: KClass<*>` annotation
+         * argument — the same shape `@UsesFakes`/`@UsesMocks` have, and the same code [lookUpUses]
+         * already uses to read those.
+         */
+        private fun KSClassDeclaration.subclassOptInMarkers(): List<KSType> =
+            annotations
+                .filter { it.annotationType.resolve().declaration.qualifiedName?.asString() == "kotlin.SubclassOptInRequired" }
+                .flatMap { anno -> (anno.arguments.firstOrNull()?.value as? List<*>)?.filterIsInstance<KSType>() ?: emptyList() }
+                .toList()
+
+        /**
+         * Every `kotlin.RequiresOptIn`-marked annotation applying to [this] declaration — directly,
+         * or via one of its lexical ancestors (walking [KSDeclaration.parentDeclaration]), since
+         * Kotlin's opt-in contagion propagates through lexical scope: kotlinx.serialization's
+         * `PolymorphicKind.OPEN` carries no annotation of its own, but its enclosing `PolymorphicKind`
+         * is `@ExperimentalSerializationApi`, and referencing `OPEN` needs the same opt-in referencing
+         * `PolymorphicKind` itself would.
+         *
+         * Distinct from [subclassOptInMarkers]: this fires for *any* mention of [this] declaration
+         * (a return type, a referenced object/enum entry, a `::class` literal) — not only when it is
+         * being subclassed — which is why every call site below checks both, on whichever declarations
+         * it actually references.
+         */
+        private fun KSDeclaration.requiredOptInMarkers(): List<KSType> {
+            val markers = LinkedHashSet<KSType>()
+            var decl: KSDeclaration? = this
+            while (decl != null) {
+                decl.annotations.forEach { anno ->
+                    val markerType = anno.annotationType.resolve()
+                    val markerDecl = markerType.declaration as? KSClassDeclaration
+                    if (markerDecl != null && markerDecl.annotations.any {
+                            it.annotationType.resolve().declaration.qualifiedName?.asString() == "kotlin.RequiresOptIn"
+                        }) markers += markerType
+                }
+                decl = decl.parentDeclaration
+            }
+            return markers.toList()
+        }
+
+        /** `@OptIn(Marker1::class, Marker2::class)` for the union of [markers], or `null` if empty. */
+        private fun optInAnnotation(markers: Collection<KSType>): AnnotationSpec? {
+            if (markers.isEmpty()) return null
+            val gAnno = AnnotationSpec.builder(ClassName("kotlin", "OptIn"))
+            markers.forEach { marker -> gAnno.addMember("%T::class", marker.toTypeName()) }
+            return gAnno.build()
+        }
+
+        /**
+         * Appends `@OptIn(Marker1::class, Marker2::class)` to [gCls] for the union of [this]
+         * declaration's [subclassOptInMarkers] and [requiredOptInMarkers] — required for a generated
+         * `MockXxx`/`FakeXxx`/`PlaceholderXxx` to legally implement or extend a type like
+         * `SerialDescriptor` ([subclassOptInMarkers]), or a type that is itself `@RequiresOptIn`-marked
+         * ([requiredOptInMarkers] — the generated class's own declaration mentions it, via its
+         * supertype). Only the *exact* type about to be subclassed needs checking, not its whole
+         * ancestor chain: opt-in propagation stops at whichever supertype already satisfied it, and if
+         * that satisfaction was itself a re-declaration (propagating further), it shows up again right
+         * there on that same declaration — never further down without also being redeclared.
+         *
+         * Emits `@OptIn`, not a re-declared marker: nothing is ever meant to subclass a generated
+         * implementation further, so the non-propagating form is both sufficient and the narrower,
+         * correct choice. `@OptIn` has `SOURCE` retention, so it only has to be present in this
+         * generated file — which it is.
+         */
+        private fun KSClassDeclaration.addOptInAnnotation(gCls: TypeSpec.Builder) {
+            optInAnnotation((subclassOptInMarkers() + requiredOptInMarkers()).distinct())?.let { gCls.addAnnotation(it) }
+        }
+
+        /**
          * `MockXxx(Mocker())` for [decl] — the expression every "use the existing Mock" branch needs,
          * shared by [fakeInitializerOf]'s placeholder mode and [generatePlaceholderAccessor]. Builds
          * the class name by the same convention [generateMockClass] used to generate it
@@ -1376,6 +1452,7 @@ class MocKMPProcessor(
         private fun mockClassBuilder(vItf: KSClassDeclaration, mockClassName: String, filesDeps: MutableSet<KSFile>): Pair<TypeSpec.Builder, PropertySpec> {
             val gCls = TypeSpec.classBuilder(mockClassName)
                 .addModifiers(visibilityModifier)
+            vItf.addOptInAnnotation(gCls)
             val superType =
                 if (vItf.typeParameters.isEmpty()) vItf.toClassName()
                 else vItf.toClassName().parameterizedBy(vItf.typeParameters.map { it.toTypeVariableName() })
@@ -1947,6 +2024,7 @@ class MocKMPProcessor(
             val implementedType = vType.withBoundArguments()
             val fakeClassName = vType.toFakeClassName()
             val gCls = TypeSpec.classBuilder(fakeClassName).addModifiers(KModifier.PRIVATE)
+            vCls.addOptInAnnotation(gCls)
 
             if (vCls.classKind == ClassKind.INTERFACE) {
                 gCls.addSuperinterface(implementedType.toTypeName())
@@ -1993,6 +2071,10 @@ class MocKMPProcessor(
                 reportUnfakeable(gFun, vCls, "it is an empty enum class", process)
                 return
             }
+            // An individually-marked entry (rather than the enum class itself) would need its own
+            // opt-in check here, but caller (generateFakeFunction/generatePlaceholderFunction) already
+            // covers the enum class case via its own top-level vCls/targetCls check — adding another
+            // @OptIn here too would be a second, non-repeatable annotation on the same gFun.
             gFun.addStatement("return %T.%L", vCls.toClassName(), firstEntry.simpleName.asString())
         }
 
@@ -2031,6 +2113,13 @@ class MocKMPProcessor(
                 .addModifiers(visibilityModifier)
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
             requirementComment(process)?.let { gFun.addKdoc(it) }
+            // Covers both the function's own return type (vCls, the nominal faked type — mentioning
+            // it is enough to require opt-in even before the body is considered) and the
+            // sealed-resolved dispatch target (targetCls — e.g. kotlinx.serialization's
+            // PolymorphicKind when SerialKind resolves to PolymorphicKind.OPEN), in one shot, for
+            // every branch below. addFakeImplementation separately opts in the *inner* private class
+            // for the same reason (its own supertype), which this does not duplicate.
+            optInAnnotation((vCls.requiredOptInMarkers() + targetCls.requiredOptInMarkers()).distinct())?.let { gFun.addAnnotation(it) }
             val gCls: TypeSpec? = when {
                 targetCls.isFakedByImplementing() -> addFakeImplementation(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
@@ -2158,6 +2247,7 @@ class MocKMPProcessor(
             val implementedType = vType.withBoundArguments()
             val placeholderClassName = vType.toPlaceholderClassName()
             val gCls = TypeSpec.classBuilder(placeholderClassName).addModifiers(KModifier.PRIVATE)
+            vCls.addOptInAnnotation(gCls)
 
             if (vCls.classKind == ClassKind.INTERFACE) {
                 gCls.addSuperinterface(implementedType.toTypeName())
@@ -2213,6 +2303,9 @@ class MocKMPProcessor(
                 .addModifiers(visibilityModifier)
                 .returns(vType.toTypeName(decl.typeParameters.toTypeParameterResolver()))
             requirementComment(process)?.let { gFun.addKdoc(it) }
+            // See generateFakeFunction's identical check: covers both the function's own return type
+            // (decl) and the sealed-resolved dispatch target (targetCls).
+            optInAnnotation((decl.requiredOptInMarkers() + targetCls.requiredOptInMarkers()).distinct())?.let { gFun.addAnnotation(it) }
             val gCls: TypeSpec? = when {
                 targetCls.isFakedByImplementing() -> addPlaceholderImplementation(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
@@ -2415,6 +2508,7 @@ class MocKMPProcessor(
                 }
                 gFun.addStatement("else -> error(\"Could not find mock for type \$type\")")
                 gFun.endControlFlow()
+                optInAnnotation(explicitMocks.keys.flatMap { it.requiredOptInMarkers() }.distinct())?.let { gFun.addAnnotation(it) }
             } else {
                 gFun.addStatement("error(\"No mocks declared\")")
             }
@@ -2456,12 +2550,17 @@ class MocKMPProcessor(
             val gFile = FileSpec.builder(accessorsPackage, "fakes")
             val explicitFakes = fakes.filterKeys { type -> toFake.getValue(type).path.isEmpty() }
             explicitFakes.forEach { (type, _) ->
-                gFile.addProperty(
-                    PropertySpec.builder("type_${type.toFunName()}", KType::class)
-                        .addModifiers(KModifier.PRIVATE)
-                        .initializer("%M<%T>()", MemberName("kotlin.reflect", "typeOf"), type.toTypeName())
-                        .build()
-                )
+                val gProp = PropertySpec.builder("type_${type.toFunName()}", KType::class)
+                    .addModifiers(KModifier.PRIVATE)
+                    .initializer("%M<%T>()", MemberName("kotlin.reflect", "typeOf"), type.toTypeName())
+                // typeOf<MarkedClass>() mentions MarkedClass right here, in this property's own
+                // initializer — a separate declaration from the fake(KType) function below, so its
+                // own opt-in requirement (if any) has to be satisfied on the property itself, not on
+                // the function that merely refers to the property by name.
+                (type.declaration as? KSClassDeclaration)?.let { decl ->
+                    optInAnnotation(decl.requiredOptInMarkers())?.let { gProp.addAnnotation(it) }
+                }
+                gFile.addProperty(gProp.build())
             }
             val gFun = accessorFunBuilder("fake")
                 .addAnnotation(AnnotationSpec.builder(Suppress::class).addMember("%S", "UNCHECKED_CAST").build())
@@ -2477,6 +2576,11 @@ class MocKMPProcessor(
                             "another fake, declare it directly with @UsesFakes (or a @Fake property) to make it accessible.\")"
                 )
                 gFun.endControlFlow()
+                // An explicitly-requested type could itself be @RequiresOptIn-marked; not hit by any
+                // known case today, but the same mechanism generatePlaceholderAccessor needs for
+                // sealedObjectSubclasses, applied here for consistency.
+                optInAnnotation(explicitFakes.keys.mapNotNull { it.declaration as? KSClassDeclaration }.flatMap { it.requiredOptInMarkers() }.distinct())
+                    ?.let { gFun.addAnnotation(it) }
             } else {
                 gFun.addStatement("error(\"No fakes declared\")")
             }
@@ -2717,6 +2821,16 @@ class MocKMPProcessor(
 
             gFun.addStatement("else -> error(\"Could not find placeholder for type \$cls\")")
             gFun.endControlFlow()
+
+            // providePlaceholder is one shared function covering every branch above, so an opt-in
+            // requirement from any one of them — most notably sealedObjectSubclasses, the exact
+            // branch responsible for `PolymorphicKind.OPEN::class -> ...` — has to be satisfied on
+            // the whole function; a `when` branch can't be annotated on its own.
+            optInAnnotation(
+                (fakesByDecl.keys + mocks.keys + placeholdersByDecl.keys + sealedObjectSubclasses)
+                    .flatMap { it.requiredOptInMarkers() }
+                    .distinct()
+            )?.let { gFun.addAnnotation(it) }
 
             gFile.addFunction(gFun.build())
             gFile.build().writeTo(codeGenerator, Dependencies(true))

@@ -18,6 +18,7 @@ kotlin.sourceSets {
         dependencies {
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.core)
         }
     }
 

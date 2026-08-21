@@ -2,6 +2,7 @@ package foo
 
 import data.Data
 import data.Direction
+import kotlinx.serialization.KSerializer
 import kotlin.jvm.JvmInline
 
 
@@ -95,6 +96,8 @@ interface Bar : Foo<Bar> {
     interface Sub {
         fun doOp()
     }
+
+    fun <T> encode(serializer: KSerializer<T>): ByteArray
 }
 
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.
