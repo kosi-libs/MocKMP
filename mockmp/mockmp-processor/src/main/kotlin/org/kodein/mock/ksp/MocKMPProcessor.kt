@@ -8,6 +8,8 @@ import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.ksp.*
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 
@@ -317,6 +319,51 @@ class MocKMPProcessor(
     private fun constructorPathStep(owner: String, vCstr: KSFunctionDeclaration): String =
         owner + parametersPathName(vCstr.parameters, vCstr.parameters.map { it.type.resolve() })
 
+    /**
+     * The generated-code counterpart of [unfakeableMessage]'s `Required by:` clause: a comment block
+     * explaining why [process]'s mock or fake exists, attached above its declaration by
+     * [Round.generateMockClass]/[Round.generateFakeFunction] — `null` when there is nothing to say
+     * (an entry with neither a known [ToProcess.origin] nor a [ToProcess.path], which should not
+     * happen for a real annotation site but can for a hand-built [ToProcess] in a test).
+     *
+     * Reuses [ToProcess.origin] and [ToProcess.path] verbatim, the same strings [unfakeableMessage]
+     * renders into a compile error — a reader who has seen one has already seen the other's wording.
+     */
+    private fun requirementComment(process: ToProcess): CodeBlock? {
+        val lines = listOfNotNull(process.origin) + process.path
+        if (lines.isEmpty()) return null
+        return CodeBlock.builder()
+            .add("Required by:\n")
+            .apply {
+                // %L, not string concatenation into the format itself: a path step is free-form text
+                // derived from user type/member names, which must not be parsed for KotlinPoet's own
+                // %-directives.
+                lines.forEachIndexed { index, line -> add("  %L\n", (if (index == 0) "" else "-> ") + line) }
+            }
+            .build()
+    }
+
+    /**
+     * [Round.generateMockClass]/[Round.generateFakeFunction]'s `writeTo`: builds [gFile], then writes
+     * it exactly as [com.squareup.kotlinpoet.ksp.writeTo] would — `codeGenerator.createNewFile(...)`
+     * wrapped in a UTF-8 [java.io.OutputStreamWriter] — except the leading two-star comment opener of
+     * the one [requirementComment] KDoc that function added is turned into a plain, one-star block
+     * comment: it explains why the file exists, not documentation of a public member, so it should
+     * not read like KDoc.
+     *
+     * A `replaceFirst` is safe because that marker is unambiguous: each of these files gets a KDoc on
+     * exactly one declaration, always its first member, so the two-star opener cannot appear before
+     * it; and KotlinPoet escapes any comment delimiter it finds *inside* KDoc content
+     * (`CodeWriter.emit`, kotlinpoet 2.3.0), so the opening marker is the only unescaped one in the
+     * rendered text.
+     */
+    private fun writeWithRequirementComment(gFile: FileSpec.Builder, dependencies: Dependencies) {
+        val fileSpec = gFile.build()
+        val text = fileSpec.toString().replaceFirst("/**\n", "/*\n")
+        val stream = codeGenerator.createNewFile(dependencies, fileSpec.packageName, fileSpec.name)
+        OutputStreamWriter(stream, StandardCharsets.UTF_8).use { it.write(text) }
+    }
+
     // endregion
 
     /** The files and annotation sites that referenced a to-be-generated mock or fake, accumulated across annotations. */
@@ -344,6 +391,18 @@ class MocKMPProcessor(
          * expansion worklist is breadth-first, this is the shortest chain that reaches the type.
          */
         var path: List<String> = emptyList()
+
+        /**
+         * `@UsesFakes on foo.Tests` / `@Mock foo.Tests.service` — the user annotation that started
+         * the chain [path] walks from, or `null` when it isn't known (an implicit entry seeded by
+         * [Round.seedImplicitPlaceholders], whose [ToProcess] is created before any annotation site is
+         * involved).
+         *
+         * Set once, on first registration, and simply carried forward by every further hop
+         * ([Round.expandTransitiveFakes], [Round.seedImplicitPlaceholder]) — same "recorded at
+         * discovery, first registration wins" reasoning as [path].
+         */
+        var origin: String? = null
     }
 
     /** One abstract member of an implemented type needing a fake: what to fake, what to blame, and the path step it adds. */
@@ -401,6 +460,11 @@ class MocKMPProcessor(
      * [toMockName], it carries the type arguments ([baseName]): a `MockXxx` is generic and defers
      * every member to its `Mocker`, whereas a fake has to *hold* values, so one class is generated
      * per faked instantiation (`FakeFooXkotlin_StringX : Foo<String>`).
+     *
+     * The class itself is always generated `private` ([addFakeImplementation]): it is an
+     * implementation detail reached only through its `fakeXxx()` function, and being `private` keeps
+     * this name — which drops the package prefix on purpose, see [baseName] — from ever colliding
+     * with a declaration of the user's in the faked type's own package.
      */
     private fun KSType.toFakeClassName(): String = "Fake" + baseName()
 
@@ -529,11 +593,12 @@ class MocKMPProcessor(
 
         /**
          * Registers [type] as needing a `MockXxx` class, or fails if it isn't an interface or an
-         * abstract class. [implicit] marks entries discovered by [seedImplicitPlaceholders] rather
-         * than requested directly, and [path] records what led here (see [ToProcess.path]) — a mock
-         * never reports it, but the fakes discovered from its members inherit it.
+         * abstract class. [origin] names the annotation that started this chain (see
+         * [ToProcess.origin]), [implicit] marks entries discovered by [seedImplicitPlaceholders]
+         * rather than requested directly, and [path] records what led here (see [ToProcess.path]) — a
+         * mock never reports either, but the fakes discovered from its members inherit both.
          */
-        private fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false, path: List<String> = emptyList()) {
+        private fun addMock(type: KSType, files: Iterable<KSFile>, node: KSNode, origin: String? = null, implicit: Boolean = false, path: List<String> = emptyList()) {
             // Suspend function types included: KSP presents `kotlin.coroutines.SuspendFunctionN` as an
             // interface, so testing only isFunctionType let a `suspend (A) -> R` property through to
             // the mocked-interface path and generated a class implementing that compiler-synthesized
@@ -543,7 +608,7 @@ class MocKMPProcessor(
             val isMockable = decl is KSClassDeclaration &&
                     (decl.classKind == ClassKind.INTERFACE || (decl.classKind == ClassKind.CLASS && Modifier.ABSTRACT in decl.modifiers))
             if (!isMockable) error(node, "Cannot generate mock for non interface $decl")
-            toMock.getOrPut(decl) { ToProcess().apply { this.implicit = implicit; this.path = path } }.let {
+            toMock.getOrPut(decl) { ToProcess().apply { this.origin = origin; this.implicit = implicit; this.path = path } }.let {
                 it.files.addAll(files)
                 it.references.add(node)
             }
@@ -562,10 +627,11 @@ class MocKMPProcessor(
          * through any `typealias` chain (e.g. `kotlin.Exception` on the JVM target), so the
          * registration key, and every check below, target the real underlying type. Sealed
          * classes/interfaces are allowed through — [generateFakeFunction] resolves them to a
-         * constructible permitted subclass at generation time. [implicit] marks entries discovered
-         * by [seedImplicitPlaceholders] rather than requested directly, and [path] records what led
-         * here — reported by every rejection below, and by [reportUnfakeable] when the type only
-         * turns out to be unfakeable at generation time.
+         * constructible permitted subclass at generation time. [origin] names the annotation that
+         * started this chain (see [ToProcess.origin]), [implicit] marks entries discovered by
+         * [seedImplicitPlaceholders] rather than requested directly, and [path] records what led here
+         * (see [ToProcess.path]) — [path] is reported by every rejection below, and by
+         * [reportUnfakeable] when the type only turns out to be unfakeable at generation time.
          *
          * Interfaces and abstract classes are fakeable too: rather than being instantiated, they get
          * a generated `FakeXxx` implementation (see [addFakeImplementation]). Objects and annotation
@@ -573,7 +639,7 @@ class MocKMPProcessor(
          * respectively (see [generateFakeFunction]). What is left to reject here is a type parameter
          * or other non-class declaration, neither of which is a builtin either.
          */
-        private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, implicit: Boolean = false, path: List<String> = emptyList()) {
+        private fun addFake(type: KSType, files: Iterable<KSFile>, node: KSNode, origin: String? = null, implicit: Boolean = false, path: List<String> = emptyList()) {
             // Syntactic nullability (`T?`), not KSP's semantic Nullability enum: unlike every other
             // caller of this "skip if nullable" idiom (valueTypeToFake, fakeValueOf), [type] here can
             // be a bare, unsubstituted type parameter straight off a property declaration — and KSP
@@ -611,7 +677,7 @@ class MocKMPProcessor(
             // would be by expandTransitiveFakes.
             if (qualifiedName == "kotlinx.coroutines.flow.StateFlow" || qualifiedName == "kotlinx.coroutines.flow.MutableStateFlow") {
                 resolvedType.arguments.firstOrNull()?.type?.resolve()
-                    ?.let { addFake(it, files, node, implicit, path) }
+                    ?.let { addFake(it, files, node, origin, implicit, path) }
                 return
             }
 
@@ -625,37 +691,60 @@ class MocKMPProcessor(
             if (!isSealed && decl.classKind !in arrayOf(ClassKind.CLASS, ClassKind.ENUM_CLASS, ClassKind.INTERFACE, ClassKind.OBJECT, ClassKind.ANNOTATION_CLASS)) {
                 cannotFake(node, decl.displayName(), "${decl.classKind.plural()} cannot be instantiated", path)
             }
-            toFake.getOrPut(resolvedType) { ToProcess().apply { this.implicit = implicit; this.path = path } }.let {
+            toFake.getOrPut(resolvedType) { ToProcess().apply { this.origin = origin; this.implicit = implicit; this.path = path } }.let {
                 it.files.addAll(files)
                 it.references.add(node)
             }
         }
 
+        /**
+         * `@Xxx foo.Tests.field` — the origin recorded for an entry discovered by [lookUpFields], from
+         * the property (or property setter) [annotationName] was found on. [annotationSimpleName] is
+         * that annotation's simple name, e.g. `Mock` for `org.kodein.mock.Mock`.
+         */
+        private fun fieldOrigin(annotationSimpleName: String, prop: KSPropertyDeclaration): String =
+            "@$annotationSimpleName ${prop.asString()}"
+
         /** Finds every property annotated [annotationName] (or its setter), registers its class for injection, and [add]s its type. */
-        private fun lookUpFields(annotationName: String, add: (KSType, Iterable<KSFile>, KSNode) -> Unit) {
+        private fun lookUpFields(annotationName: String, add: (KSType, Iterable<KSFile>, KSNode, String?) -> Unit) {
+            val annotationSimpleName = annotationName.split(".").last()
             val symbols = resolver.getSymbolsWithAnnotation(annotationName)
             symbols.forEach { symbol ->
                 val prop = when (symbol) {
                     is KSPropertySetter -> symbol.receiver
                     is KSPropertyDeclaration -> {
-                        if (!symbol.isMutable) error(symbol, "$symbol is immutable but is annotated with @${annotationName.split(".").last()}")
+                        if (!symbol.isMutable) error(symbol, "$symbol is immutable but is annotated with @$annotationSimpleName")
                         symbol
                     }
-                    else -> error(symbol, "$symbol is not a property nor a property setter but is annotated with @${annotationName.split(".").last()} (is ${symbol::class.simpleName})")
+                    else -> error(symbol, "$symbol is not a property nor a property setter but is annotated with @$annotationSimpleName (is ${symbol::class.simpleName})")
                 }
                 val cls = prop.parentDeclaration as? KSClassDeclaration ?: error(symbol, "Cannot generate injector for $prop as it is not inside a class")
                 toInject.getOrPut(cls) { ArrayList() }.add(annotationName to prop)
-                add(prop.type.resolve(), listOf(cls.containingFile!!), symbol)
+                add(prop.type.resolve(), listOf(cls.containingFile!!), symbol, fieldOrigin(annotationSimpleName, prop))
             }
         }
 
+        /**
+         * `@Xxx on foo.Tests` — the origin recorded for an entry discovered by [lookUpUses], from the
+         * declaration [annotationName] was found on: a class, a function, or (targeting file-level
+         * annotations) the file itself.
+         */
+        private fun usesOrigin(annotationSimpleName: String, use: KSAnnotated): String =
+            "@$annotationSimpleName on " + when (use) {
+                is KSDeclaration -> use.displayName()
+                is KSFile -> use.fileName
+                else -> use.toString()
+            }
+
         /** Finds every declaration annotated `@UsesMocks(...)`/`@UsesFakes(...)` and [add]s each type listed in [annotationName]'s array argument. */
-        private fun lookUpUses(annotationName: String, add: (KSType, Iterable<KSFile>, KSNode) -> Unit) {
+        private fun lookUpUses(annotationName: String, add: (KSType, Iterable<KSFile>, KSNode, String?) -> Unit) {
+            val annotationSimpleName = annotationName.split(".").last()
             val uses = resolver.getSymbolsWithAnnotation(annotationName)
             uses.forEach { use ->
                 val anno = use.annotations.first { it.annotationType.resolve().declaration.qualifiedName!!.asString() == annotationName }
+                val origin = usesOrigin(annotationSimpleName, use)
                 (anno.arguments.first().value as List<*>).forEach {
-                    add((it as KSType), listOf(use.containingFile!!), use)
+                    add((it as KSType), listOf(use.containingFile!!), use, origin)
                 }
             }
         }
@@ -883,7 +972,7 @@ class MocKMPProcessor(
             placeholderFunctionShapes[decl] = resolved.isSuspendFunctionType to (resolved.arguments.size - 1)
         }
 
-        private fun seedImplicitPlaceholder(type: KSType, path: List<String>) {
+        private fun seedImplicitPlaceholder(type: KSType, origin: String?, path: List<String>) {
             var resolved = type.unwrapAliases().makeNotNullable()
             if (resolved.isAnyFunctionType) {
                 registerFunctionShape(resolved)
@@ -913,11 +1002,11 @@ class MocKMPProcessor(
             if (decl in toMock || resolved in toFake) return
             val target = resolveSealedTarget(decl)
             when {
-                target != decl -> toFake[resolved] = ToProcess().apply { implicit = true; this.path = path }
+                target != decl -> toFake[resolved] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
                 decl.classKind == ClassKind.INTERFACE || (decl.classKind == ClassKind.CLASS && Modifier.ABSTRACT in decl.modifiers) ->
-                    toMock[decl] = ToProcess().apply { implicit = true; this.path = path }
+                    toMock[decl] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
                 decl.classKind == ClassKind.CLASS || decl.classKind == ClassKind.ENUM_CLASS ->
-                    toFake[resolved] = ToProcess().apply { implicit = true; this.path = path }
+                    toFake[resolved] = ToProcess().apply { this.origin = origin; implicit = true; this.path = path }
                 else -> {}
             }
         }
@@ -945,7 +1034,7 @@ class MocKMPProcessor(
                     .filter { it.isAbstract() }
                     .forEach { vProp ->
                         val vPropType = vProp.type.resolve()
-                        seedImplicitPlaceholder(vPropType, process.path + propertyPathStep(owner, vProp, vPropType))
+                        seedImplicitPlaceholder(vPropType, process.origin, process.path + propertyPathStep(owner, vProp, vPropType))
                     }
                 vItf.getAllFunctions()
                     .filter { it.simpleName.asString() !in IDENTITY_MEMBERS && (overrideAll || it.isAbstract) }
@@ -955,8 +1044,8 @@ class MocKMPProcessor(
                         // One step for the whole member: which of its types needed the placeholder is
                         // not what a reader is after — where it came from is.
                         val path = process.path + functionPathStep(owner, vFun, vParamTypes, vReturnType)
-                        vParamTypes.forEach { seedImplicitPlaceholder(it, path) }
-                        vReturnType?.let { seedImplicitPlaceholder(it, path) }
+                        vParamTypes.forEach { seedImplicitPlaceholder(it, process.origin, path) }
+                        vReturnType?.let { seedImplicitPlaceholder(it, process.origin, path) }
                     }
                 toMock.keys.forEach { if (it !in before) toExplore.add(it) }
             }
@@ -1109,7 +1198,8 @@ class MocKMPProcessor(
          * their superclass constructor call (built by [addSuperclassConstructorArgs]) needs the same
          * treatment. Discovered types inherit their parent's [ToProcess.implicit] flag: if the whole
          * chain exists only because of an implicit placeholder need, nobody asked for any of it
-         * directly, so none of it should be able to abort the KSP round.
+         * directly, so none of it should be able to abort the KSP round. They also inherit their
+         * parent's [ToProcess.origin], unchanged — only [ToProcess.path] grows a step at each hop.
          */
         private fun expandTransitiveFakes() {
             val abstractMockSeeds = toMock.entries
@@ -1128,13 +1218,13 @@ class MocKMPProcessor(
                     val path = process.path + constructorPathStep(targetType.pathName(), vCstr)
                     vCstr.parameters.forEach { param ->
                         val paramTypeToFake = constructorParamTypeToFake(cls, targetType, param, process) ?: return@forEach
-                        addFake(paramTypeToFake, process.files, param, implicit = process.implicit, path = path)
+                        addFake(paramTypeToFake, process.files, param, origin = process.origin, implicit = process.implicit, path = path)
                         toExplore.add(paramTypeToFake to toFake.getValue(paramTypeToFake))
                     }
                 }
                 implementedMemberTypes(targetType).forEach { member ->
                     val memberTypeToFake = valueTypeToFake(member.type) ?: return@forEach
-                    addFake(memberTypeToFake, process.files, member.node, implicit = process.implicit, path = process.path + member.step)
+                    addFake(memberTypeToFake, process.files, member.node, origin = process.origin, implicit = process.implicit, path = process.path + member.step)
                     toExplore.add(memberTypeToFake to toFake.getValue(memberTypeToFake))
                 }
             }
@@ -1386,6 +1476,7 @@ class MocKMPProcessor(
             val gFile = FileSpec.builder(mockPkg, mockClassName)
             val filesDeps = LinkedHashSet(process.files)
             val (gCls, mocker) = mockClassBuilder(vItf, mockClassName, filesDeps)
+            requirementComment(process)?.let { gCls.addKdoc(it) }
             val overrideAll = vItf.classKind == ClassKind.INTERFACE && !process.implicit
 
             val vProps = vItf.getAllProperties().filter { it.isAbstract() }.toList()
@@ -1415,7 +1506,7 @@ class MocKMPProcessor(
                 }
 
             gFile.addType(gCls.build().also { mocks[vItf] = ClassName(mockPkg, it.name!!) })
-            gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
+            writeWithRequirementComment(gFile, Dependencies(true, *filesDeps.toTypedArray()))
         }
 
         // endregion
@@ -1683,18 +1774,21 @@ class MocKMPProcessor(
         }
 
         /**
-         * Adds the `FakeXxx` class implementing interface (or extending abstract class) [vCls] to
-         * [gFile], and appends `return FakeXxx()` to [gFun] — the path taken for a type that cannot
-         * be constructed but *can* be implemented:
+         * Builds the `private FakeXxx` class implementing interface (or extending abstract class)
+         * [vCls], and appends `return FakeXxx()` to [gFun] — the path taken for a type that cannot
+         * be constructed but *can* be implemented. Returns the built class for the caller
+         * ([generateFakeFunction]) to add to its `FileSpec` *after* the `fakeXxx()` function, so the
+         * function — the only supported way to reach a fake — reads first; `null` if [vCls] turned
+         * out to be [reportUnfakeable] instead (no public constructor to extend):
          *
          * ```
-         * internal class FakeApi : Api {
+         * internal fun fakefoo_Api(): Api = FakeApi()
+         *
+         * private class FakeApi : Api {
          *     override val name: String = ""
          *     override fun log(m: String) {}
          *     override fun user(): User = fakeUser()
          * }
-         *
-         * internal fun fakefoo_Api(): Api = FakeApi()
          * ```
          *
          * Only *abstract* members are overridden: an interface's default implementations are left to
@@ -1707,18 +1801,23 @@ class MocKMPProcessor(
          * : Itf<String>` — since, unlike a `MockXxx`, it has to hold real values, and no value of a
          * type parameter can be produced. Its members are resolved against
          * [KSType.withBoundArguments], the instantiation actually implemented.
+         *
+         * The class is always `private` ([KSType.toFakeClassName]): it is an implementation detail,
+         * unreachable except through the `fakeXxx()` function generated alongside it, and a
+         * `private class Xxx` returned by a `public`/`internal fun fakeXxx(): Xxx` does not expose a
+         * private type — the function's own return type is [vType], never the class.
          */
-        private fun addFakeImplementation(gFile: FileSpec.Builder, gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess) {
+        private fun addFakeImplementation(gFun: FunSpec.Builder, vCls: KSClassDeclaration, vType: KSType, filesDeps: MutableSet<KSFile>, process: ToProcess): TypeSpec? {
             val implementedType = vType.withBoundArguments()
             val fakeClassName = vType.toFakeClassName()
-            val gCls = TypeSpec.classBuilder(fakeClassName).addModifiers(visibilityModifier)
+            val gCls = TypeSpec.classBuilder(fakeClassName).addModifiers(KModifier.PRIVATE)
 
             if (vCls.classKind == ClassKind.INTERFACE) {
                 gCls.addSuperinterface(implementedType.toTypeName())
             } else {
                 if (vCls.firstPublicConstructor() == null) {
                     reportUnfakeable(gFun, vCls, "it has no public constructor", process)
-                    return
+                    return null
                 }
                 gCls.superclass(implementedType.toTypeName())
                 addSuperclassConstructorArgs(gCls, vCls, implementedType, filesDeps)
@@ -1743,8 +1842,8 @@ class MocKMPProcessor(
                 else gCls.addFunction(fakedFunction(vFun, vFun.asMemberOf(implementedType), filesDeps))
             }
 
-            gFile.addType(gCls.build())
             gFun.addStatement("return %N()", fakeClassName)
+            return gCls.build()
         }
 
         /**
@@ -1769,7 +1868,9 @@ class MocKMPProcessor(
          * constructor is called the same way any other class's is, only its declared parameter
          * types differ), an enum fake returns its first entry via [addFakeFirstEnumEntry], an object
          * fake is a plain reference, and an interface or abstract class fake instantiates the
-         * `FakeXxx` implementation [addFakeImplementation] generates into the same file:
+         * `FakeXxx` implementation [addFakeImplementation] builds — added to the same file, but only
+         * *after* the function below, so the function — the only supported way to reach a fake —
+         * reads first and the `private` implementation class reads as the detail it is:
          *
          * ```
          * internal fun fakeFoo(): Foo = Foo(bar = "")
@@ -1793,13 +1894,22 @@ class MocKMPProcessor(
             val gFun = FunSpec.builder(mockFunName)
                 .addModifiers(visibilityModifier)
                 .returns(vType.toTypeName(vCls.typeParameters.toTypeParameterResolver()))
-            when {
-                targetCls.isFakedByImplementing() -> addFakeImplementation(gFile, gFun, targetCls, targetType, filesDeps, process)
+            requirementComment(process)?.let { gFun.addKdoc(it) }
+            val gCls: TypeSpec? = when {
+                targetCls.isFakedByImplementing() -> addFakeImplementation(gFun, targetCls, targetType, filesDeps, process)
                 targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
-                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) ->
+                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
                     addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.ENUM_CLASS -> addFakeFirstEnumEntry(gFun, targetCls, process)
-                targetCls.classKind == ClassKind.OBJECT -> gFun.addStatement("return %T", targetCls.toClassName())
+                    null
+                }
+                targetCls.classKind == ClassKind.ENUM_CLASS -> {
+                    addFakeFirstEnumEntry(gFun, targetCls, process)
+                    null
+                }
+                targetCls.classKind == ClassKind.OBJECT -> {
+                    gFun.addStatement("return %T", targetCls.toClassName())
+                    null
+                }
                 else -> {
                     val reason = when {
                         targetCls != vCls -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
@@ -1807,10 +1917,12 @@ class MocKMPProcessor(
                         else -> "${targetCls.classKind.plural()} cannot be instantiated"
                     }
                     reportUnfakeable(gFun, vCls, reason, process)
+                    null
                 }
             }
             gFile.addFunction(gFun.build().also { fakes[vType] = MemberName(mockPkg, mockFunName) })
-            gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
+            gCls?.let { gFile.addType(it) }
+            writeWithRequirementComment(gFile, Dependencies(true, *filesDeps.toTypedArray()))
         }
 
         // endregion

@@ -10,7 +10,7 @@ plugins {
 
 allprojects {
     group = "org.kodein.mock"
-    version = "3.3.0-kt2.3"
+    version = "3.3.1-kt2.3"
 }
 
 val mavenPublishPluginId = libs.plugins.mavenPublish.get().pluginId
