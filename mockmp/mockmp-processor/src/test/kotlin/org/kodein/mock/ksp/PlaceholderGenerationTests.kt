@@ -186,4 +186,81 @@ class PlaceholderGenerationTests {
         val branchLine = placeholders.lineSequence().first { "Both::class ->" in it }
         assertTrue("fakefixture_Both()" in branchLine, "Expected the Fake to win over the Mock:\n$branchLine")
     }
+
+    @Test
+    fun placeholderConstructorDependencyIsGeneratedAtItsExactInstantiation() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+
+            @JvmInline
+            value class Id<T>(val id: String)
+            class Feature(val id: Id<String>)
+
+            interface Service {
+                fun start(feature: Feature)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var service: Service
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        val idPlaceholder = generated.first { it.name == "placeholderfixture_IdXkotlin_StringX.kt" }.readText()
+        assertTrue(": Id<String> = Id(id = \"\")" in idPlaceholder, "Expected a concrete Id<String> placeholder:\n$idPlaceholder")
+
+        val featurePlaceholder = generated.first { it.name == "placeholderfixture_Feature.kt" }.readText()
+        assertTrue("placeholderfixture_IdXkotlin_StringX()" in featurePlaceholder, "Expected Feature's constructor to call the Id<String> placeholder:\n$featurePlaceholder")
+
+        // Id's declaration is reachable only through this one instantiation, so providePlaceholder
+        // must still collapse it to exactly one branch (only the first matching one of a `when` ever
+        // runs — same invariant aTypeWithBothAFakeAndAMockResolvesToTheFakeInProvidePlaceholder checks
+        // for a Fake/Mock clash).
+        val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
+        val branches = Regex("""Id::class ->""").findAll(placeholders).count()
+        assertEquals(1, branches, "Expected exactly one Id::class branch:\n$placeholders")
+    }
+
+    @Test
+    fun placeholderConstructorDependencyOnAMockedGenericInterfaceInstantiatesTheMockAtTheRequiredType() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+            import org.kodein.mock.UsesMocks
+
+            interface Gen<out T : Any>
+            class Holder(val gen: Gen<String>)
+
+            interface Service {
+                fun use(holder: Holder)
+            }
+
+            @UsesMocks(Gen::class)
+            class Tests {
+                @Mock
+                lateinit var service: Service
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        val holderPlaceholder = generated.first { it.name == "placeholderfixture_Holder.kt" }.readText()
+        assertTrue(
+            "MockGen<String>(" in holderPlaceholder,
+            "Expected Holder's constructor to instantiate MockGen at String, not at Gen's own Any bound:\n$holderPlaceholder",
+        )
+    }
 }

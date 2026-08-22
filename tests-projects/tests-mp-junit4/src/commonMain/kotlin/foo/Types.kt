@@ -69,6 +69,19 @@ interface Foo<out T : Any> {
 
 typealias BarCB = (String) -> Int
 
+// A generic value class reached as a placeholder's constructor dependency, through a typealias: the
+// placeholder generated for Id must be Id<String>, matching what Feature's constructor actually
+// asks for — not Id's own bounded Id<Any?>, which does not satisfy it.
+@JvmInline
+value class Id<T>(val id: String)
+typealias StringId = Id<String>
+data class Feature(val id: StringId)
+
+// A mocked generic interface reached as a placeholder's constructor dependency: the placeholder
+// generated for FooHolder must instantiate MockFoo<Bar>, matching Foo<Bar> — Foo is declared
+// `out T : Any`, so a MockFoo<Any> (the bounded instantiation) is not a Foo<Bar>.
+class FooHolder(val foo: Foo<Bar>)
+
 interface Bar : Foo<Bar> {
     fun doNothing() {}
     fun doSomething() { doNothing() }
@@ -98,6 +111,10 @@ interface Bar : Foo<Bar> {
     }
 
     fun <T> encode(serializer: KSerializer<T>): ByteArray
+
+    fun <T> start(feature: Feature)
+
+    fun doFooHolder(holder: FooHolder)
 }
 
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.
