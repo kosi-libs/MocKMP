@@ -10,6 +10,7 @@ package foo
 // suspend functional type elsewhere, with "Suspend functional types are not supported in typeOf") — so
 // there is no way, at that call site, to tell "T was Suit" apart from "T was Suit?", and it goes
 // looking for a Suit placeholder that generation never produced.
+@Deprecated("for test")
 enum class Suit { CLUBS, DIAMONDS, HEARTS, SPADES }
 
 // AgeRestriction is reached only as PlayerConfig's own abstract member type — never as a mocked
@@ -30,7 +31,8 @@ interface PlayerConfig {
     var ageRestriction: AgeRestriction
 }
 
+@Deprecated("for test")
 interface CardGame {
     val config: PlayerConfig
-    fun play(suit: Suit?)
+    fun play(@Suppress("DEPRECATION") suit: Suit?)
 }

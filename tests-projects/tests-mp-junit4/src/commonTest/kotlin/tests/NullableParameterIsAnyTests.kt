@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package tests
 
 import foo.CardGame
