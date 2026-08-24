@@ -31,8 +31,14 @@ interface PlayerConfig {
     var ageRestriction: AgeRestriction
 }
 
+interface PlayType {
+    class TurnByTurn : PlayType
+    class RealTime : PlayType
+}
+
 @Deprecated("for test")
 interface CardGame {
     val config: PlayerConfig
     fun play(@Suppress("DEPRECATION") suit: Suit?)
+    fun start(type: PlayType)
 }

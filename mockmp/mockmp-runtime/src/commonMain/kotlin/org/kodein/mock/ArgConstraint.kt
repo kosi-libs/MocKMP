@@ -20,7 +20,7 @@ public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, inte
         public fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNotSame($expected)" }) { actual -> result(actual !== expected) { "Expected not same as <$actual>" } }
         public fun <T> isNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNull" }) { actual -> result(actual == null) { "Expected value to be null, but was: <$actual>" } }
         public fun <T> isNotNull(capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isNotNull"} ) { actual -> result(actual != null) { "Expected value to be not null" } }
-        public fun <T : Any> isInstanceOf(cls: KClass<T>, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isInstanceOf<${cls.simpleName}>" }) { actual -> result(cls.isInstance(actual)) { "Expected an instance of type ${cls.simpleName}, but was <$actual>" } }
+        public fun <T> isInstanceOf(cls: KClass<*>, capture: MutableList<T>? = null): ArgConstraint<T> = ArgConstraint(capture, { "isInstanceOf<${cls.simpleName}>" }) { actual -> result(cls.isInstance(actual)) { "Expected an instance of type ${cls.simpleName}, but was <$actual>" } }
     }
 }
 
