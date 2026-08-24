@@ -157,4 +157,30 @@ class BehaviourTests {
             game.start(isInstanceOf(PlayType.TurnByTurn::class))
         }
     }
+
+    @Test
+    fun testIsInstanceOfWithExplicitTypeArgumentHintsAtTheMistake() {
+        val game = mocker.mock<CardGame>()
+
+        // isInstanceOf<PlayType.TurnByTurn>(...) pins its placeholder lookup to PlayType.TurnByTurn
+        // itself, which has no generated placeholder (only PlayType, the declared parameter type of
+        // start(), does) — the same failure as testIsInstanceOfUnregisteredType, except caused by an
+        // explicit type argument the user should never have written.
+        val ex = assertFailsWith<RuntimeException> {
+            mocker.every { game.start(isInstanceOf<PlayType.TurnByTurn>(PlayType.TurnByTurn::class)) } returns Unit
+        }
+        assertContains(ex.message!!, "explicit type argument")
+    }
+
+    @Test
+    fun testIsAnyWithUnregisteredTypeDoesNotGetTheIsInstanceOfHint() {
+        val game = mocker.mock<CardGame>()
+
+        // Same missing-placeholder failure as above (PlayType.TurnByTurn has no placeholder), but
+        // reached through isAny() rather than isInstanceOf() — the hint must not fire here.
+        val ex = assertFailsWith<RuntimeException> {
+            mocker.every { game.start(isAny<PlayType.TurnByTurn>()) } returns Unit
+        }
+        assertFalse("explicit type argument" in ex.message!!)
+    }
 }

@@ -41,14 +41,36 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
     }
 
     @PublishedApi
+    internal fun <T> toReturn(constraint: ArgConstraint<T>, cls: KClass<*>): T =
+        resolvePlaceholder(constraint, cls, fromIsInstanceOf = false)
+
+    /**
+     * [toReturn]'s counterpart for [isInstanceOf] specifically.
+     *
+     * [isInstanceOf]'s `cls` argument (the type to check against) and its reified `T` (the type
+     * this call resolves a placeholder for) are different things — see [isInstanceOf]'s doc — but
+     * writing `T` explicitly, e.g. `isInstanceOf<Foo>(Foo::class)`, is a legal call that silently
+     * pins them to the same, possibly too-narrow type anyway. That is the single most likely cause
+     * of a placeholder lookup failing from inside this specific constraint, so the failure message
+     * calls it out; every other constraint keeps [toReturn]'s plain message.
+     */
+    @PublishedApi
+    internal fun <T> toReturnInstanceOf(constraint: ArgConstraint<T>, cls: KClass<*>): T =
+        resolvePlaceholder(constraint, cls, fromIsInstanceOf = true)
+
     @Suppress("UNCHECKED_CAST")
-    internal fun <T> toReturn(constraint: ArgConstraint<T>, cls: KClass<*>): T {
+    private fun <T> resolvePlaceholder(constraint: ArgConstraint<T>, cls: KClass<*>, fromIsInstanceOf: Boolean): T {
         constraints.add(constraint)
 
         try {
             return references.getReference(cls) as T
         } catch (e: Throwable) {
+            val instanceOfHint = if (!fromIsInstanceOf) "" else
+                "If this isInstanceOf() call has an explicit type argument, remove it: write isInstanceOf(${cls.bestName()}::class), " +
+                        "not isInstanceOf<${cls.bestName()}>(${cls.bestName()}::class). The type argument must stay inferred from the " +
+                        "mocked function's parameter type — writing it explicitly is what makes MocKMP look for a placeholder of this exact type.\n"
             throw RuntimeException("Could not find a way to get a reference of ${cls.bestName()}.\n" +
+                    instanceOfHint +
                     "Make sure ${cls.bestName()} is covered by @Mock, @Fake, @UsesMocks or @UsesFakes, " +
                     "and that this Mocker has already created a mock — with mocker.mock<T>() or mocker.injectMocks(this) — " +
                     "as that is what registers the generated values on it.\n" +
@@ -78,7 +100,7 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
     public inline fun <reified T> isNotSame(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotSame(expected, capture), T::class)
     public inline fun <reified T> isNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNull(capture), T::class)
     public inline fun <reified T> isNotNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotNull(capture), T::class)
-    public inline fun <reified T> isInstanceOf(type: KClass<*>, capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isInstanceOf(type, capture), T::class)
+    public inline fun <reified T> isInstanceOf(type: KClass<*>, capture: MutableList<T>? = null): T = toReturnInstanceOf(ArgConstraint.isInstanceOf(type, capture), T::class)
 
     public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T = toReturn<T>(constraint, T::class)
 

@@ -207,7 +207,8 @@ type parameter is only there so MocKMP can produce a placeholder return value fo
 inferred from the surrounding call (here, the declared type of `registerCallback`'s parameter), never given
 explicitly. Passing an explicit type argument forces the placeholder lookup to happen for that exact (possibly
 narrower) type instead, which the generated code has no placeholder for unless that precise type is used
-elsewhere in your mocked interfaces — and mocking fails at runtime with "Could not create an instance of ...".
+elsewhere in your mocked interfaces — and mocking fails at runtime with a "Could not find a way to get a
+reference of ..." error that names this exact mistake as the likely cause.
 ====
 
 [NOTE]
