@@ -568,19 +568,19 @@ class VerificationTests {
     @Test
     fun testIsInstanceOfConstraint() {
         val foo = mocker.mock<Foo<Bar>>()
-        mocker.every { foo.doSealedInterface(isInstanceOf<SItf.C>()) } returns Unit
+        mocker.every { foo.doSealedInterface(isInstanceOf(SItf.C::class)) } returns Unit
 
         foo.doSealedInterface(SItf.C())
 
         mocker.verify {
-            foo.doSealedInterface(isInstanceOf<SItf.C>())
+            foo.doSealedInterface(isInstanceOf(SItf.C::class))
         }
     }
 
     @Test
     fun testIsInstanceOfConstraintNotMocked() {
         val foo = mocker.mock<Foo<Bar>>()
-        mocker.every { foo.doSealedInterface(isInstanceOf<SItf.C>()) } returns Unit
+        mocker.every { foo.doSealedInterface(isInstanceOf(SItf.C::class)) } returns Unit
 
         val ex = assertFailsWith<Mocker.MockingException> {
             foo.doSealedInterface(SItf.O)
@@ -596,15 +596,15 @@ class VerificationTests {
     fun testIsInstanceOfConstraintNotCalled() {
         val foo = mocker.mock<Foo<Bar>>()
         var ran = ""
-        mocker.every { foo.doSealedInterface(isInstanceOf<SItf.C>()) } runs { ran = "C" }
-        mocker.every { foo.doSealedInterface(isInstanceOf<SItf.O>()) } runs { ran = "O" }
+        mocker.every { foo.doSealedInterface(isInstanceOf(SItf.C::class)) } runs { ran = "C" }
+        mocker.every { foo.doSealedInterface(isInstanceOf(SItf.O::class)) } runs { ran = "O" }
 
         foo.doSealedInterface(SItf.C())
         assertEquals("C", ran)
 
         val ex = assertFailsWith<MockerVerificationAssertionError> {
             mocker.verify {
-                foo.doSealedInterface(isInstanceOf<SItf.O>())
+                foo.doSealedInterface(isInstanceOf(SItf.O::class))
             }
         }
         assertEquals("Argument 1: Expected an instance of type O, but was <C>", ex.message)

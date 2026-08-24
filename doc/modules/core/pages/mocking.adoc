@@ -193,6 +193,23 @@ Available constraints are:
 - `isSame` and `isNotSame` check identity.
 - `isInstanceOf` checks type.
 
+[WARNING]
+====
+`isInstanceOf` takes the `KClass` to check against as a regular argument, not as a type parameter:
+
+[source,kotlin]
+----
+mocker.every { api.registerCallback(isInstanceOf(AdminCallback::class)) } returns Unit
+----
+
+Do *not* write `isInstanceOf<AdminCallback>()`. `isInstanceOf` is still a `reified` function, but that reified
+type parameter is only there so MocKMP can produce a placeholder return value for `every`/`verify` — it must stay
+inferred from the surrounding call (here, the declared type of `registerCallback`'s parameter), never given
+explicitly. Passing an explicit type argument forces the placeholder lookup to happen for that exact (possibly
+narrower) type instead, which the generated code has no placeholder for unless that precise type is used
+elsewhere in your mocked interfaces — and mocking fails at runtime with "Could not create an instance of ...".
+====
+
 [NOTE]
 ====
 Passing a non-constraint value to the function is equivalent to passing `isEqual(value)`

@@ -1,7 +1,12 @@
+@file:Suppress("DEPRECATION")
+
 package tests
 
 import foo.Bar
+import foo.CardGame
 import foo.Foo
+import foo.PlayType
+import foo.SItf
 import org.kodein.mock.Mocker
 import org.kodein.mock.UsesMocks
 import org.kodein.mock.generated.mock
@@ -9,7 +14,7 @@ import org.kodein.mock.mockFunction0
 import kotlin.test.*
 
 
-@UsesMocks(Foo::class, Bar::class)
+@UsesMocks(Foo::class, Bar::class, CardGame::class)
 class BehaviourTests {
 
     val mocker = Mocker()
@@ -139,5 +144,17 @@ class BehaviourTests {
         mocker.reset()
 
         assertNotSame(reference, capturePlaceholder(foo))
+    }
+
+    @Test
+    fun testIsInstanceOfUnregisteredType() {
+        val game = mocker.mock<CardGame>()
+        mocker.every { game.start(isInstanceOf(PlayType.TurnByTurn::class)) } returns Unit
+
+        game.start(PlayType.TurnByTurn())
+
+        mocker.verify {
+            game.start(isInstanceOf(PlayType.TurnByTurn::class))
+        }
     }
 }
