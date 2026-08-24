@@ -89,7 +89,11 @@ class RequirementCommentTests {
 
         // Not KDoc: the processor downgrades the two-star opener to a plain block comment.
         assertFalse("/**" in networkSource, "Did not expect a KDoc marker:\n$networkSource")
-        assertTrue(networkSource.trimStart().startsWith("package fixture"))
+        // Every generated file opens with its unconditional @file:Suppress("DEPRECATION", ...) —
+        // see MocKMPProcessor.suppressDeprecation — ahead of the package line this used to check for
+        // directly; nothing else (in particular no stray KDoc artifact) should sit between them.
+        assertTrue(networkSource.trimStart().startsWith("@file:Suppress("), "Expected the file-level Suppress first:\n$networkSource")
+        assertTrue(Regex("""\)\s*\n\s*package fixture""").containsMatchIn(networkSource), "Expected package fixture right after the file annotation:\n$networkSource")
     }
 
     @Test

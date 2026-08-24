@@ -12,22 +12,28 @@ val copySources = tasks.register<Sync>("copySources") {
     into(layout.buildDirectory.dir("src"))
 }
 
-kotlin.sourceSets {
-    main {
-        kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonMain/kotlin") })
-        dependencies {
-            implementation(libs.kotlinx.datetime)
-            implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.kotlinx.serialization.core)
+kotlin {
+    sourceSets {
+        main {
+            kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonMain/kotlin") })
+            dependencies {
+                implementation(libs.kotlinx.datetime)
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.kotlinx.serialization.core)
+            }
+        }
+
+        test {
+            kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonTest/kotlin") })
+            dependencies {
+                implementation(libs.kotlin.test.junit)
+                implementation(libs.kotlinx.coroutines.test)
+            }
         }
     }
 
-    test {
-        kotlin.srcDir(copySources.map { it.destinationDir.resolve("commonTest/kotlin") })
-        dependencies {
-            implementation(libs.kotlin.test.junit)
-            implementation(libs.kotlinx.coroutines.test)
-        }
+    compilerOptions {
+        allWarningsAsErrors.set(true)
     }
 }
 

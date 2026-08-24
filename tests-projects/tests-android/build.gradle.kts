@@ -9,7 +9,13 @@ val copySources = tasks.register<Sync>("copySources") {
     into(layout.buildDirectory.dir("src"))
 }
 
-kotlin.jvmToolchain(11)
+kotlin {
+    jvmToolchain(11)
+
+    compilerOptions {
+        allWarningsAsErrors.set(true)
+    }
+}
 
 android.sourceSets {
     named("main") {

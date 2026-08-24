@@ -358,10 +358,46 @@ class MocKMPProcessor(
      * rendered text.
      */
     private fun writeWithRequirementComment(gFile: FileSpec.Builder, dependencies: Dependencies) {
-        val fileSpec = gFile.build()
+        val fileSpec = gFile.suppressDeprecation().build()
         val text = fileSpec.toString().replaceFirst("/**\n", "/*\n")
         val stream = codeGenerator.createNewFile(dependencies, fileSpec.packageName, fileSpec.name)
         OutputStreamWriter(stream, StandardCharsets.UTF_8).use { it.write(text) }
+    }
+
+    /**
+     * `@file:Suppress("DEPRECATION", "DEPRECATION_ERROR")` on every file this processor writes.
+     * Generated code routinely mentions a mocked/faked declaration's own signature — its supertype,
+     * a member's parameter/return types, a constructor argument, an enum entry it fakes the first of,
+     * a `T::class`/`typeOf<T>()` dispatch key — and any one of those can itself be `@Deprecated`,
+     * without the *generated* code being the place a user could act on that warning: they cannot edit
+     * a generated file, and the site they *can* act on (their own `@Mock`/`@Fake`/`@UsesMocks(...)`
+     * annotation) already warns about it independently. This is the same call [overrideAnnotations]
+     * already makes for one specific path — dropping `kotlin.Deprecated` off a generated override and
+     * suppressing the resulting `OVERRIDE_DEPRECATION` instead of propagating it — generalized here to
+     * every path at once, including ones a per-declaration check would have to enumerate by hand (an
+     * import directive, a `when` branch's `KClass` literal) and could miss.
+     *
+     * File-level and unconditional, not per-declaration: a generated file rarely has just one
+     * declaration to annotate (an accessor's `when` has one branch per mock/fake/placeholder, each a
+     * potential deprecation reference), and a `@Suppress` that turns out to be redundant costs nothing
+     * — Kotlin does not warn about it — whereas a reference path left uncovered is a hard compile
+     * error for a consumer with `allWarningsAsErrors` on.
+     *
+     * `DEPRECATION_ERROR` rides along for the same reason: a declaration deprecated at
+     * `DeprecationLevel.ERROR` would otherwise be unmockable/unfakeable at all, not merely noisy.
+     */
+    private fun FileSpec.Builder.suppressDeprecation(): FileSpec.Builder =
+        addAnnotation(
+            AnnotationSpec.builder(Suppress::class)
+                .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
+                .addMember("%S", "DEPRECATION")
+                .addMember("%S", "DEPRECATION_ERROR")
+                .build()
+        )
+
+    /** [writeWithRequirementComment]'s counterpart for a file with no requirement comment to inline. */
+    private fun write(gFile: FileSpec.Builder, dependencies: Dependencies) {
+        gFile.suppressDeprecation().build().writeTo(codeGenerator, dependencies)
     }
 
     // endregion
@@ -2484,7 +2520,7 @@ class MocKMPProcessor(
                 }
             }
             gFile.addFunction(gFun.build())
-            gFile.build().writeTo(codeGenerator, Dependencies(true, *filesDeps.toTypedArray()))
+            write(gFile, Dependencies(true, *filesDeps.toTypedArray()))
         }
 
         // endregion
@@ -2552,7 +2588,7 @@ class MocKMPProcessor(
             }
 
             gFile.addFunction(gFun.build())
-            gFile.build().writeTo(codeGenerator, Dependencies(true))
+            write(gFile, Dependencies(true))
         }
 
         /**
@@ -2623,7 +2659,7 @@ class MocKMPProcessor(
                 gFun.addStatement("error(\"No fakes declared\")")
             }
             gFile.addFunction(gFun.build())
-            gFile.build().writeTo(codeGenerator, Dependencies(true))
+            write(gFile, Dependencies(true))
         }
 
         /**
@@ -2661,7 +2697,7 @@ class MocKMPProcessor(
                 gFun.addStatement("error(\"No injectors declared\")")
             }
             gFile.addFunction(gFun.build())
-            gFile.build().writeTo(codeGenerator, Dependencies(true))
+            write(gFile, Dependencies(true))
         }
 
         /**
@@ -2879,7 +2915,7 @@ class MocKMPProcessor(
             )?.let { gFun.addAnnotation(it) }
 
             gFile.addFunction(gFun.build())
-            gFile.build().writeTo(codeGenerator, Dependencies(true))
+            write(gFile, Dependencies(true))
         }
 
         // endregion

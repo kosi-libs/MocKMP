@@ -41,6 +41,10 @@ kotlin {
             }
         }
     }
+
+    compilerOptions {
+        allWarningsAsErrors.set(true)
+    }
 }
 
 mockmp {
