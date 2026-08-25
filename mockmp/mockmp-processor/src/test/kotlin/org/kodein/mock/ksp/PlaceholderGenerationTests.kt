@@ -5,6 +5,7 @@ import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.useKsp2
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -38,6 +39,35 @@ class PlaceholderGenerationTests {
                 processorOptions.putAll(options)
             }
         }
+
+    /**
+     * Compiles `dep.Dep`/`dep.Needs` (no KSP involved) into their own output directory, then deletes
+     * `Dep.class` from it — simulating `Dep`'s declaring module being an `implementation`, not `api`,
+     * dependency of whatever module is then compiled against this directory: `Dep` existed when this
+     * was compiled, so `Needs`'s metadata still names it, but it is absent from a consumer's own
+     * compile classpath. `Needs` itself remains perfectly resolvable — only asking for its
+     * constructor's `dep: Dep` parameter *type* triggers KSP2's error-type declaration
+     * ([KSType.isUnresolved]), the same shape a genuinely missing transitive dependency produces.
+     */
+    private fun classpathWithDepMissingFromNeeds(): File {
+        val result = KotlinCompilation().apply {
+            sources = listOf(
+                SourceFile.kotlin(
+                    "Dep.kt",
+                    """
+                    package dep
+
+                    class Dep
+                    class Needs(val dep: Dep)
+                    """,
+                )
+            )
+            inheritClassPath = true
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        result.outputDirectory.walkTopDown().first { it.name == "Dep.class" }.delete()
+        return result.outputDirectory
+    }
 
     @Test
     fun mockedInterfacesAbstractPropertyTypeYieldsAPlaceholderAndNothingElse() {
@@ -262,5 +292,46 @@ class PlaceholderGenerationTests {
             "MockGen<String>(" in holderPlaceholder,
             "Expected Holder's constructor to instantiate MockGen at String, not at Gen's own Any bound:\n$holderPlaceholder",
         )
+    }
+
+    // Regression test for https://github.com/kosi-libs/MocKMP/issues/98: a constructor parameter
+    // type KSP cannot resolve (see classpathWithDepMissingFromNeeds) used to crash the whole round
+    // with `NullPointerException: null` at `decl.qualifiedName!!` in fakeInitializerOf — KSP2's
+    // error-type declaration for an unresolvable reference is itself a KSClassDeclaration, so
+    // nothing earlier caught it. `Dep` never has to appear in this fixture's own source: MocKMP only
+    // discovers it one constructor deep, while resolving Needs's own placeholder — which is exactly
+    // the reported stack trace (generatePlaceholderFunction -> addFakeClassConstructorCall ->
+    // resolveConstructorArgs -> fakeValueOf -> fakeInitializerOf).
+    @Test
+    fun aConstructorParameterTypeMissingFromTheClasspathDegradesToAThrowingPlaceholderInsteadOfCrashing() {
+        val depMissingClasspath = classpathWithDepMissingFromNeeds()
+
+        val compilation = compilation(
+            """
+            package fixture
+
+            import dep.Needs
+            import org.kodein.mock.Mock
+
+            interface Service {
+                fun use(needs: Needs)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var service: Service
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        compilation.classpaths += depMissingClasspath
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        assertFalse("internal error" in result.messages, "Expected no internal-error crash:\n${result.messages}")
+        assertFalse("NullPointerException" in result.messages, "Expected no NullPointerException:\n${result.messages}")
+
+        val needsPlaceholder = compilation.workingDir.walkTopDown().first { it.name == "placeholderdep_Needs.kt" }.readText()
+        assertTrue("error(" in needsPlaceholder, "Expected Needs's placeholder to degrade to a throwing stub:\n$needsPlaceholder")
+        assertTrue("could not be resolved" in needsPlaceholder, "Expected the stub to explain why:\n$needsPlaceholder")
     }
 }
