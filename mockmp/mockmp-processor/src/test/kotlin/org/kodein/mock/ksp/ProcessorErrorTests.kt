@@ -6,6 +6,7 @@ import com.tschuchort.compiletesting.SourceFile
 import com.tschuchort.compiletesting.configureKsp
 import com.tschuchort.compiletesting.useKsp2
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -52,6 +53,37 @@ class ProcessorErrorTests {
         source: String,
         options: Map<String, String> = emptyMap(),
     ): JvmCompilationResult = compilation(source, options).compile()
+
+    /**
+     * Compiles `dep.Dep`/`dep.Needs` (no KSP involved) into their own output directory, then deletes
+     * `Dep.class` from it — simulating `Dep`'s declaring module being an `implementation`, not
+     * `api`, dependency of whatever module is then compiled against this directory: `Dep` existed
+     * when this was compiled, so `Needs`'s metadata still names it, but it is absent from a
+     * consumer's own compile classpath. `Needs` itself remains perfectly resolvable — only asking
+     * for its constructor's `dep: Dep` parameter *type* triggers KSP2's error-type declaration
+     * ([KSType.isUnresolved]), the same shape a genuinely missing transitive dependency produces.
+     * (Duplicated from [PlaceholderGenerationTests] rather than shared: every test file here builds
+     * its own [compilation] the same way.)
+     */
+    private fun classpathWithDepMissingFromNeeds(): File {
+        val result = KotlinCompilation().apply {
+            sources = listOf(
+                SourceFile.kotlin(
+                    "Dep.kt",
+                    """
+                    package dep
+
+                    class Dep
+                    class Needs(val dep: Dep)
+                    """,
+                )
+            )
+            inheritClassPath = true
+        }.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+        result.outputDirectory.walkTopDown().first { it.name == "Dep.class" }.delete()
+        return result.outputDirectory
+    }
 
     @Test
     fun mockOnNonInterface() {
@@ -649,5 +681,36 @@ class ProcessorErrorTests {
             .first { it.name.startsWith("fakeFoo") && it.name.endsWith(".kt") }
             .readText()
         assertContains(fake, "cls = String::class")
+    }
+
+    // The explicit-target half of the regression test for
+    // https://github.com/kosi-libs/MocKMP/issues/98 — PlaceholderGenerationTests covers the
+    // implicit (Placeholder) half, where the same unresolvable constructor parameter type degrades
+    // to a throwing stub instead of aborting the round. An explicit @Fake target has no such
+    // fallback (see addFake's "it is a type parameter"/"cannot be instantiated" rejections, which
+    // are unconditional the same way): this must fail the compilation with a clear MocKMP
+    // diagnostic, not the internal-error crash `NullPointerException: null` used to produce.
+    @Test
+    fun fakeOnATypeWhoseConstructorParameterIsMissingFromTheClasspath() {
+        val depMissingClasspath = classpathWithDepMissingFromNeeds()
+
+        val compilation = compilation(
+            """
+            import dep.Needs
+            import org.kodein.mock.Fake
+
+            class Tests {
+                @Fake lateinit var needs: Needs
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        compilation.classpaths += depMissingClasspath
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.COMPILATION_ERROR, result.exitCode, result.messages)
+        assertContains(result.messages, "MocKMP: ")
+        assertContains(result.messages, "could not be resolved")
+        assertFalse("internal error" in result.messages, "Expected a clean diagnostic, not an internal-error crash:\n${result.messages}")
+        assertFalse("NullPointerException" in result.messages, "Expected no NullPointerException:\n${result.messages}")
     }
 }

@@ -176,6 +176,18 @@ class MocKMPProcessor(
     /** Follows `typealias` chains to the underlying declaration. */
     private fun KSType.aliasedDeclaration(): KSDeclaration = unwrapAliases().declaration
 
+    /**
+     * True when [this] type has no [KSDeclaration.qualifiedName] to generate a `fakeXxx()`/
+     * `placeholderXxx()` call against, nor a `%T` to write — KSP2's error-type declaration
+     * (`KSErrorTypeClassDeclaration`, returned for a reference KSP could not resolve, typically
+     * because the dependency declaring it is missing from this module's compile classpath) *is* a
+     * [KSClassDeclaration] — `classKind == CLASS`, a `<ERROR TYPE: ...>` [KSDeclaration.simpleName] —
+     * so it passes every `decl is KSClassDeclaration` check elsewhere in this file and would
+     * otherwise only fail on a bare `qualifiedName!!`. A local/anonymous declaration shares the same
+     * null-qualifiedName shape, but can never reach here as a constructor parameter or member type.
+     */
+    private fun KSType.isUnresolved(): Boolean = unwrapAliases().declaration.qualifiedName == null
+
     /** True when [this] type is `kotlin.Unit`, through any `typealias`. */
     private fun KSType.isUnit(): Boolean = aliasedDeclaration().qualifiedName?.asString() == "kotlin.Unit"
 
@@ -201,6 +213,16 @@ class MocKMPProcessor(
      * like a catch-all when it was the narrowest possible catch.
      */
     private class ProcessingError(message: String, val node: KSNode) : Exception(message)
+
+    /**
+     * Thrown by [Round.fakeInitializerOf] when [type] is [KSType.isUnresolved] — no `qualifiedName`
+     * to call/name a generated function after. Caught close to a [ToProcess], where [unfakeableMessage]
+     * can be reported the normal way ([Round.reportUnfakeable]): a `return error(...)` stub for an
+     * implicit target (a Placeholder is never meant to be *used*, only to compile), a hard failure
+     * for an explicit one. `inner`, solely so its constructor can call [unresolvedTypeReason]
+     * without every throw site having to compute and pass the message itself.
+     */
+    private inner class UnresolvedTypeError(val type: KSType) : Exception(unresolvedTypeReason(type))
 
     override fun process(resolver: Resolver): List<KSAnnotated> =
         try {
@@ -258,6 +280,32 @@ class MocKMPProcessor(
         ClassKind.OBJECT -> "objects"
         ClassKind.ANNOTATION_CLASS -> "annotation classes"
     }
+
+    /**
+     * The explanation shared by every "this type could not be resolved" reason clause below — most
+     * often because the dependency declaring it isn't on this module's compile classpath, which is
+     * the only way KSP hands the processor a [KSType.isUnresolved] type in the first place.
+     */
+    private val UNRESOLVED_TYPE_EXPLANATION =
+        "could not be resolved — the dependency declaring it is most likely missing from this module's compile classpath"
+
+    /**
+     * The reason clause for an unresolved type ([KSType.isUnresolved]) being the type itself that
+     * couldn't be faked/mocked/placeheld — used where that type is also the one named in the
+     * surrounding "Cannot generate a[n] ... for $displayName" message, so repeating its name here
+     * would be redundant (contrast [unresolvedTypeReason], for when the unresolved type is nested
+     * instead, and so has to be named itself).
+     */
+    private fun unresolvedReason(): String = "it $UNRESOLVED_TYPE_EXPLANATION"
+
+    /**
+     * The reason clause for a [Round.UnresolvedTypeError] ([type] is [KSType.isUnresolved]), shared
+     * by every site that reports one (see [Round.UnresolvedTypeError]'s own doc) — [KSDeclaration.displayName]
+     * renders an error type as `<ERROR TYPE: com.foo.Dep>`, which is enough to name the missing
+     * dependency even without a resolvable qualified name.
+     */
+    private fun unresolvedTypeReason(type: KSType): String =
+        "it requires a value of ${type.declaration.displayName()}, which $UNRESOLVED_TYPE_EXPLANATION"
 
     /**
      * The single wording for "this type cannot be faked", shared by the compile-time error
@@ -750,6 +798,15 @@ class MocKMPProcessor(
             val decl = resolvedType.declaration
             val qualifiedName = decl.qualifiedName?.asString()
 
+            // KSP2's error-type declaration (see KSType.isUnresolved) is itself a KSClassDeclaration
+            // with classKind == CLASS, so nothing below — the StateFlow check, `builtins`, the
+            // `decl !is KSClassDeclaration`/classKind checks — would catch it; only its null
+            // qualifiedName does. Rejected here, rather than left to surface once toFunName()/
+            // fakePackageName() are asked to derive a generated identifier from it in
+            // generateFakeFunction, which would either mangle it into invalid Kotlin syntax or throw
+            // straight out of KotlinPoet, neither a message a user could act on.
+            if (qualifiedName == null) cannotFake(node, decl.displayName(), unresolvedReason(), path)
+
             // Unlike every other builtin, StateFlow/MutableStateFlow's value embeds a faked instance
             // of its type argument (see fakeInitializerOf) — so, unlike returning outright below,
             // that argument still has to be registered here, exactly as a constructor parameter type
@@ -1086,6 +1143,14 @@ class MocKMPProcessor(
             resolved = resolved.withBoundArguments()
             val decl = resolved.declaration
             if (decl !is KSClassDeclaration) return
+            // KSP2's error-type declaration (see KSType.isUnresolved) is a KSClassDeclaration too, so
+            // the check above doesn't catch it; skipped here rather than seeded, or it would reach
+            // toPlaceholder with no qualifiedName to derive a placeholderXxx() name/package from.
+            // providePlaceholder is only ever reached from an argument-constraint fallback for a type
+            // that has to be nameable at the *call site* too (T::class) — an unresolved T could never
+            // be written there either, so there is no case where skipping the seed here costs a
+            // reachable placeholder.
+            if (decl.qualifiedName == null) return
             if (decl.qualifiedName?.asString() == "kotlin.Array") {
                 // `Array<*>` has no component type to key a component-specific branch on — which is
                 // the only reason [placeholderArrayTypes] exists — so leave it to the generic
@@ -1332,6 +1397,13 @@ class MocKMPProcessor(
             val resolvedType = valueTypeToFake(type) ?: return null
             val decl = resolvedType.declaration
             if (decl !is KSClassDeclaration) return null
+            // Same reasoning as seedPlaceholder's identical check: an error-type declaration passes
+            // `is KSClassDeclaration`, but has no qualifiedName to derive a placeholderXxx() name from
+            // — registering it as its own Placeholder target would only fail later, in exactly the
+            // way this processor already handles: fakeInitializerOf(asPlaceholder = true) throws for
+            // it at the call site that actually needs its value ([expandTransitivePlaceholders]'s own
+            // caller, one level up), degrading *that* placeholder to a throwing stub instead.
+            if (decl.qualifiedName == null) return null
             return resolvedType.takeIf { decl !in toMock }
         }
 
@@ -1745,7 +1817,16 @@ class MocKMPProcessor(
             val mockPkg = vItf.fakePackageName()
             val gFile = FileSpec.builder(mockPkg, mockClassName)
             val filesDeps = LinkedHashSet(process.files)
-            val (gCls, mocker) = mockClassBuilder(vItf, mockClassName, filesDeps)
+            // Unlike a Fake or a Placeholder, a Mock has no throwing-stub fallback to degrade to: it
+            // implements vItf's actual superclass constructor call ([mockClassBuilder]), which every
+            // toMock entry is explicit for (see toMock's own doc) — so an UnresolvedTypeError here
+            // always aborts the round, the same way any other unfakeable superclass dependency would.
+            val (gCls, mocker) = try {
+                mockClassBuilder(vItf, mockClassName, filesDeps)
+            } catch (e: UnresolvedTypeError) {
+                val path = if (process.path.isEmpty()) "" else "\nRequired by: ${process.path.joinToString(" -> ")}"
+                error(vItf, "Cannot generate a mock for ${vItf.displayName()} because ${e.message}.$path")
+            }
             requirementComment(process)?.let { gCls.addKdoc(it) }
             // Every toMock entry is explicit now — a mock is never discovered transitively — so every
             // interface's non-abstract (default) members are always overridden too, matching an
@@ -1827,7 +1908,11 @@ class MocKMPProcessor(
         private fun fakeInitializerOf(type: KSType, filesDeps: MutableSet<KSFile>, asPlaceholder: Boolean = false): Pair<String, List<Any>> {
             val resolvedType = type.unwrapAliases()
             val decl = resolvedType.declaration
-            val qualifiedName = decl.qualifiedName!!.asString()
+            // decl.qualifiedName can be null here even though decl is a KSClassDeclaration: KSP2's
+            // error-type declaration for an unresolvable reference is one (see KSType.isUnresolved).
+            // Thrown, not reported directly — no ToProcess/gFun is in scope this deep, and both call
+            // sites that are ([generateFakeFunction], [generatePlaceholderFunction]) already catch it.
+            val qualifiedName = decl.qualifiedName?.asString() ?: throw UnresolvedTypeError(resolvedType)
             if (resolvedType in providedFakes) {
                 val f = providedFakes[resolvedType]!!
                 f.containingFile?.let { filesDeps += it }
@@ -2194,30 +2279,39 @@ class MocKMPProcessor(
             // every branch below. addFakeImplementation separately opts in the *inner* private class
             // for the same reason (its own supertype), which this does not duplicate.
             optInAnnotation((vCls.requiredOptInMarkers() + targetCls.requiredOptInMarkers()).distinct())?.let { gFun.addAnnotation(it) }
-            val gCls: TypeSpec? = when {
-                targetCls.isFakedByImplementing() -> addFakeImplementation(gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
-                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
-                    addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
-                    null
-                }
-                targetCls.classKind == ClassKind.ENUM_CLASS -> {
-                    addFakeFirstEnumEntry(gFun, targetCls, process)
-                    null
-                }
-                targetCls.classKind == ClassKind.OBJECT -> {
-                    gFun.addStatement("return %T", targetCls.toClassName())
-                    null
-                }
-                else -> {
-                    val reason = when {
-                        targetCls != vCls -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
-                        Modifier.SEALED in vCls.modifiers -> "it is a sealed ${vCls.classKind.type} with no permitted subclasses"
-                        else -> "${targetCls.classKind.plural()} cannot be instantiated"
+            // Every branch below still only builds gFun/gCls, never appends more than the one
+            // eventual `return`/`error(...)` statement — an UnresolvedTypeError raised partway
+            // through (e.g. one constructor parameter deep in addFakeClassConstructorCall) leaves
+            // nothing of gFun's body to unwind, so falling through to reportUnfakeable here is safe.
+            val gCls: TypeSpec? = try {
+                when {
+                    targetCls.isFakedByImplementing() -> addFakeImplementation(gFun, targetCls, targetType, filesDeps, process)
+                    targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
+                            (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
+                        addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process)
+                        null
                     }
-                    reportUnfakeable(gFun, vCls, reason, process)
-                    null
+                    targetCls.classKind == ClassKind.ENUM_CLASS -> {
+                        addFakeFirstEnumEntry(gFun, targetCls, process)
+                        null
+                    }
+                    targetCls.classKind == ClassKind.OBJECT -> {
+                        gFun.addStatement("return %T", targetCls.toClassName())
+                        null
+                    }
+                    else -> {
+                        val reason = when {
+                            targetCls != vCls -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
+                            Modifier.SEALED in vCls.modifiers -> "it is a sealed ${vCls.classKind.type} with no permitted subclasses"
+                            else -> "${targetCls.classKind.plural()} cannot be instantiated"
+                        }
+                        reportUnfakeable(gFun, vCls, reason, process)
+                        null
+                    }
                 }
+            } catch (e: UnresolvedTypeError) {
+                reportUnfakeable(gFun, vCls, e.message!!, process)
+                null
             }
             gFile.addFunction(gFun.build().also { fakes[vType] = MemberName(mockPkg, mockFunName) })
             gCls?.let { gFile.addType(it) }
@@ -2380,30 +2474,40 @@ class MocKMPProcessor(
             // See generateFakeFunction's identical check: covers both the function's own return type
             // (decl) and the sealed-resolved dispatch target (targetCls).
             optInAnnotation((decl.requiredOptInMarkers() + targetCls.requiredOptInMarkers()).distinct())?.let { gFun.addAnnotation(it) }
-            val gCls: TypeSpec? = when {
-                targetCls.isFakedByImplementing() -> addPlaceholderImplementation(gFun, targetCls, targetType, filesDeps, process)
-                targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
-                        (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
-                    addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process, asPlaceholder = true)
-                    null
-                }
-                targetCls.classKind == ClassKind.ENUM_CLASS -> {
-                    addFakeFirstEnumEntry(gFun, targetCls, process)
-                    null
-                }
-                targetCls.classKind == ClassKind.OBJECT -> {
-                    gFun.addStatement("return %T", targetCls.toClassName())
-                    null
-                }
-                else -> {
-                    val reason = when {
-                        targetCls != decl -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
-                        Modifier.SEALED in decl.modifiers -> "it is a sealed ${decl.classKind.type} with no permitted subclasses"
-                        else -> "${targetCls.classKind.plural()} cannot be instantiated"
+            // See generateFakeFunction's identical try/catch: an UnresolvedTypeError raised partway
+            // through — e.g. one of targetCls's own constructor parameters, exactly #98's trace —
+            // still leaves gFun with nothing to unwind, so it safely falls through to
+            // reportUnfakeable. Every toPlaceholder entry is implicit (see toPlaceholder's own doc),
+            // so this degrades to a throwing stub rather than aborting the round.
+            val gCls: TypeSpec? = try {
+                when {
+                    targetCls.isFakedByImplementing() -> addPlaceholderImplementation(gFun, targetCls, targetType, filesDeps, process)
+                    targetCls.classKind == ClassKind.ANNOTATION_CLASS ||
+                            (targetCls.classKind == ClassKind.CLASS && Modifier.SEALED !in targetCls.modifiers) -> {
+                        addFakeClassConstructorCall(gFun, targetCls, targetType, filesDeps, process, asPlaceholder = true)
+                        null
                     }
-                    reportUnfakeable(gFun, decl, reason, process)
-                    null
+                    targetCls.classKind == ClassKind.ENUM_CLASS -> {
+                        addFakeFirstEnumEntry(gFun, targetCls, process)
+                        null
+                    }
+                    targetCls.classKind == ClassKind.OBJECT -> {
+                        gFun.addStatement("return %T", targetCls.toClassName())
+                        null
+                    }
+                    else -> {
+                        val reason = when {
+                            targetCls != decl -> "MocKMP resolved it to its permitted subclass ${targetCls.displayName()}, and ${targetCls.classKind.plural()} cannot be instantiated"
+                            Modifier.SEALED in decl.modifiers -> "it is a sealed ${decl.classKind.type} with no permitted subclasses"
+                            else -> "${targetCls.classKind.plural()} cannot be instantiated"
+                        }
+                        reportUnfakeable(gFun, decl, reason, process)
+                        null
+                    }
                 }
+            } catch (e: UnresolvedTypeError) {
+                reportUnfakeable(gFun, decl, e.message!!, process)
+                null
             }
             gFile.addFunction(gFun.build().also { placeholders[vType] = MemberName(pkg, funName) })
             gCls?.let { gFile.addType(it) }
