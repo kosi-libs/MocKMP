@@ -108,6 +108,41 @@ class PlaceholderGenerationTests {
     }
 
     @Test
+    fun mockedGenericInterfaceSeedsAPlaceholderForItsConcreteTypeArgument() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+
+            interface Marker
+
+            interface Processor<T> {
+                fun process(value: T)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var processor: Processor<Marker>
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        // Processor's own type parameter T has no bound narrower than Any, so a seed that only ever
+        // consulted the declaration (rather than the @Mock site's actual Processor<Marker>) would
+        // seed a placeholder for Any instead of ever noticing Marker — leaving isAny<Marker>() with
+        // no providePlaceholder branch to resolve through at runtime.
+        val generated = compilation.workingDir.walkTopDown().toList()
+        assertTrue(generated.any { it.name == "placeholderfixture_Marker.kt" }, "Expected a placeholderMarker() function")
+
+        val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
+        assertTrue("Marker::class ->" in placeholders, "Expected a providePlaceholder branch for Marker:\n$placeholders")
+    }
+
+    @Test
     fun placeholderMembersAllThrow() {
         val compilation = compilation(
             """

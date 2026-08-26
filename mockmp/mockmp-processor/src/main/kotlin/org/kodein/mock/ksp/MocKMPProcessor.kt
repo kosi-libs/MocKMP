@@ -599,6 +599,19 @@ class MocKMPProcessor(
         /** Interfaces referenced by `@Mock`/`@UsesMocks`, with the files/nodes that referenced them. */
         private val toMock = LinkedHashMap<KSClassDeclaration, ToProcess>()
 
+        /**
+         * Every concrete instantiation each [toMock] declaration was requested at — a generic
+         * `interface Processor<T>` mocked as `Processor<NeverTouched>` records `Processor<NeverTouched>`
+         * here, alongside (or instead of) `Processor<Any>` from some other `@Mock` site. [toMock]
+         * itself stays declaration-keyed (one `MockXxx<T>` class serves every instantiation), but
+         * [seedPlaceholders] needs the actual type argument: `isAny<T>()` resolves through the erased,
+         * reified `T::class` at its call site, which is the concrete argument, not the declaration's
+         * own type-parameter bound. Populated in [addMock], already run through [withBoundArguments]
+         * so a star-projected or bare `KClass` reference (`@UsesMocks(Processor::class)`) lands on the
+         * same bounded instantiation [seedPlaceholders] falls back to when this map has no entry.
+         */
+        private val mockedInstantiations = LinkedHashMap<KSClassDeclaration, LinkedHashSet<KSType>>()
+
         /** Generated `MockXxx` class name, per mocked interface — consumed by [generateMockAccessor]. */
         private val mocks = LinkedHashMap<KSClassDeclaration, ClassName>()
 
@@ -738,6 +751,7 @@ class MocKMPProcessor(
                 it.files.addAll(files)
                 it.references.add(node)
             }
+            mockedInstantiations.getOrPut(decl) { LinkedHashSet() }.add(type.unwrapAliases().withBoundArguments())
         }
 
         /**
@@ -1181,27 +1195,40 @@ class MocKMPProcessor(
          * overridden too, and there is no worklist: nothing here can add a new [toMock] entry for this
          * loop to revisit. [expandTransitivePlaceholders] is what continues the walk from here, one
          * step further, into each seeded type's own constructor.
+         *
+         * Member types are resolved as members of each of [vItf]'s [mockedInstantiations] (falling
+         * back to its bounded instantiation when none was recorded — a hand-built [toMock] entry with
+         * no real `@Mock`/`@UsesMocks` site behind it), not read off the bare declaration: `isAny<T>()`
+         * and every other `ArgConstraintsBuilder` constraint dispatches through the erased, reified
+         * `T::class` at its call site, which names the *concrete* type argument (e.g. `NeverTouched`
+         * for `Processor<NeverTouched>`), not the declaration's own type-parameter bound — so that is
+         * what has to be seeded here, exactly as [implementedMemberTypes] already resolves a faked
+         * interface's members against its own instantiation.
          */
         private fun seedPlaceholders() {
             toMock.forEach { (vItf, process) ->
                 val overrideAll = vItf.classKind == ClassKind.INTERFACE
                 val owner = vItf.simpleName.asString()
-                vItf.getAllProperties()
-                    .filter { it.isAbstract() }
-                    .forEach { vProp ->
-                        val vPropType = vProp.type.resolve()
-                        seedPlaceholder(vPropType, process.origin, process.path + propertyPathStep(owner, vProp, vPropType))
-                    }
-                vItf.getAllFunctions()
-                    .filter { it.simpleName.asString() !in IDENTITY_MEMBERS && (overrideAll || it.isAbstract) }
-                    .forEach { vFun ->
-                        val vParamTypes = vFun.parameters.map { it.type.resolve() }
-                        val vReturnType = vFun.returnType?.resolve()
-                        // One step for the whole member: which of its parameter types needed the
-                        // placeholder is not what a reader is after — where it came from is.
-                        val path = process.path + functionPathStep(owner, vFun, vParamTypes, vReturnType)
-                        vParamTypes.forEach { seedPlaceholder(it, process.origin, path) }
-                    }
+                // Already run through withBoundArguments (see mockedInstantiations' own doc), or is
+                // asBoundedType()'s own bounded instantiation — either way, nothing further to bind.
+                val instantiations = mockedInstantiations[vItf]?.takeIf { it.isNotEmpty() } ?: setOf(vItf.asBoundedType())
+                instantiations.forEach { implementedType ->
+                    vItf.getAllProperties()
+                        .filter { it.isAbstract() }
+                        .forEach { vProp ->
+                            val vPropType = vProp.asMemberOf(implementedType)
+                            seedPlaceholder(vPropType, process.origin, process.path + propertyPathStep(owner, vProp, vPropType))
+                        }
+                    vItf.getAllFunctions()
+                        .filter { it.simpleName.asString() !in IDENTITY_MEMBERS && (overrideAll || it.isAbstract) && it.parameters.isNotEmpty() }
+                        .forEach { vFun ->
+                            val vFunSig = vFun.asMemberOf(implementedType)
+                            // One step for the whole member: which of its parameter types needed the
+                            // placeholder is not what a reader is after — where it came from is.
+                            val path = process.path + functionPathStep(owner, vFun, vFunSig.parameterTypes, vFunSig.returnType)
+                            vFunSig.parameterTypes.filterNotNull().forEach { seedPlaceholder(it, process.origin, path) }
+                        }
+                }
             }
         }
 

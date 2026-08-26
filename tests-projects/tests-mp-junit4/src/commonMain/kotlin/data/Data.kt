@@ -139,6 +139,14 @@ interface Container<T : Any, U> {
     abstract val content: Content<U>
 }
 
+interface Processor<T> {
+    fun process(value: T)
+}
+
+interface NeverTouched {
+    object Instance : NeverTouched
+}
+
 // Re-declares its identity members as abstract, which Kotlin requires an implementation for.
 interface IdentifiedService {
     override fun equals(other: Any?): Boolean
