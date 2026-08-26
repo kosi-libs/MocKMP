@@ -213,6 +213,16 @@ reference of ..." error that names this exact mistake as the likely cause.
 
 [NOTE]
 ====
+A placeholder is never meant to be used as a real value — it only has to exist so a call like `isAny<T>()` can
+typecheck. For most types the processor builds one automatically (an empty collection, an instance built from an
+accessible constructor, an implementation whose members all throw...). When it genuinely cannot — for example a
+type with no public constructor, reachable only as a parameter of a mocked interface's member — the generated
+placeholder function throws a `MocKMPNoPlaceholderException` explaining why, instead of silently producing
+something broken. Register a value for that specific type with `mocker.useReference(instance)` to fix it.
+====
+
+[NOTE]
+====
 Passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
 
 [source,kotlin]

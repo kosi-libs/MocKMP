@@ -7,7 +7,9 @@ import foo.CardGame
 import foo.Foo
 import foo.PlayType
 import foo.SItf
+import foo.Tournament
 import org.kodein.mock.Mocker
+import org.kodein.mock.MocKMPNoPlaceholderException
 import org.kodein.mock.UsesMocks
 import org.kodein.mock.generated.mock
 import org.kodein.mock.mockFunction0
@@ -182,5 +184,29 @@ class BehaviourTests {
             mocker.every { game.start(isAny<PlayType.TurnByTurn>()) } returns Unit
         }
         assertFalse("explicit type argument" in ex.message!!)
+    }
+
+    @Test
+    fun testUnconstructiblePlaceholderThrowsMocKMPNoPlaceholderExceptionPointingAtUseReference() {
+        val game = mocker.mock<CardGame>()
+
+        // Tournament has no public constructor, so MocKMP could not generate a Placeholder for it at
+        // all (see foo/CardGame.kt) — the generated placeholderTournament() throws
+        // MocKMPNoPlaceholderException rather than the generic "Could not find a way to get a
+        // reference" wrapper, and the message is specific to this failure, not a generic template.
+        val ex = assertFailsWith<MocKMPNoPlaceholderException> {
+            mocker.every { game.enter(isAny()) } returns Unit
+        }
+        assertContains(ex.message!!, "Could not generate a Placeholder for")
+        assertContains(ex.message!!, "Tournament")
+        assertContains(ex.message!!, "mocker.useReference")
+        assertFalse("@FakeProvider" in ex.message!!)
+        assertFalse("open an issue" in ex.message!!)
+
+        // mocker.useReference(...) is the fix the message itself points at — prove it actually works.
+        mocker.useReference(Tournament.of("worlds"))
+        mocker.every { game.enter(isAny()) } returns Unit
+        game.enter(Tournament.of("worlds"))
+        mocker.verify { game.enter(isAny()) }
     }
 }

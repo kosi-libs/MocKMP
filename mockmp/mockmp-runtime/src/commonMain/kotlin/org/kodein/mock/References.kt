@@ -108,6 +108,10 @@ internal class References {
 
     fun getReference(cls: KClass<*>): Any {
         val r = runCatching { tryGetReference(cls) }
+        // A MocKMPNoPlaceholderException already explains, in the processor's own words, why no
+        // placeholder exists and what to do about it — rethrown as-is rather than folded into the
+        // generic message below, which would only bury that explanation.
+        (r.exceptionOrNull() as? MocKMPNoPlaceholderException)?.let { throw it }
         if (r.isFailure || r.getOrThrow() == null) {
             throw IllegalStateException("Could not create an instance of ${cls.bestName()}. Please use mocker.useReference(${cls.simpleName}) to set a reference.", r.exceptionOrNull())
         }

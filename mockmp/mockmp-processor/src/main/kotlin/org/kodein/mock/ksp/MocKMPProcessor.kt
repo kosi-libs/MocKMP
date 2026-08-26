@@ -49,6 +49,7 @@ class MocKMPProcessor(
     private companion object {
         val mockerTypeName = ClassName("org.kodein.mock", "Mocker")
         val lazyFakeTypeName = ClassName("org.kodein.mock", "LazyFake")
+        val noPlaceholderExceptionTypeName = ClassName("org.kodein.mock", "MocKMPNoPlaceholderException")
 
         // Fully-qualified names of the annotations MocKMP looks for.
         const val ANNOTATION_MOCK = "org.kodein.mock.Mock"
@@ -308,9 +309,10 @@ class MocKMPProcessor(
         "it requires a value of ${type.declaration.displayName()}, which $UNRESOLVED_TYPE_EXPLANATION"
 
     /**
-     * The single wording for "this type cannot be faked", shared by the compile-time error
-     * ([cannotFake]) and the runtime stub ([Round.reportUnfakeable]). [reason] is a clause
-     * completing "... because <reason>.".
+     * The wording for "this type cannot be faked", used by the compile-time error ([cannotFake])
+     * for an *explicit* target — a fake or mock the user asked for directly, via `@Fake`/`@Mock`/
+     * `@UsesFakes`/`@UsesMocks`, or transitively required by one. [reason] is a clause completing
+     * "... because <reason>.".
      *
      * [path] is why the type was needed at all (see [ToProcess.path]) — almost never something the
      * user wrote themselves, since a fake is usually reached transitively, so the failing type alone
@@ -322,6 +324,23 @@ class MocKMPProcessor(
             append("Cannot generate a fake for $displayName because $reason.")
             if (path.isNotEmpty()) append("\nRequired by: ${path.joinToString(" -> ")}")
             append("\nPlease register a top-level @FakeProvider function that provides a value of this type.")
+        }
+
+    /**
+     * The wording for "this type has no placeholder", thrown at runtime ([Round.reportUnfakeable])
+     * for an *implicit* target — a type reached only through a mocked interface's own abstract
+     * signatures (see [Round.seedPlaceholder]), where a placeholder exists solely so an
+     * `isAny<T>()`-style argument constraint can typecheck, never to be a genuine value. Same shape
+     * as [unfakeableMessage] (a placeholder can fail to be generated for exactly the same reasons a
+     * fake can), but the advice differs: nothing requests a placeholder directly, so `@FakeProvider`
+     * — which only ever backs an explicitly-named type — cannot be the fix here;
+     * `mocker.useReference(...)` is.
+     */
+    private fun unplaceholderableMessage(displayName: String, reason: String, path: List<String>): String =
+        buildString {
+            append("Could not generate a Placeholder for $displayName because $reason.")
+            if (path.isNotEmpty()) append("\nRequired by: ${path.joinToString(" -> ")}")
+            append("\nPlease use mocker.useReference(...) to register a reference for that specific type.")
         }
 
     /** Aborts the round: [displayName] cannot be faked because [reason]. */
@@ -461,11 +480,14 @@ class MocKMPProcessor(
          * `@UsesFakes`/`@FakeProvider`, or transitively required by one of those; every placeholder is
          * discovered implicitly, as a type reachable from a mocked interface's signatures (see
          * [Round.seedPlaceholder]) or from a placeholder's own constructor (see
-         * [Round.expandTransitivePlaceholders]). An implicit entry that turns out to be
-         * unconstructible gets a generated function that throws at runtime instead of aborting the
-         * KSP round — nobody asked for that type directly, so failing the whole build over it would
-         * be disproportionate. An explicit entry keeps failing fast at compile time (see
-         * [Round.reportUnfakeable]).
+         * [Round.expandTransitivePlaceholders]). This flag is what [Round.reportUnfakeable] reads to
+         * tell the two apart, so it doubles as "is this a placeholder": an implicit entry that turns
+         * out to be unconstructible gets a generated function that throws
+         * `MocKMPNoPlaceholderException` at runtime instead of aborting the KSP round — nobody asked
+         * for that type directly, so failing the whole build over it would be disproportionate, and
+         * the thrown message points at `mocker.useReference(...)` rather than `@FakeProvider`, since
+         * nothing ever reaches a placeholder by name the way `@FakeProvider` requires. An explicit
+         * entry keeps failing fast at compile time instead.
          */
         var implicit: Boolean = false
 
@@ -1969,18 +1991,26 @@ class MocKMPProcessor(
         }
 
         /**
-         * Reports that [vCls] cannot be faked because [reason]. An *implicit* target
-         * ([ToProcess.implicit]) gets a `return error("...")` stub appended to [gFun] so the KSP
-         * round still succeeds — the error only surfaces if that function is ever actually invoked,
-         * which should never happen for a discarded `isAny()`-style placeholder. An explicit target
-         * fails fast, aborting the round. Either way the message carries [ToProcess.path] — the
-         * requirement chain recorded when [process] was registered — since a type only reaches
-         * generation, and only fails here, because something else needed it.
+         * Reports that [vCls] cannot be faked because [reason]. [ToProcess.implicit] is true
+         * exactly when [process] is a [toPlaceholder] entry — nothing else ever reaches this deep
+         * while implicit (see [ToProcess.implicit]'s own doc) — so that case gets a
+         * `throw MocKMPNoPlaceholderException("...")` stub appended to [gFun], worded for a
+         * placeholder ([unplaceholderableMessage]) and naming `mocker.useReference(...)` as the fix,
+         * rather than the `@FakeProvider` advice that only applies to an explicitly-named type. The
+         * KSP round still succeeds — the exception only surfaces if that function is ever actually
+         * invoked, which should never happen for a discarded `isAny()`-style placeholder. An
+         * explicit target fails fast instead, aborting the round with the fake-flavoured
+         * [unfakeableMessage]. Either way the message carries [ToProcess.path] — the requirement
+         * chain recorded when [process] was registered — since a type only reaches generation, and
+         * only fails here, because something else needed it.
          */
         private fun reportUnfakeable(gFun: FunSpec.Builder, vCls: KSClassDeclaration, reason: String, process: ToProcess) {
-            val message = unfakeableMessage(vCls.displayName(), reason, process.path)
-            if (process.implicit) gFun.addStatement("return error(%S)", message)
-            else error(vCls, message)
+            if (process.implicit) {
+                val message = unplaceholderableMessage(vCls.displayName(), reason, process.path)
+                gFun.addStatement("throw %T(%S)", noPlaceholderExceptionTypeName, message)
+                return
+            }
+            error(vCls, unfakeableMessage(vCls.displayName(), reason, process.path))
         }
 
         /**
@@ -2875,7 +2905,25 @@ class MocKMPProcessor(
 
             gFun.beginControlFlow("return when (cls)")
 
-            // Fake first: its members answer with fixed values, the most faithful placeholder
+            // A @FakeProvider-backed type first: a user-written function is the most faithful
+            // placeholder there could be, more so than a generated Fake. It never has more than one
+            // instantiation ([collectFakeProviders] keys by declared return type), so — unlike the
+            // Fake/Mock/Placeholder passes below — there is only ever one candidate per declaration;
+            // sorted by qualified name purely for deterministic output across compiler runs. A
+            // provided type is removed from [toFake] the moment it's collected ([collectFakeProviders]),
+            // so it can never also appear in [fakes] — but *can* still appear in [toMock] (an
+            // explicit @Mock/@UsesMocks is independent of @FakeProvider), hence the same
+            // filter-against-what-was-already-claimed pattern every pass below repeats.
+            val providedByDecl = LinkedHashMap<KSClassDeclaration, MemberName>()
+            providedFakes.entries
+                .sortedBy { (_, f) -> f.qualifiedName?.asString() }
+                .forEach { (type, f) ->
+                    val decl = type.declaration as? KSClassDeclaration ?: return@forEach
+                    providedByDecl.getOrPut(decl) { MemberName(f.packageName.asString(), f.simpleName.asString()) }
+                }
+            providedByDecl.forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
+
+            // Fake second: its members answer with fixed values, the most faithful placeholder
             // available whenever one exists. `cls` is erased, so all of a generic type's
             // instantiations share one branch and one of them has to stand for the rest. Take the most
             // general — every argument its parameter's bound, `GenData<Any>` — the same stand-in the
@@ -2898,31 +2946,34 @@ class MocKMPProcessor(
                     val target = resolveSealedTarget(decl)
                     if (target != decl) fakesByDecl.getOrPut(target) { member }
                 }
-            fakesByDecl.forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
+            fakesByDecl.entries
+                .filter { (decl, _) -> decl !in providedByDecl }
+                .forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
 
-            // Mock second, minus anything a Fake above already claims: an interface (or abstract
-            // class) can legitimately have both — a mock is never discovered transitively any more, so
-            // this can now only happen when a type is both explicitly requested via @Mock/@UsesMocks
-            // and explicitly requested (or transitively required) via @Fake/@UsesFakes.
+            // Mock third, minus anything a provided value or a Fake above already claims: an
+            // interface (or abstract class) can legitimately have both — a mock is never discovered
+            // transitively any more, so this can now only happen when a type is both explicitly
+            // requested via @Mock/@UsesMocks and explicitly requested (or transitively required) via
+            // @Fake/@UsesFakes/@FakeProvider.
             mocks.keys
-                .filter { itf -> itf !in fakesByDecl }
+                .filter { itf -> itf !in providedByDecl && itf !in fakesByDecl }
                 .forEach { itf ->
                     val (template, values) = mockConstructorCall(itf)
                     gFun.addStatement("%T::class -> $template", itf.toClassName(), *values.toTypedArray())
                 }
 
-            // Placeholder last, minus anything a Fake or a Mock above already claims — which
-            // [toPlaceholder] already guarantees never happens (see [seedPlaceholder]/
-            // [valueTypeToPlaceholder]), but the filter is repeated here for the same reason the mock
-            // pass filters against the fake one: this table is the one place all three kinds meet.
-            // [placeholders] is [KSType]-keyed, exactly like [fakes] — same collapse-to-one-branch-
-            // per-declaration reasoning as [fakesByDecl] just above, erased `KClass` dispatch being
-            // able to use only one branch per declaration regardless of instantiation. A sealed
-            // declaration's placeholder is still generated by constructing a concrete permitted
-            // subclass ([generatePlaceholderFunction] resolves it the same way [generateFakeFunction]
-            // does), so its resolved target needs the same extra branch [fakesByDecl] registers above:
-            // isInstanceOf<SItf.C>() asks for it directly, not for the sealed parent isAny<SItf>()
-            // asks for.
+            // Placeholder last, minus anything a provided value, a Fake or a Mock above already
+            // claims — which [toPlaceholder] already guarantees never happens (see
+            // [seedPlaceholder]/[valueTypeToPlaceholder]), but the filter is repeated here for the
+            // same reason the mock pass filters against the fake one: this table is the one place
+            // every kind meets. [placeholders] is [KSType]-keyed, exactly like [fakes] — same
+            // collapse-to-one-branch-per-declaration reasoning as [fakesByDecl] just above, erased
+            // `KClass` dispatch being able to use only one branch per declaration regardless of
+            // instantiation. A sealed declaration's placeholder is still generated by constructing a
+            // concrete permitted subclass ([generatePlaceholderFunction] resolves it the same way
+            // [generateFakeFunction] does), so its resolved target needs the same extra branch
+            // [fakesByDecl] registers above: isInstanceOf<SItf.C>() asks for it directly, not for the
+            // sealed parent isAny<SItf>() asks for.
             val placeholdersByDecl = LinkedHashMap<KSClassDeclaration, MemberName>()
             placeholders.entries
                 .sortedWith(
@@ -2936,7 +2987,7 @@ class MocKMPProcessor(
                     if (target != decl) placeholdersByDecl.getOrPut(target) { member }
                 }
             placeholdersByDecl.entries
-                .filter { (decl, _) -> decl !in fakesByDecl && decl !in mocks }
+                .filter { (decl, _) -> decl !in providedByDecl && decl !in fakesByDecl && decl !in mocks }
                 .forEach { (decl, member) -> gFun.addStatement("%T::class -> %M()", decl.toClassName(), member) }
 
             // isInstanceOf<T>()/isEqual<T>() can also target one of a sealed type's OTHER permitted
@@ -3040,7 +3091,7 @@ class MocKMPProcessor(
             // branch responsible for `PolymorphicKind.OPEN::class -> ...` — has to be satisfied on
             // the whole function; a `when` branch can't be annotated on its own.
             optInAnnotation(
-                (fakesByDecl.keys + mocks.keys + placeholdersByDecl.keys + sealedObjectSubclasses)
+                (providedByDecl.keys + fakesByDecl.keys + mocks.keys + placeholdersByDecl.keys + sealedObjectSubclasses)
                     .flatMap { it.requiredOptInMarkers() }
                     .distinct()
             )?.let { gFun.addAnnotation(it) }

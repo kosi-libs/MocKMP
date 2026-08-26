@@ -391,7 +391,7 @@ class ProcessorErrorTests {
         assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
 
         val stub = compilation.workingDir.walkTopDown().first { it.name == "placeholderfixture_TCPLayer.kt" }.readText()
-        assertContains(stub, "Cannot generate a fake for fixture.TCPLayer")
+        assertContains(stub, "Could not generate a Placeholder for fixture.TCPLayer")
         assertContains(stub, "Required by: Service.net(Network): Unit -> Network(TCPLayer, Int)")
     }
 
