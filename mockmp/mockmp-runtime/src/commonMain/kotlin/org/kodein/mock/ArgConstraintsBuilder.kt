@@ -64,6 +64,11 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
 
         try {
             return references.getReference(cls) as T
+        } catch (e: MocKMPNoPlaceholderException) {
+            // Already the processor's own explanation of why this exact type has no placeholder,
+            // and what to do about it — rethrown as-is rather than folded into the generic message
+            // below, which would only bury that explanation under "please open an issue".
+            throw e
         } catch (e: Throwable) {
             val instanceOfHint = if (!fromIsInstanceOf) "" else
                 "If this isInstanceOf() call has an explicit type argument, remove it: write isInstanceOf(${cls.bestName()}::class), " +

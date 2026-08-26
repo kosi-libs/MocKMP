@@ -108,6 +108,41 @@ class PlaceholderGenerationTests {
     }
 
     @Test
+    fun mockedGenericInterfaceSeedsAPlaceholderForItsConcreteTypeArgument() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+
+            interface Marker
+
+            interface Processor<T> {
+                fun process(value: T)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var processor: Processor<Marker>
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        // Processor's own type parameter T has no bound narrower than Any, so a seed that only ever
+        // consulted the declaration (rather than the @Mock site's actual Processor<Marker>) would
+        // seed a placeholder for Any instead of ever noticing Marker — leaving isAny<Marker>() with
+        // no providePlaceholder branch to resolve through at runtime.
+        val generated = compilation.workingDir.walkTopDown().toList()
+        assertTrue(generated.any { it.name == "placeholderfixture_Marker.kt" }, "Expected a placeholderMarker() function")
+
+        val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
+        assertTrue("Marker::class ->" in placeholders, "Expected a providePlaceholder branch for Marker:\n$placeholders")
+    }
+
+    @Test
     fun placeholderMembersAllThrow() {
         val compilation = compilation(
             """
@@ -331,7 +366,92 @@ class PlaceholderGenerationTests {
         assertFalse("NullPointerException" in result.messages, "Expected no NullPointerException:\n${result.messages}")
 
         val needsPlaceholder = compilation.workingDir.walkTopDown().first { it.name == "placeholderdep_Needs.kt" }.readText()
-        assertTrue("error(" in needsPlaceholder, "Expected Needs's placeholder to degrade to a throwing stub:\n$needsPlaceholder")
+        assertTrue(
+            "throw MocKMPNoPlaceholderException(" in needsPlaceholder,
+            "Expected Needs's placeholder to degrade to a throwing stub:\n$needsPlaceholder",
+        )
+        assertTrue("Could not generate a Placeholder for" in needsPlaceholder, "Expected the stub to explain why:\n$needsPlaceholder")
         assertTrue("could not be resolved" in needsPlaceholder, "Expected the stub to explain why:\n$needsPlaceholder")
+    }
+
+    // A placeholder is never meant to be *used* — it only exists so an isAny<T>()-style argument
+    // constraint can typecheck — so when MocKMP cannot build one, the fix is `mocker.useReference(...)`,
+    // never `@FakeProvider` (which only ever backs a type requested directly, and a placeholder is
+    // never requested directly). The stub must say so, and must not repeat the fake-flavoured advice
+    // or blame the user for an oversight that isn't one.
+    @Test
+    fun anUnconstructibleImplicitTargetThrowsAndPointsAtUseReferenceInsteadOfFakeProviderOrTheIssueTracker() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.Mock
+
+            class TCPLayer private constructor()
+
+            interface Service {
+                fun connect(layer: TCPLayer)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var service: Service
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val stub = compilation.workingDir.walkTopDown().first { it.name == "placeholderfixture_TCPLayer.kt" }.readText()
+        assertTrue(
+            "throw MocKMPNoPlaceholderException(" in stub,
+            "Expected TCPLayer's placeholder to throw MocKMPNoPlaceholderException:\n$stub",
+        )
+        assertTrue("Could not generate a Placeholder for fixture.TCPLayer" in stub, "Expected the stub to name the type and reason:\n$stub")
+        assertTrue("mocker.useReference" in stub, "Expected the stub to point at mocker.useReference:\n$stub")
+        assertFalse("@FakeProvider" in stub, "A placeholder is never requested directly, so @FakeProvider is never the fix:\n$stub")
+        assertFalse("open an issue" in stub, "This is not an oversight to report — the processor already explained why:\n$stub")
+    }
+
+    // A type covered by a top-level @FakeProvider is removed from toFake the moment it's collected
+    // (collectFakeProviders), and seedPlaceholder never registers one for it either (valueTypeToFake
+    // returns null for a providedFakes entry) — so, before this fix, isAny<Foo>() had no
+    // providePlaceholder branch to resolve through at all, even though a perfectly good user-supplied
+    // value exists. providePlaceholder must call the provider directly, and no redundant
+    // placeholderFoo() should be generated.
+    @Test
+    fun aFakeProvidedTypeGetsAProvidePlaceholderBranchInsteadOfNoBranchAtAll() {
+        val compilation = compilation(
+            """
+            package fixture
+
+            import org.kodein.mock.FakeProvider
+            import org.kodein.mock.Mock
+
+            class Foo(val x: Int)
+
+            @FakeProvider
+            fun provideFoo(): Foo = Foo(42)
+
+            interface Service {
+                fun handle(foo: Foo)
+            }
+
+            class Tests {
+                @Mock
+                lateinit var service: Service
+            }
+            """,
+            options = mapOf("org.kodein.mock.multiplatform" to "false"),
+        )
+        val result = compilation.compile()
+        assertEquals(KotlinCompilation.ExitCode.OK, result.exitCode, result.messages)
+
+        val generated = compilation.workingDir.walkTopDown().toList()
+        assertFalse(generated.any { it.name == "placeholderfixture_Foo.kt" }, "Did not expect a redundant Placeholder for a provided type")
+
+        val placeholders = generated.first { it.name == "placeholders.kt" }.readText()
+        assertTrue("Foo::class -> provideFoo()" in placeholders, "Expected providePlaceholder to call the provider directly:\n$placeholders")
     }
 }

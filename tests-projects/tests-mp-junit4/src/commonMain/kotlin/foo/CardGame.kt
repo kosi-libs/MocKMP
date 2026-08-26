@@ -36,9 +36,21 @@ interface PlayType {
     class RealTime : PlayType
 }
 
+// Reached only as a mocked interface's own (implicit) function parameter type, and has no public
+// constructor of its own — so, unlike PlayerConfig above, it cannot even be given a Placeholder
+// implementation: the generated placeholderTournament() degrades to a stub that throws
+// MocKMPNoPlaceholderException, pointing at mocker.useReference() rather than @FakeProvider (nothing
+// ever requests a placeholder by name the way @FakeProvider requires).
+class Tournament private constructor(val name: String) {
+    companion object {
+        fun of(name: String): Tournament = Tournament(name)
+    }
+}
+
 @Deprecated("for test")
 interface CardGame {
     val config: PlayerConfig
     fun play(@Suppress("DEPRECATION") suit: Suit?)
     fun start(type: PlayType)
+    fun enter(tournament: Tournament)
 }
