@@ -3,15 +3,19 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-internal class References {
+internal class References(private val mocker: Mocker) {
 
     /**
      * Set by [Mocker.registerPlaceholderProvider], called automatically by every generated
      * `MockXxx` class's constructor. Supplies a real, KSP-generated instance for a type that has
      * no builtin and no user-registered reference, replacing the unsafe-cast placeholder this
      * runtime used to construct itself.
+     *
+     * Passed the owning [mocker] so that a generated `placeholderXxx()` can resolve its own nested
+     * constructor dependencies back through [getReference] — a `useReference` for a type buried
+     * inside a placeholder then wins over the generated value, just as it does for the outer type.
      */
-    internal var placeholderProvider: ((KClass<*>) -> Any)? = null
+    internal var placeholderProvider: ((KClass<*>, Mocker) -> Any)? = null
 
     /** Everything given to [Mocker.useReference]. Per-test state, dropped by [reset]. */
     private val references = ArrayList<Any>()
@@ -87,7 +91,7 @@ internal class References {
         cache[r::class] = r
     }
 
-    fun tryGetReference(cls: KClass<*>): Any? {
+    fun tryGetReference(cls: KClass<*>, useProvider: Boolean = true): Any? {
         // [cache] before [primitives] so that a useReference for a primitive type still wins, as it
         // did when the two shared one map.
         cache[cls]?.let { return it }
@@ -99,12 +103,26 @@ internal class References {
         // [defaults] sits exactly where the generated provider would have answered for these types,
         // so a project that has a provider resolves everything in the order it always did.
         if (ref == null) ref = defaults[cls]
-        if (ref == null) ref = placeholderProvider?.invoke(cls)
+        // [useProvider] is false for the [getReference] overload below: it is *itself* how the
+        // provider resolves a placeholder's nested dependency, so re-entering the provider here
+        // would just recurse into the same generated function.
+        if (ref == null && useProvider) ref = placeholderProvider?.invoke(cls, mocker)
         if (ref != null) {
             cache[cls] = ref
         }
         return ref
     }
+
+    /**
+     * The lookup a generated `placeholderXxx()` routes each of its non-builtin constructor arguments
+     * through: a user [reference][Mocker.useReference], a builtin, or — failing both — the generated
+     * value [orElse] produces (the nested `placeholderXxx()`/`fakeXxx()`/`MockXxx` call the processor
+     * picked). The provider itself is deliberately skipped, since this *is* the provider's own
+     * resolution path; the result is cached like every other resolved reference, so a repeated
+     * `isAny<T>()` within one test keeps handing back the same instance.
+     */
+    fun getReference(cls: KClass<*>, orElse: () -> Any): Any =
+        tryGetReference(cls, useProvider = false) ?: orElse().also { cache[cls] = it }
 
     fun getReference(cls: KClass<*>): Any {
         val r = runCatching { tryGetReference(cls) }

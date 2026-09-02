@@ -9,6 +9,7 @@ import data.Labeled
 import data.Singleton
 import data.SomeDirection
 import org.kodein.mock.Fake
+import org.kodein.mock.Mocker
 import org.kodein.mock.UsesFakes
 import org.kodein.mock.generated.fake
 import org.kodein.mock.generated.providePlaceholder
@@ -99,7 +100,7 @@ class FakeTests {
     fun testGenericPlaceholderIsMostGeneral() {
         // `providePlaceholder` is keyed by KClass, which erases type arguments, so one of this
         // build's many GenData<...> fakes has to stand in for all of them: the most general one.
-        val placeholder = assertIs<GenData<*>>(providePlaceholder(GenData::class))
+        val placeholder = assertIs<GenData<*>>(providePlaceholder(GenData::class, Mocker()))
         assertEquals(Any::class, placeholder.data::class)
     }
 

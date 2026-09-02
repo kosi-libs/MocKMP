@@ -27,7 +27,7 @@ jobs:
       - name: Test the processor and the plugin
         run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test :mockmp:mockmp-gradle-plugin:test
         shell: bash
-      - name: Check
+      - name: Build
         run: ./gradlew --stacktrace --scan :tests-projects:check
         shell: bash
       - name: Upload to Maven Central

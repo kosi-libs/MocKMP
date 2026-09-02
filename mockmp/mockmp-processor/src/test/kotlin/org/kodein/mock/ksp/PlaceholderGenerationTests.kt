@@ -283,7 +283,10 @@ class PlaceholderGenerationTests {
         assertTrue(": Id<String> = Id(id = \"\")" in idPlaceholder, "Expected a concrete Id<String> placeholder:\n$idPlaceholder")
 
         val featurePlaceholder = generated.first { it.name == "placeholderfixture_Feature.kt" }.readText()
-        assertTrue("placeholderfixture_IdXkotlin_StringX()" in featurePlaceholder, "Expected Feature's constructor to call the Id<String> placeholder:\n$featurePlaceholder")
+        assertTrue(
+            "mocker.getReference(Id::class) { placeholderfixture_IdXkotlin_StringX(mocker) } as Id<String>" in featurePlaceholder,
+            "Expected Feature's constructor to resolve the Id<String> placeholder through the mocker:\n$featurePlaceholder",
+        )
 
         // Id's declaration is reachable only through this one instantiation, so providePlaceholder
         // must still collapse it to exactly one branch (only the first matching one of a `when` ever

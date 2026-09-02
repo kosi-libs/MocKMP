@@ -13,4 +13,4 @@ import kotlin.reflect.typeOf
 
 {VISIBILITY} expect fun Mocker.injectMocks(receiver: Any)
 
-{VISIBILITY} expect fun providePlaceholder(cls: KClass<*>): Any
+{VISIBILITY} expect fun providePlaceholder(cls: KClass<*>, mocker: Mocker): Any
