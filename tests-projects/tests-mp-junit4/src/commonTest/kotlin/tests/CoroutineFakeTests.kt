@@ -74,9 +74,9 @@ class CoroutineFakeTests {
         // FakeTests) exercises the GenData branch — these are the erased `Xxx::class -> ...` branches
         // generatePlaceholderAccessor emits, gated on kotlinx.coroutines being on this module's
         // classpath (it is, here).
-        assertIs<Flow<*>>(providePlaceholder(Flow::class))
-        assertIs<Job>(providePlaceholder(Job::class))
-        val stateFlowPlaceholder = assertIs<StateFlow<*>>(providePlaceholder(StateFlow::class))
+        assertIs<Flow<*>>(providePlaceholder(Flow::class, Mocker()))
+        assertIs<Job>(providePlaceholder(Job::class, Mocker()))
+        val stateFlowPlaceholder = assertIs<StateFlow<*>>(providePlaceholder(StateFlow::class, Mocker()))
         assertNull(stateFlowPlaceholder.value)
     }
 

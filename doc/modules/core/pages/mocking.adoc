@@ -218,7 +218,12 @@ typecheck. For most types the processor builds one automatically (an empty colle
 accessible constructor, an implementation whose members all throw...). When it genuinely cannot — for example a
 type with no public constructor, reachable only as a parameter of a mocked interface's member — the generated
 placeholder function throws a `MocKMPNoPlaceholderException` explaining why, instead of silently producing
-something broken. Register a value for that specific type with `mocker.useReference(instance)` to fix it.
+something broken.
+
+Every value a generated placeholder builds is first looked up through the mocker's references, so
+`mocker.useReference(instance)` fixes it whether the unbuildable type is the one `isAny<T>()` asks for directly
+*or* one buried inside a placeholder the processor could otherwise build — registering the `Amount` in
+`isAny<MoneyTransfer>()` where `MoneyTransfer(val amount: Amount)` and `Amount` has no public constructor.
 ====
 
 [NOTE]
