@@ -1,13 +1,13 @@
 name: mockmp
 title: MocKMP
 version: '3.5'
-display_version: '3.5.1'
+display_version: '3.5.2'
 nav:
   - modules/ROOT/nav.adoc
   - modules/core/nav.adoc
   - modules/migration/nav.adoc
 asciidoc:
   attributes:
-    version: '3.5.1'
+    version: '3.5.2'
     kotlin-version: '2.4.10'
     ksp-version: '2.3.10'
