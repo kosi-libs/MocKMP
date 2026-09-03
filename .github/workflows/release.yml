@@ -25,7 +25,7 @@ jobs:
           restore-keys: ${{ runner.os }}-konan-
       # Gates the publication below, alongside the check: see the note in test.yml.
       - name: Test the processor and the plugin
-        run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test :mockmp:mockmp-gradle-plugin:test
+        run: ./gradlew --stacktrace --scan :mockmp:check
         shell: bash
       - name: Build
         run: ./gradlew --stacktrace --scan :tests-projects:check

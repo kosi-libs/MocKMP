@@ -33,6 +33,11 @@ jobs:
     # disabled"), and build/test-results/ has no directory for either. Every other target is covered:
     # :tests-projects:check builds mockmp transitively for all of them, and mockmp-runtime declares
     # the same target set as tests-mp-junit4. Running those two would take a runner matrix.
+    #
+    # :mockmp:check covers the mockmp modules' own checks that :tests-projects:check does not reach —
+    # the two helper modules' dependency resolution, the Gradle plugin's validatePlugins, and
+    # mockmp-runtime's own multiplatform test suite — while :tests-projects:check covers the
+    # generated-code end.
     runs-on: macOS-latest
     steps:
       - name: Check out
@@ -55,7 +60,7 @@ jobs:
       # the run immediately rather than behind a full Apple/JS/Native build. :tests-projects:check does
       # not reach them — it builds both modules, but runs no test of theirs.
       - name: Test the processor and the plugin
-        run: ./gradlew --stacktrace --scan :mockmp:mockmp-processor:test :mockmp:mockmp-gradle-plugin:test
+        run: ./gradlew --stacktrace --scan :mockmp:check
         shell: bash
       - name: Check
         run: ./gradlew --stacktrace --scan :tests-projects:check

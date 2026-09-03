@@ -6,7 +6,9 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 
+@DisableCachingByDefault(because = "Writes one small file from a bundled resource with two string substitutions — cheaper to re-run than to fetch from the cache")
 internal abstract class MocKMPExtractExpectKt : DefaultTask() {
 
     @get:OutputDirectory

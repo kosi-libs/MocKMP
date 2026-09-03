@@ -22,7 +22,13 @@ val copySrc = tasks.register<Sync>("copySrc") {
 }
 
 kotlin {
-    jvm()
+    // Pins kotlin-test's JVM framework variant to JUnit 5. Without this, KGP reads the jvmTest task's
+    // options, finds the default JUnit 4, and requires kotlin-test-framework-junit on the kotlin-test
+    // that commonMain declares — which then clashes with jvmMain's kotlin-test-junit5 over the shared
+    // kotlin-test-framework-impl capability, and jvmTestRuntimeClasspath stops resolving.
+    jvm {
+        testRuns["test"].executionTask.configure { useJUnitPlatform() }
+    }
     jvmToolchain(11)
 
     iosSimulatorArm64()
