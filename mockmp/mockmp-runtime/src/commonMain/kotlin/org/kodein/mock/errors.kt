@@ -19,7 +19,7 @@ public class MockerVerificationThrownAssertionError internal constructor(overrid
  * (`mocker.useReference(...)`). Public, unlike every other exception here: generated code, living
  * in the user's own module, has to construct it.
  *
- * Both [References.getReference] and [ArgConstraintsBuilder.resolvePlaceholder] rethrow this
+ * Both [References.getReference] and [ArgConstraintsBuilder.toReturn] rethrow this
  * unwrapped rather than folding it into their own generic "could not find a reference" message —
  * the processor already said everything there is to say, so wrapping it further would only bury
  * the actual reason under boilerplate.

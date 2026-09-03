@@ -3,7 +3,11 @@ package org.kodein.mock
 import kotlin.reflect.KClass
 
 
-public class ArgConstraint<T>(internal val capture: MutableList<T>? = null, internal val description: () -> String = { "?" }, internal val test: (T) -> Result) {
+public class ArgConstraint<T>(
+    internal val capture: MutableList<T>? = null,
+    internal val description: () -> String = { "?" },
+    internal val test: (T) -> Result,
+) {
 
     public sealed class Result {
         public object Success : Result()

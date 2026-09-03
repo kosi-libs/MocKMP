@@ -209,4 +209,17 @@ class BehaviourTests {
         game.enter(Tournament.of("worlds"))
         mocker.verify { game.enter(isAny()) }
     }
+
+    @Test
+    fun testIsEqualNeedsNoPlaceholderForAnUnconstructibleType() {
+        val game = mocker.mock<CardGame>()
+        val worlds = Tournament.of("worlds")
+
+        // isEqual hands back the value it was given, so — unlike isAny() in the test above — it needs
+        // no Tournament placeholder even though placeholderTournament() would throw. isNotEqual/
+        // isSame/isNotSame share this: a constraint carrying a concrete value never asks for one.
+        mocker.every { game.enter(isEqual(worlds)) } returns Unit
+        game.enter(worlds)
+        mocker.verify { game.enter(isEqual(worlds)) }
+    }
 }
