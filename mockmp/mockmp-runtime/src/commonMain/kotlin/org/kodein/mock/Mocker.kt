@@ -12,6 +12,15 @@ private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<P
 /**
  * Records and answers the calls made to the mocks created from it.
  *
+ * A `Mocker` is the hub of a test: create one, obtain mocks from it (`mocker.mock<T>()`, or
+ * `mocker.injectMocks(this)` to populate every [Mock]/[Fake] property), give them behaviour with
+ * [every] / [everySuspending], exercise the code under test, then check the calls with [verify] /
+ * [verifyWithSuspend]. Call [reset] in a `@BeforeTest` method so each test starts from a clean
+ * mocker.
+ *
+ * There is no "relaxed" mode: a method that is called without having been mocked throws a
+ * [MockingException].
+ *
  * **Not thread-safe.** A `Mocker`, and every mock created from it, belong to a single thread: the
  * registrations, the log of recorded calls and the placeholder references are all held in plain,
  * unsynchronised collections. Calls arriving concurrently corrupt that state rather than failing
@@ -28,6 +37,11 @@ private typealias RegistrationMap<E> = HashMap<Pair<Any?, String>, MutableList<P
  * possible, give each thread its own `Mocker`.
  */
 public class Mocker {
+    /**
+     * Thrown when a mock is used in a way that was never defined: a method with no matching
+     * [every] / [everySuspending], a call whose arguments no registered behaviour accepts, a
+     * [verify] of a method that was never mocked, or constraints mixed with bare values in one call.
+     */
     public class MockingException(message: String) : Exception(message)
 
     private sealed class SpecialMode {
@@ -51,8 +65,20 @@ public class Mocker {
 
     private val references = References(this)
 
+    /**
+     * Drops the log of recorded calls, so a following [verify] only sees calls made after this
+     * point. Leaves mocked behaviour and registered references in place.
+     */
     public fun clearCalls() { calls.clear() }
 
+    /**
+     * Returns the mocker to a clean state: clears the call log, every [every] / [everySuspending]
+     * registration, and every [useReference]. Call it in a `@BeforeTest` method so tests do not
+     * leak state into one another.
+     *
+     * The generated placeholder provider is deliberately kept (see `References.reset`), so mocks
+     * built once and reset per test keep resolving `isAny<T>()`.
+     */
     public fun reset() {
         calls.clear()
         regFuns.clear()
@@ -169,6 +195,20 @@ public class Mocker {
         }
     }
 
+    /**
+     * Records a call to a non-suspending mocked function and returns the value its registered
+     * behaviour produces.
+     *
+     * Called by generated `MockXxx` code (and by [mockFunction1] & co.) — you should not need to
+     * call it yourself.
+     *
+     * @param receiver The mock the call was made on, or `null` for a mocked function.
+     * @param method The mocked function's identifier, arguments types included.
+     * @param args The call's arguments.
+     * @param default Produces a value when the call matches no registered behaviour, instead of
+     * throwing (used for a mocked interface's default method).
+     * @throws MockingException if the call matches no registered behaviour and no [default] is given.
+     */
     public fun <R> register(receiver: Any?, method: String, vararg args: Any?, default: (() -> R)? = null): R =
         registerImpl(
             isSuspend = false,
@@ -181,6 +221,14 @@ public class Mocker {
             default = { (default ?: error("Null default")).invoke() }
         )
 
+    /**
+     * [register] for a suspending mocked function.
+     *
+     * Called by generated `MockXxx` code (and by [mockSuspendFunction1] & co.) — you should not
+     * need to call it yourself.
+     *
+     * @throws MockingException if the call matches no registered behaviour and no `default` is given.
+     */
     public suspend fun <R> registerSuspend(receiver: Any?, method: String, vararg args: Any?, default: (suspend () -> R)? = null): R =
         registerImpl(
             isSuspend = true,
@@ -193,21 +241,41 @@ public class Mocker {
             default = { (default ?: error("Null default")).invoke() }
         )
 
+    /**
+     * The behaviour of one non-suspending mocked call, returned by [every].
+     *
+     * Give it a behaviour with [returns] or [runs]. Keep the reference to change that behaviour
+     * later — the last one set wins for every subsequent matching call.
+     */
     public inner class Every<T> internal constructor(receiver: Any?, method: String) {
         internal var mocked: (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }
+        /** Mocks the call to return [ret] — the same instance every time. */
         public infix fun returns(ret: T) {
             mocked = { ret }
         }
+        /**
+         * Mocks the call to run [ret] and return its result. [ret] receives the call's arguments as
+         * an untyped `Array<*>`; its **last expression** is the returned value (a `return` would
+         * target the enclosing function and will not compile).
+         */
         public infix fun runs(ret: (Array<*>) -> T) {
             mocked = ret
         }
     }
 
+    /**
+     * The behaviour of one suspending mocked call, returned by [everySuspending]. See [Every].
+     */
     public inner class EverySuspend<T> internal constructor(receiver: Any?, method: String) {
         internal var mocked: suspend (Array<*>) -> T = { throw MockingException("${methodName(receiver, method)} has not been mocked") }
+        /** Mocks the call to return [ret] — the same instance every time. */
         public infix fun returns(ret: T) {
             mocked = { ret }
         }
+        /**
+         * Mocks the call to run [ret] (which may suspend) and return its result. [ret] receives the
+         * call's arguments as an untyped `Array<*>`; its **last expression** is the returned value.
+         */
         public infix fun runs(ret: suspend (Array<*>) -> T) {
             mocked = ret
         }
@@ -232,9 +300,31 @@ public class Mocker {
         }
     }
 
+    /**
+     * Opens a *definition block* for a **non-suspending** mocked function.
+     *
+     * [block] must make exactly one call on a mock; the constraint functions of its
+     * [ArgConstraintsBuilder] receiver ([isAny][ArgConstraintsBuilder.isAny],
+     * [isEqual][ArgConstraintsBuilder.isEqual], …) describe which arguments this behaviour applies
+     * to. Several `every` blocks can register different behaviours for the same function under
+     * different constraints.
+     *
+     * Use [everySuspending] for a suspending function — mocking a suspending one here fails.
+     *
+     * @return An [Every] to give the call its behaviour with `returns` / `runs`, kept if you want
+     * to change it later.
+     */
     public fun <T> every(block: ArgConstraintsBuilder.() -> T) : Every<T> =
         everyImpl(false, ::Every, regFuns) { block() }
 
+    /**
+     * [every] for a **suspending** mocked function; [block] may call suspending mocks.
+     *
+     * You *must* use this — not [every] — for a suspending function, and [verifyWithSuspend] to
+     * verify it.
+     *
+     * @return An [EverySuspend] to give the call its behaviour with `returns` / `runs`.
+     */
     public suspend fun <T> everySuspending(block: suspend ArgConstraintsBuilder.() -> T): EverySuspend<T> =
         everyImpl(true, ::EverySuspend, regSuspendFuns) { block() }
 
@@ -256,18 +346,30 @@ public class Mocker {
         return every
     }
 
+    /**
+     * Backs a `var` property of [receiver] by the mocker: reads return whatever was last written,
+     * starting from [default], with no need to mock the getter and setter separately.
+     *
+     * @param property The mutable property to back, e.g. `Place::name`.
+     * @param default The value reads return until the first write.
+     */
     public fun <R, T> backProperty(receiver: R, property: KMutableProperty1<R, T>, default: T) {
         var value = default
-        // addConstraint rather than isAny(): the setter's placeholder argument is never read, and
-        // isAny() would infer Any? and so require the project to have a `kotlin.Any` placeholder —
-        // a dependency this has no business having, and which only holds by coincidence.
-        every { register<Unit>(receiver, "set:${property.name}", addConstraint(ArgConstraint.isAny<Any?>())) } runs {
+        // addConstraint rather than isAny(): the setter's recorded argument is never read (only the
+        // constraint matters), and isAny() would infer Any? and so require the project to have a
+        // `kotlin.Any` placeholder — a dependency this has no business having, and which only holds
+        // by coincidence.
+        every {
+            addConstraint(ArgConstraint.isAny<Any?>())
+            register<Unit>(receiver, "set:${property.name}", null)
+        } runs {
             @Suppress("UNCHECKED_CAST")
             value = it[0] as T
         }
         every { register<T>(receiver, "get:${property.name}") } runs { value }
     }
 
+    /** Former name of [every]. */
     @Deprecated("Renamed every", ReplaceWith("every(block)"), level = DeprecationLevel.ERROR)
     public fun <T> on(block: ArgConstraintsBuilder.() -> T) : Every<T> = every(block)
 
@@ -297,12 +399,43 @@ public class Mocker {
         }
     }
 
+    /**
+     * Checks the recorded calls against those listed in [block].
+     *
+     * Each statement in [block] is one expected call, described with the same constraint functions
+     * as [every]. A call whose behaviour threw must be listed with [VerificationBuilder.threw] (or
+     * [VerificationBuilder.called]).
+     *
+     * With the defaults, [block] must list **every** recorded call, **in order** — so `verify {}`
+     * asserts that no mocked call was made. [clearCalls] narrows the window beforehand.
+     *
+     * @param exhaustive When `false`, unlisted calls are tolerated (the listed ones are still
+     * checked in their relative order).
+     * @param inOrder When `false`, the listed calls may be given in any order (all of them must
+     * still be listed unless `exhaustive` is also `false`).
+     * @throws MockerVerificationAssertionError if the recorded calls do not match [block].
+     */
     public fun verify(exhaustive: Boolean = true, inOrder: Boolean = true, block: VerificationBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
+    /**
+     * [verify] run in a suspending context, so [block] can list suspending calls.
+     *
+     * Unlike [everySuspending], this handles suspending **and** non-suspending calls, so a test
+     * that mixes both can verify them all here.
+     *
+     * @throws MockerVerificationAssertionError if the recorded calls do not match [block].
+     */
     public suspend fun verifyWithSuspend(exhaustive: Boolean = true, inOrder: Boolean = true, block: suspend VerificationBuilder.() -> Unit): Unit =
         verifyImpl(exhaustive, inOrder) { block() }
 
+    /**
+     * Registers [r] as the instance to use wherever a value of its type is needed — the return of
+     * an `isAny<T>()` and every other placeholder, whether [r]'s type is the one asked for directly
+     * or one buried inside a placeholder MocKMP would otherwise build. Dropped by [reset].
+     *
+     * See [ArgConstraintsBuilder] for what a placeholder is and when one is needed.
+     */
     public fun useReference(r: Any) {
         references.addReference(r)
     }
@@ -320,8 +453,9 @@ public class Mocker {
 
     /**
      * Registers the project-wide placeholder provider generated by the MocKMP KSP processor,
-     * used to produce a real instance for a type that [isAny]/[isEqual]/etc. need to return from
-     * an `every { }` block but that has no builtin and no [useReference]-registered value.
+     * used to produce a real instance for a type that [isAny][ArgConstraintsBuilder.isAny] /
+     * [isNull][ArgConstraintsBuilder.isNull] / etc. need to return from an `every { }` block but
+     * that has no builtin and no [useReference]-registered value.
      *
      * Called automatically by every generated `MockXxx` class's constructor — you should not need
      * to call this yourself.

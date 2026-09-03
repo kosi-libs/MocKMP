@@ -193,6 +193,10 @@ Available constraints are:
 - `isSame` and `isNotSame` check identity.
 - `isInstanceOf` checks type.
 
+`isEqual`, `isNotEqual`, `isSame` and `isNotSame` return the value you pass them, so they never need a
+placeholder for the argument type. `isAny`, `isNull`, `isNotNull` and `isInstanceOf` have no such
+value to return, so they hand back a _placeholder_ instead — see the note below.
+
 [WARNING]
 ====
 `isInstanceOf` takes the `KClass` to check against as a regular argument, not as a type parameter:
@@ -213,12 +217,13 @@ reference of ..." error that names this exact mistake as the likely cause.
 
 [NOTE]
 ====
-A placeholder is never meant to be used as a real value — it only has to exist so a call like `isAny<T>()` can
-typecheck. For most types the processor builds one automatically (an empty collection, an instance built from an
-accessible constructor, an implementation whose members all throw...). When it genuinely cannot — for example a
-type with no public constructor, reachable only as a parameter of a mocked interface's member — the generated
-placeholder function throws a `MocKMPNoPlaceholderException` explaining why, instead of silently producing
-something broken.
+A placeholder is never meant to be used as a real value — it only has to exist so a placeholder-returning
+constraint like `isAny<T>()` can typecheck. For most types the processor builds one automatically (an empty
+collection, an instance built from an accessible constructor, an implementation whose members all throw...). When
+it genuinely cannot — for example a type with no public constructor, reachable only as a parameter of a mocked
+interface's member — the generated placeholder function throws a `MocKMPNoPlaceholderException` explaining why,
+instead of silently producing something broken. (`isEqual` and the other value-carrying constraints above sidestep
+this entirely — they return the value you gave them.)
 
 Every value a generated placeholder builds is first looked up through the mocker's references, so
 `mocker.useReference(instance)` fixes it whether the unbuildable type is the one `isAny<T>()` asks for directly
@@ -520,4 +525,20 @@ mocker.every { api.getSuccess(isStrictlyPositive()) } returns true
 mocker.every { api.getSuccess(isAny()) } returns false
 /*...*/
 mocker.verify { api.getUserById(isStrictlyPositive()) }
+----
+
+Like `isAny`, single-argument `isValid` resolves a placeholder for the argument type. If that type has
+no placeholder, pass a real stand-in value as `placeholder` — it is never checked, only the
+constraint is:
+
+[source,kotlin]
+----
+fun ArgConstraintsBuilder.isTournamentNamed(name: String): Tournament =
+    isValid(
+        ArgConstraint(description = { "isTournamentNamed($name)" }) {
+            if (it.name == name) ArgConstraint.Result.Success
+            else ArgConstraint.Result.Failure { "Expected tournament <$name>, got <${it.name}>" }
+        },
+        placeholder = Tournament.of(name),
+    )
 ----

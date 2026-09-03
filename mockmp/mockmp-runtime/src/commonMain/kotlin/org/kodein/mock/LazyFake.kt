@@ -5,8 +5,10 @@ import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
 /**
- * A property delegate that runs [initializer] on its first read and holds the result, the delegate
- * the MocKMP processor uses for every property of a faked interface or abstract class that holds
+ * A `by` property delegate that lazily holds a fake.
+ *
+ * It runs [initializer] on the property's first read and holds the result, and is the delegate the
+ * MocKMP processor uses for every property of a faked interface or abstract class that holds
  * another fake.
  *
  * This is what makes faking a self-referential type possible: an eagerly-built
@@ -25,6 +27,8 @@ import kotlin.reflect.KProperty
  * concurrent assignment) can run [initializer] more than once, with the last write winning. A fake is
  * inert data with no side effect worth deduplicating, so this trades that guarantee for not paying
  * for a lock on every read — the same trade-off [Mocker] itself documents for its own state.
+ *
+ * @param initializer Builds the held value on first read, unless a value is assigned first.
  */
 public class LazyFake<T>(initializer: () -> T) : ReadWriteProperty<Any?, T> {
 
@@ -37,6 +41,7 @@ public class LazyFake<T>(initializer: () -> T) : ReadWriteProperty<Any?, T> {
     @Volatile
     private var _value: Any? = UNINITIALIZED_VALUE
 
+    /** The held value: the result of `initializer` on first read, or whatever was last assigned. */
     public var value: T
         @Suppress("UNCHECKED_CAST")
         get() {

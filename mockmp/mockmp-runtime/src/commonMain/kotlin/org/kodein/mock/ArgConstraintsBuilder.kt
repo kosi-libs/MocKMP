@@ -1,9 +1,24 @@
 package org.kodein.mock
 
 import kotlin.reflect.KClass
-import kotlin.reflect.typeOf
 
 
+/**
+ * The receiver of a [Mocker.every] / [Mocker.everySuspending] definition block (and, through
+ * [VerificationBuilder], of a [Mocker.verify] block).
+ *
+ * Its functions describe what each argument of the single mocked call in the block must match. A
+ * bare value passed to the call is treated as [isEqual]`(value)`; constraints and bare values
+ * cannot be mixed in one call — replace every bare value with its constraint counterpart, or none.
+ *
+ * Each constraint function returns a stand-in for the argument so the surrounding call typechecks.
+ * The value-carrying ones ([isEqual], [isNotEqual], [isSame], [isNotSame], and the two-argument
+ * [isValid]) hand back the value you gave them. The value-less ones ([isAny], [isNull], [isNotNull],
+ * [isInstanceOf], single-argument [isValid]) have nothing to hand back, so they return a
+ * *placeholder*: an instance built only to satisfy the type, never meant to be read as a real
+ * value. A placeholder is resolved through the [Mocker]'s references, so `mocker.useReference(...)`
+ * can supply one for a type MocKMP cannot build.
+ */
 public open class ArgConstraintsBuilder internal constructor(private val references: References) {
     private val constraints: MutableList<ArgConstraint<*>> = ArrayList()
 
@@ -40,28 +55,20 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
         )
     }
 
-    @PublishedApi
-    internal fun <T> toReturn(constraint: ArgConstraint<T>, cls: KClass<*>): T =
-        resolvePlaceholder(constraint, cls, fromIsInstanceOf = false)
-
     /**
-     * [toReturn]'s counterpart for [isInstanceOf] specifically.
+     * The placeholder a value-less constraint ([isAny], [isNull], [isNotNull], [isInstanceOf],
+     * [isValid]) hands back so the surrounding `every`/`verify` call typechecks — resolved from
+     * [cls] through [References.getReference]. The value-carrying constraints ([isEqual] & co.)
+     * never call this: they return what the caller already gave them.
      *
-     * [isInstanceOf]'s `cls` argument (the type to check against) and its reified `T` (the type
-     * this call resolves a placeholder for) are different things — see [isInstanceOf]'s doc — but
-     * writing `T` explicitly, e.g. `isInstanceOf<Foo>(Foo::class)`, is a legal call that silently
-     * pins them to the same, possibly too-narrow type anyway. That is the single most likely cause
-     * of a placeholder lookup failing from inside this specific constraint, so the failure message
-     * calls it out; every other constraint keeps [toReturn]'s plain message.
+     * [fromIsInstanceOf] tailors the failure message for [isInstanceOf] only: its `type` argument
+     * and its reified `T` are different things (see [isInstanceOf]'s doc), but writing `T`
+     * explicitly — `isInstanceOf<Foo>(Foo::class)` — silently pins them together at a possibly
+     * too-narrow type, which is the likeliest reason a lookup fails from that specific constraint.
      */
-    @PublishedApi
-    internal fun <T> toReturnInstanceOf(constraint: ArgConstraint<T>, cls: KClass<*>): T =
-        resolvePlaceholder(constraint, cls, fromIsInstanceOf = true)
-
     @Suppress("UNCHECKED_CAST")
-    private fun <T> resolvePlaceholder(constraint: ArgConstraint<T>, cls: KClass<*>, fromIsInstanceOf: Boolean): T {
-        constraints.add(constraint)
-
+    @PublishedApi
+    internal fun <T> toReturn(cls: KClass<*>, fromIsInstanceOf: Boolean = false): T {
         try {
             return references.getReference(cls) as T
         } catch (e: MocKMPNoPlaceholderException) {
@@ -85,39 +92,159 @@ public open class ArgConstraintsBuilder internal constructor(private val referen
     }
 
     /**
-     * Adds [constraint] and returns `null` in place of a placeholder.
-     *
-     * For call sites that discard the value: `every` and `verify` only ever read the constraints —
-     * the recorded argument of a definition call is never looked at — so only the *presence* of one
-     * argument matters. Going through [toReturn] would make such a call site fail whenever the
-     * project happens to have no placeholder for a type it does not actually use.
+     * Records [constraint] for the next mocked call. `every` and `verify` only ever read the
+     * recorded constraints — never the argument a definition call carried — so a constraint that
+     * has a real value to stand in for its argument ([isEqual] & co., and [isValid] with an
+     * explicit placeholder) can skip [toReturn] entirely, and so never needs a placeholder for a
+     * type the project does not actually use.
      */
-    internal fun <T> addConstraint(constraint: ArgConstraint<T>): T {
+    @PublishedApi
+    internal fun <T> addConstraint(constraint: ArgConstraint<T>) {
         constraints.add(constraint)
-        @Suppress("UNCHECKED_CAST")
-        return null as T
     }
 
-    public inline fun <reified T> isAny(capture: MutableList<T>? = null): T = toReturn(ArgConstraint.isAny(capture), T::class)
-    public inline fun <reified T> isEqual(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isEqual(expected, capture), T::class)
-    public inline fun <reified T> isNotEqual(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotEqual(expected, capture), T::class)
-    public inline fun <reified T> isSame(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isSame(expected, capture), T::class)
-    public inline fun <reified T> isNotSame(expected: T, capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotSame(expected, capture), T::class)
-    public inline fun <reified T> isNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNull(capture), T::class)
-    public inline fun <reified T> isNotNull(capture: MutableList<T>? = null): T = toReturn<T>(ArgConstraint.isNotNull(capture), T::class)
-    public inline fun <reified T> isInstanceOf(type: KClass<*>, capture: MutableList<T>? = null): T = toReturnInstanceOf(ArgConstraint.isInstanceOf(type, capture), T::class)
-
-    public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T = toReturn<T>(constraint, T::class)
+    /**
+     * Matches any argument, `null` included.
+     *
+     * @param capture A list the matched argument is appended to on every call (one entry per call
+     * in a definition block, usually one in a verification block).
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
+     */
+    public inline fun <reified T> isAny(capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isAny(capture))
+        return toReturn(T::class)
+    }
+    /**
+     * Matches an argument equal to [expected] (`==`).
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return [expected] itself — no placeholder is needed.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    public inline fun <T> isEqual(expected: T, capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isEqual(expected, capture))
+        return expected
+    }
+    /**
+     * Matches an argument not equal to [expected] (`!=`).
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return [expected] itself — no placeholder is needed.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    public inline fun <T> isNotEqual(expected: T, capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isNotEqual(expected, capture))
+        return expected
+    }
+    /**
+     * Matches the very instance [expected] (`===`).
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return [expected] itself — no placeholder is needed.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    public inline fun <T> isSame(expected: T, capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isSame(expected, capture))
+        return expected
+    }
+    /**
+     * Matches any instance other than [expected] (`!==`).
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return [expected] itself — no placeholder is needed.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    public inline fun <T> isNotSame(expected: T, capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isNotSame(expected, capture))
+        return expected
+    }
+    /**
+     * Matches a `null` argument.
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
+     */
+    public inline fun <reified T> isNull(capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isNull(capture))
+        return toReturn(T::class)
+    }
+    /**
+     * Matches a non-`null` argument.
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
+     */
+    public inline fun <reified T> isNotNull(capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isNotNull(capture))
+        return toReturn(T::class)
+    }
+    /**
+     * Matches an argument that is an instance of [type].
+     *
+     * Pass the type to check as the [type] `KClass` argument — `isInstanceOf(AdminCallback::class)` —
+     * and let the reified `T` stay inferred from the mocked parameter's declared type. Do **not**
+     * write `isInstanceOf<AdminCallback>()`: an explicit type argument forces the placeholder lookup
+     * to happen for that exact type, which the generated code has no placeholder for unless it is
+     * used elsewhere, and mocking then fails at runtime.
+     *
+     * @param type The class the argument must be an instance of.
+     * @param capture A list the matched argument is appended to on every call.
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
+     */
+    public inline fun <reified T> isInstanceOf(type: KClass<*>, capture: MutableList<T>? = null): T {
+        addConstraint(ArgConstraint.isInstanceOf(type, capture))
+        return toReturn(T::class, fromIsInstanceOf = true)
+    }
+    /**
+     * Matches an argument that satisfies [constraint] — the way to use a custom [ArgConstraint].
+     *
+     * If [T] has no generated placeholder, use the [overload][isValid] that also takes a
+     * `placeholder` value.
+     *
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
+     */
+    public inline fun <reified T> isValid(constraint: ArgConstraint<T>): T {
+        addConstraint(constraint)
+        return toReturn(T::class)
+    }
+    /**
+     * [isValid] for a `T` with no generated placeholder: [placeholder] is any real `T` to stand in
+     * as the argument (never checked — only [constraint] is), the same escape hatch [isEqual] uses
+     * with the value it is given.
+     *
+     * @return [placeholder] itself.
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    public inline fun <T> isValid(constraint: ArgConstraint<T>, placeholder: T): T {
+        addConstraint(constraint)
+        return placeholder
+    }
 
     /**
-     * A constraint satisfied when [test] returns [ArgConstraint.Result.Success] for the argument.
+     * Matches an argument for which [test] returns [ArgConstraint.Result.Success] — an inline way to
+     * define a one-off custom constraint.
      *
      * A parameter typed as a supertype accepts a narrower constraint — `isValid<String>` against a
      * `doAny(any: Any)` — so the argument the call actually carries need not be a [T]. It is checked
      * before [test] sees it: a mismatch is a constraint that does not match, not a
      * `ClassCastException` thrown out of the surrounding `every`/`verify`.
+     *
+     * @param capture A list the matched argument is appended to on every call.
+     * @param description Builds the constraint's name for failure messages.
+     * @param test Returns [ArgConstraint.Result.Success] when the argument matches.
+     * @return A placeholder of [T] — never a real value; only there so the enclosing call typechecks.
+     * @throws MocKMPNoPlaceholderException if [T] has no placeholder and no registered reference.
      */
-    public inline fun <reified T> isValid(capture: MutableList<T>? = null, noinline description: () -> String = { "isValid" }, noinline test: (T) -> ArgConstraint.Result): T {
+    public inline fun <reified T> isValid(
+        capture: MutableList<T>? = null,
+        noinline description: () -> String = { "isValid" },
+        noinline test: (T) -> ArgConstraint.Result
+    ): T {
         val typeName = T::class.bestName()
         // Genuinely accepts Any?, so it needs no cast to be stored as the constraint's (T) -> Result:
         // function types are contravariant in their parameters.

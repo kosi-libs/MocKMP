@@ -1,7 +1,18 @@
 package org.kodein.mock
 
 
-/** Not `inline`, unlike arities 1 and up — see [mockFunction0] for why. */
+// Not `inline`, unlike arities 1 and up — see [mockFunction0] for why.
+/**
+ * Creates a mock of a `suspend () -> R` function, recording its calls on [mocker].
+ *
+ * Creating the mock is **not** itself a suspending operation. Define its behaviour with
+ * `mocker.everySuspending { it() }` (or pass [block] here), and verify it with
+ * [Mocker.verifyWithSuspend].
+ *
+ * @param mocker The mocker that records the calls — mandatory.
+ * @param functionName The name the call is recorded under.
+ * @param block Optional behaviour, replacing a separate `mocker.everySuspending { }`.
+ */
 public fun <R>
 mockSuspendFunction0(
     mocker: Mocker,
@@ -17,18 +28,23 @@ mockSuspendFunction0(
         f
     }
 
+// The type-string overloads exist so that the KSP processor can pass the qualified name it resolved:
+// `bestName()` returns `qualifiedName` on JVM/Native but `simpleName` on JS/Wasm, so letting the
+// reified overload derive it would make the registration key vary by platform.
 /**
- * **Pass the type as `a1Type = "…"`, never positionally.**
+ * Creates a mock of a `suspend (A1) -> R` function, recording its calls on [mocker]. Usually called
+ * through the [reified overload][mockSuspendFunction1] below, which derives [a1Type] itself.
  *
- * `mockSuspendFunction1(mocker, "kotlin.String")` also fits the reified overload below — both leave
- * exactly one parameter defaulted — and Kotlin picks that one, so the type string silently becomes
- * the [functionName] and the mock registers as `kotlin.String(kotlin.String)`. Naming the argument
- * resolves it. Arities of 2 and up pass more strings than the reified overload takes, so they cannot
- * hit this.
+ * **Pass the type as `a1Type = "…"`, never positionally.** `mockSuspendFunction1(mocker,
+ * "kotlin.String")` also fits the reified overload — both leave exactly one parameter defaulted —
+ * and Kotlin picks that one, so the type string silently becomes the [functionName] and the mock
+ * registers as `kotlin.String(kotlin.String)`. Naming the argument resolves it. Arities of 2 and up
+ * pass more strings than the reified overload takes, so they cannot hit this.
  *
- * The type-string overloads exist so that the KSP processor can pass the qualified name it resolved:
- * `bestName()` returns `qualifiedName` on JVM/Native but `simpleName` on JS/Wasm, so letting the
- * reified overload derive it would make the registration key vary by platform.
+ * @param mocker The mocker that records the calls — mandatory.
+ * @param a1Type The qualified name of `A1`, used in the recorded call identifier.
+ * @param functionName The name the call is recorded under.
+ * @param block Optional behaviour, replacing a separate `mocker.everySuspending { }`.
  */
 public inline fun <R, reified A1>
 mockSuspendFunction1(
@@ -46,6 +62,7 @@ mockSuspendFunction1(
         f
     }
 
+/** Mocks a `suspend (A1, A2) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2>
 mockSuspendFunction2(
     mocker: Mocker,
@@ -62,6 +79,7 @@ mockSuspendFunction2(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3>
 mockSuspendFunction3(
     mocker: Mocker,
@@ -78,6 +96,7 @@ mockSuspendFunction3(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4>
 mockSuspendFunction4(
     mocker: Mocker,
@@ -94,6 +113,7 @@ mockSuspendFunction4(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5>
 mockSuspendFunction5(
     mocker: Mocker,
@@ -110,6 +130,7 @@ mockSuspendFunction5(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6>
 mockSuspendFunction6(
     mocker: Mocker,
@@ -126,6 +147,7 @@ mockSuspendFunction6(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7>
 mockSuspendFunction7(
     mocker: Mocker,
@@ -142,6 +164,7 @@ mockSuspendFunction7(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8>
 mockSuspendFunction8(
     mocker: Mocker,
@@ -158,6 +181,7 @@ mockSuspendFunction8(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8, A9) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8, reified A9>
 mockSuspendFunction9(
     mocker: Mocker,
@@ -174,6 +198,7 @@ mockSuspendFunction9(
         f
     }
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8, A9, A10) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8, reified A9, reified A10>
 mockSuspendFunction10(
     mocker: Mocker,
@@ -191,6 +216,18 @@ mockSuspendFunction10(
     }
 
 
+/**
+ * Creates a mock of a `suspend (A1) -> R` function, recording its calls on [mocker].
+ *
+ * The property's declared type supplies the argument and return types, so [mocker] is all that must
+ * be passed. Creating the mock is **not** itself a suspending operation. Define its behaviour with
+ * `mocker.everySuspending { it(isAny()) }` (or pass [block] here), and verify it with
+ * [Mocker.verifyWithSuspend].
+ *
+ * @param mocker The mocker that records the calls — mandatory.
+ * @param functionName The name the call is recorded under.
+ * @param block Optional behaviour, replacing a separate `mocker.everySuspending { }`.
+ */
 public inline fun <R, reified A1>
 mockSuspendFunction1(
     mocker: Mocker,
@@ -199,6 +236,7 @@ mockSuspendFunction1(
 ): suspend (A1) -> R =
     mockSuspendFunction1(mocker, A1::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2>
 mockSuspendFunction2(
     mocker: Mocker,
@@ -207,6 +245,7 @@ mockSuspendFunction2(
 ): suspend (A1, A2) -> R =
     mockSuspendFunction2(mocker, A1::class.bestName(), A2::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3>
 mockSuspendFunction3(
     mocker: Mocker,
@@ -215,6 +254,7 @@ mockSuspendFunction3(
 ): suspend (A1, A2, A3) -> R =
     mockSuspendFunction3(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4>
 mockSuspendFunction4(
     mocker: Mocker,
@@ -223,6 +263,7 @@ mockSuspendFunction4(
 ): suspend (A1, A2, A3, A4) -> R =
     mockSuspendFunction4(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5>
 mockSuspendFunction5(
     mocker: Mocker,
@@ -231,6 +272,7 @@ mockSuspendFunction5(
 ): suspend (A1, A2, A3, A4, A5) -> R =
     mockSuspendFunction5(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), A5::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6>
 mockSuspendFunction6(
     mocker: Mocker,
@@ -239,6 +281,7 @@ mockSuspendFunction6(
 ): suspend (A1, A2, A3, A4, A5, A6) -> R =
     mockSuspendFunction6(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), A5::class.bestName(), A6::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7>
 mockSuspendFunction7(
     mocker: Mocker,
@@ -247,6 +290,7 @@ mockSuspendFunction7(
 ): suspend (A1, A2, A3, A4, A5, A6, A7) -> R =
     mockSuspendFunction7(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), A5::class.bestName(), A6::class.bestName(), A7::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8>
 mockSuspendFunction8(
     mocker: Mocker,
@@ -255,6 +299,7 @@ mockSuspendFunction8(
 ): suspend (A1, A2, A3, A4, A5, A6, A7, A8) -> R =
     mockSuspendFunction8(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), A5::class.bestName(), A6::class.bestName(), A7::class.bestName(), A8::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8, A9) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8, reified A9>
 mockSuspendFunction9(
     mocker: Mocker,
@@ -263,6 +308,7 @@ mockSuspendFunction9(
 ): suspend (A1, A2, A3, A4, A5, A6, A7, A8, A9) -> R =
     mockSuspendFunction9(mocker, A1::class.bestName(), A2::class.bestName(), A3::class.bestName(), A4::class.bestName(), A5::class.bestName(), A6::class.bestName(), A7::class.bestName(), A8::class.bestName(), A9::class.bestName(), functionName, block)
 
+/** Mocks a `suspend (A1, A2, A3, A4, A5, A6, A7, A8, A9, A10) -> R` function on [mocker], recording its calls. See [mockSuspendFunction1]. */
 public inline fun <R, reified A1, reified A2, reified A3, reified A4, reified A5, reified A6, reified A7, reified A8, reified A9, reified A10>
 mockSuspendFunction10(
     mocker: Mocker,
