@@ -17,7 +17,7 @@ kotlin {
 
     android {
         namespace = "org.kodein.mock.test.mp.android.junit4"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 24
         withHostTest {}
         lint {}
