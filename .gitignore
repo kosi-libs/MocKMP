@@ -20,3 +20,6 @@ package-lock.json
 
 # Kotlin
 .kotlin/
+
+# Android
+local.properties

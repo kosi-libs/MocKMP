@@ -2,6 +2,7 @@ package org.kodein.mock.gradle
 
 import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.variant.AndroidComponentsExtension
+import com.android.build.api.variant.Component
 import com.android.build.api.variant.HasAndroidTest
 import com.android.build.api.variant.HasDeviceTests
 import com.android.build.api.variant.HasHostTests
@@ -24,14 +25,44 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinSingleTargetExtension
 import java.util.*
 
 
+/**
+ * Gradle plugin for MocKMP (Kotlin Multiplatform Mocking Processor).
+ *
+ * Applies the MocKMP symbol processor and runtime dependencies to Kotlin Multiplatform,
+ * Android, or JVM projects.
+ *
+ * Exposes the `mockmp` extension to configure mocking on test source sets via [Extension.onTest]
+ * or main source sets via [Extension.onMain].
+ */
 public class MocKMPGradlePlugin : Plugin<Project> {
 
     override fun apply(target: Project) {
         target.extensions.add("mockmp", Extension(target))
     }
 
-    public enum class Helper { AutoDetect, JUnit4, JUnit5 }
+    /**
+     * Specifies the test framework helper library to include as a dependency.
+     */
+    public enum class Helper {
+        /**
+         * Automatically detect whether JUnit 4 or JUnit 5 (Platform) is used by inspecting test tasks.
+         */
+        AutoDetect,
 
+        /**
+         * Explicitly use the JUnit 4 test helper (`mockmp-test-helper`).
+         */
+        JUnit4,
+
+        /**
+         * Explicitly use the JUnit 5 test helper (`mockmp-test-helper-junit5`).
+         */
+        JUnit5
+    }
+
+    /**
+     * Configuration options for MocKMP code generation and dependencies.
+     */
     public class Options {
         internal var helper: Helper? = null
         internal var throwErrors: Boolean = false
@@ -39,25 +70,73 @@ public class MocKMPGradlePlugin : Plugin<Project> {
         internal var accessorsPackage: String = "org.kodein.mock.generated"
         internal var specificTargets: Set<String>? = null
 
+        /** Convenience reference to [Helper.JUnit4]. */
         public val junit4: Helper = Helper.JUnit4
+
+        /** Convenience reference to [Helper.JUnit5]. */
         public val junit5: Helper = Helper.JUnit5
 
+        /**
+         * Configures the test framework helper dependency to be added to the project.
+         *
+         * @param helper the helper integration mode (defaults to [Helper.AutoDetect]).
+         */
         @JvmOverloads
         public fun withHelper(helper: Helper = Helper.AutoDetect) { this.helper = helper }
 
+        /**
+         * Configures whether the KSP processor throws exceptions on errors instead of logging them.
+         *
+         * @param throwErrors whether processor errors should throw exceptions (defaults to true).
+         */
         @JvmOverloads
         public fun throwErrors(throwErrors: Boolean = true) { this.throwErrors = throwErrors }
 
+        /**
+         * Configures the visibility of generated mock/fake accessors and expect declarations.
+         *
+         * @param public `true` for public visibility, `false` for internal (defaults to true).
+         */
         @JvmOverloads
         public fun public(public: Boolean = true) { this.public = public }
 
+        /**
+         * Sets the package name for generated mock/fake accessors and expect declarations.
+         *
+         * @param accessorsPackage target package name (defaults to `"org.kodein.mock.generated"`).
+         */
         public fun accessorsPackage(accessorsPackage: String) { this.accessorsPackage = accessorsPackage }
 
+        /**
+         * Restricts MocKMP processor execution to the specified Kotlin Multiplatform targets.
+         *
+         * @param targets names of the targets to process (e.g. `"jvm"`, `"iosX64"`).
+         */
         public fun targets(vararg targets: String) { specificTargets = targets.toSet() }
+
+        /**
+         * Enables MocKMP processing for all non-metadata targets in a Kotlin Multiplatform project.
+         */
         public fun allTargets() { specificTargets = null }
     }
 
+    /**
+     * Gradle extension registered as `mockmp { ... }` in project build scripts.
+     *
+     * Provides entry points to enable and configure MocKMP on test source sets ([onTest])
+     * or main source sets ([onMain]).
+     */
     public class Extension(private val project: Project) {
+
+        /**
+         * Enables and configures MocKMP for the test source set (`test` or `commonTest`).
+         *
+         * Wires up runtime dependencies, configures KSP processor options, registers the
+         * expect template extraction task, integrates with Android components if present
+         * (including AGP lint dependencies), and registers processor dependencies on test KSP configurations.
+         *
+         * @param confOptions optional lambda to configure [Options].
+         */
         @JvmOverloads
         public fun onTest(confOptions: Action<Options>? = null) {
             val options = Options()
@@ -113,6 +192,7 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 sourceSet.kotlin.srcDir(extract)
                 val androidComponents = project.extensions.findByName("androidComponents") as? AndroidComponentsExtension<*, *, *>
                 androidComponents?.installExtractor()
+                androidComponents?.androidLintTasksDependOn(extract)
             }
 
             addKspDependencies(
@@ -122,6 +202,15 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             )
         }
 
+        /**
+         * Enables and configures MocKMP for the main source set (`main` or `commonMain`).
+         *
+         * Wires up runtime dependencies, configures KSP processor options, registers the
+         * expect template extraction task, integrates with Android components if present
+         * (including AGP lint dependencies), and registers processor dependencies on main KSP configurations.
+         *
+         * @param confOptions optional lambda to configure [Options].
+         */
         @JvmOverloads
         public fun onMain(confOptions: Action<Options>? = null) {
             val options = Options()
@@ -172,6 +261,7 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 androidComponents?.onVariants {
                     it.sources.kotlin?.addGeneratedSourceDirectory(extract, MocKMPExtractExpectKt::outputDirectory)
                 }
+                androidComponents?.androidLintTasksDependOn(extract)
             }
 
             addKspDependencies(
@@ -181,6 +271,45 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             )
         }
 
+        /**
+         * AGP lint under `com.android.kotlin.multiplatform.library` reads the Kotlin source directories
+         * of the Kotlin source sets as plain files, dropping the task dependencies they carry: both the
+         * extract task's (through `srcDir(extract)`) and the KSP task's that generates the component's
+         * accessors (`lintAnalyzeAndroidHostTest` reading what `kspAndroidHostTest` generates). They have
+         * to be stated explicitly.
+         *
+         * Only through AGP's public API: the lint task types are AGP internals, which may be renamed
+         * at any time. Instead, the exact lint task names are derived from the components AGP reports
+         * (`androidHostTest` -> `lintAnalyzeAndroidHostTest`, ...), so other tools' `lint*` tasks
+         * (ktlint, detekt, ...) and the KMP plugin's own placeholder `lint*` tasks are never matched.
+         * Should AGP rename its lint tasks, nothing matches anymore and nothing breaks.
+         */
+        private fun AndroidComponentsExtension<*, *, *>.androidLintTasksDependOn(extract: TaskProvider<MocKMPExtractExpectKt>) {
+            onVariants { variant ->
+                val components = buildList<Component> {
+                    add(variant)
+                    (variant as? HasUnitTest)?.unitTest?.let(::add)
+                    (variant as? HasAndroidTest)?.androidTest?.let(::add)
+                    (variant as? HasHostTests)?.hostTests?.values?.let(::addAll)
+                    (variant as? HasDeviceTests)?.deviceTests?.values?.let(::addAll)
+                }
+                components.map { it.name.capitalized() }.distinct().forEach { component ->
+                    val lintTaskNames = androidLintTaskNames(component)
+                    val kspTaskName = "ksp$component"
+                    // Lazily: neither the lint tasks nor the KSP task are registered yet, and any of
+                    // them may not exist at all.
+                    project.tasks.named { it in lintTaskNames }.configureEach {
+                        dependsOn(extract)
+                        dependsOn(project.tasks.named { it == kspTaskName })
+                    }
+                }
+            }
+        }
+
+        /**
+         * Adds the appropriate test helper dependency (`mockmp-test-helper` or `mockmp-test-helper-junit5`)
+         * to the given implementation configuration.
+         */
         private fun addHelperDependency(implementationConfigurationName: String, isJunit5: Boolean) {
             project.dependencies.add(
                 implementationConfigurationName,
@@ -201,6 +330,13 @@ public class MocKMPGradlePlugin : Plugin<Project> {
         private fun usesJUnitPlatform(): Boolean =
             project.tasks.withType<Test>().any { it.options is JUnitPlatformOptions }
 
+        /**
+         * Adds the `mockmp-runtime` dependency and handles test helper dependency resolution.
+         *
+         * When [Helper.AutoDetect] is requested, the detection is deferred to [Project.afterEvaluate]
+         * so all test tasks and configurations configured by other plugins are available without
+         * violating configuration cache constraints.
+         */
         private fun addRuntimeDependencies(
             implementationConfigurationName: String,
             helper: Helper?,
@@ -226,6 +362,9 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             }
         }
 
+        /**
+         * Passes MocKMP configuration flags and options as arguments to the KSP processor.
+         */
         private fun configureKspProcessor(
             ksp: KspExtension,
             options: Options,
@@ -241,6 +380,9 @@ public class MocKMPGradlePlugin : Plugin<Project> {
             ksp.arg("org.kodein.mock.multiplatform", multiplatform.toString())
         }
 
+        /**
+         * Registers the [MocKMPExtractExpectKt] task lazily with output path and template resource settings.
+         */
         private fun registerExtractTask(
             kotlin: KotlinProjectExtension,
             sourceSetName: String,
@@ -256,6 +398,10 @@ public class MocKMPGradlePlugin : Plugin<Project> {
                 resource.set("/mockmp.${if (kotlin is KotlinMultiplatformExtension) "multi" else "single"}.kt")
             }
 
+        /**
+         * Resolves the target Kotlin targets and adds `mockmp-processor` as a dependency to each
+         * corresponding KSP configuration (e.g. `kspJvmTest` or `kspJvm`).
+         */
         private fun addKspDependencies(kotlin: KotlinProjectExtension, suffix: String, options: Options) {
             val kotlinTargets = when (kotlin) {
                 is KotlinMultiplatformExtension -> {
@@ -318,6 +464,23 @@ public class MocKMPGradlePlugin : Plugin<Project> {
     }
 }
 
+/**
+ * Derives the set of Android Lint task names associated with an Android component name.
+ *
+ * For example, given `"AndroidHostTest"`, produces task names such as `"lintAnalyzeAndroidHostTest"`
+ * and `"generateAndroidHostTestLintModel"`.
+ */
+internal fun androidLintTaskNames(component: String): Set<String> = setOf(
+    "lintAnalyze$component",
+    "lintVitalAnalyze$component",
+    "generate${component}LintModel",
+    "generate${component}LintReportModel",
+    "generate${component}LintVitalReportModel",
+)
+
+/**
+ * Returns a copy of this string with the first character capitalized using the specified [locale].
+ */
 private fun String.capitalized(locale: Locale = Locale.getDefault()) = replaceFirstChar {
     when {
         it.isLowerCase() -> it.titlecase(locale)

@@ -14,6 +14,7 @@ serialization = "1.11.0"            # https://github.com/Kotlin/kotlinx.serializ
 [plugins]
 android-library = { id = "com.android.library", version.ref = "android-gradle-plugin" }
 android-multiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "android-gradle-plugin" }
+android-application = { id = "com.android.application", version.ref = "android-gradle-plugin" }
 buildConfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildConfig" }
 gradle-pluginPublish = { id = "com.gradle.plugin-publish", version.ref = "gradle-pluginPublish" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

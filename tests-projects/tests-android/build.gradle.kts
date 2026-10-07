@@ -59,7 +59,7 @@ tasks.preBuild.configure {
 
 android {
     namespace = "org.kodein.mock.tests_android"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24
