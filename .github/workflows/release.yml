@@ -45,3 +45,17 @@ jobs:
         uses: KodeinKoders/kodein-github-actions/release-branches@v0.2
         with:
           release-name: ${{ github.event.release.name }}
+
+  # The website reads the release branches, so it is rebuilt once they are updated. The workflow lives
+  # in another repository, which the workflow's own token cannot reach: DOCUMENTATION_DISPATCH_TOKEN
+  # is a token that can run the workflows (Actions: write) of kosi-libs/documentation.
+  build-website:
+    needs: [release-branch]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger the website build
+        env:
+          GH_TOKEN: ${{ secrets.DOCUMENTATION_DISPATCH_TOKEN }}
+        run: gh workflow run build-website.yml --repo kosi-libs/documentation --ref master
+        shell: bash
