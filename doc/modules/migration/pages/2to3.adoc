@@ -1,4 +1,4 @@
-= Migrate MocKMP from 2.1 to 3.0
+= 2.x to 3.0
 
 MocKMP 3 changes exactly one thing: the Gradle plugin now targets *Android Gradle Plugin 9*, and no longer works with AGP 8 or earlier.
 

@@ -1,14 +1,12 @@
 = Faking types
-// This page was published as `facking.adoc` up to 3.0. The alias keeps that URL redirecting here
-// rather than 404-ing.
+// This page was published as `facking.adoc` up to 3.0.
+// The alias keeps that URL redirecting here rather than 404-ing.
 :page-aliases: facking.adoc
 
 A fake is an *inert instance*: a value with no behaviour, whose data is zero-valued.
 
-*Data classes* are ideal candidates for faking: they are constructed with a faked value for each of
-their properties.
-Interfaces and abstract classes are faked as well, by xref:#interfaces[generating an implementation]
-of them.
+*Data classes* are ideal candidates for faking: they are constructed with a faked value for each of their properties.
+Interfaces and abstract classes are faked as well, by xref:#interfaces[generating an implementation] of them.
 
 
 == Requesting generation
@@ -30,21 +28,18 @@ Once a type appears in `@UsesFakes`, the processor will generate a fake function
 
 [CAUTION]
 ====
-`fake<T>()` only works for a type that is requested directly — with `@UsesFakes`, or a `@Fake`
-property.
+`fake<T>()` only works for a type that is requested directly — with `@UsesFakes`, or a `@Fake` property.
 
-A type your code never names, but that MocKMP still needs — e.g. a constructor parameter of a type
-you did request — is faked internally too, so whatever needs it keeps working, but `fake<T>()` cannot
-return it: it exists only to satisfy the type that reached it, not as something of its own you asked
-for.
+A type your code never names, but that MocKMP still needs — e.g. a constructor parameter of a type you did request — is faked internally too, so whatever needs it keeps working.
+But `fake<T>()` cannot return it: it exists only to satisfy the type that reached it, not as something of its own you asked for.
 
-This is deliberate. If you called `fake<T>()` on such a type and it later stopped being needed there —
-or started meaning something else — your call would break or silently change behavior, in a test that
-has nothing to do with the type that used to need it. Requesting it yourself, with `@UsesFakes` or a
-`@Fake` property, turns that into a compile error at the declaration that actually needs updating.
+This is deliberate.
+If you called `fake<T>()` on such a type and it later stopped being needed there — or started meaning something else — your call would break or silently change behavior, in a test that has nothing to do with the type that used to need it.
+Requesting it yourself, with `@UsesFakes` or a `@Fake` property, turns that into a compile error at the declaration that actually needs updating.
 ====
 
 
+[#instantiating]
 == Instantiating
 
 Once a class has been faked, you can get a new instance by the `fake` function:
@@ -64,18 +59,18 @@ Here are the rules the processor uses to generate fakes:
 * Numeric values are set to `0`.
 * `String` values are set to empty `""`.
 * `Nothing` values throw an `UnsupportedOperationException` when reached, since none can exist.
-* `List`, `Set`, `Map` and their concrete variants (`ArrayList`, `ArrayDeque`, `HashSet`,
-  `LinkedHashSet`, `HashMap`, `LinkedHashMap`) are faked empty, and `Array` is faked as an empty
-  array.
-* When `kotlinx.coroutines` is on the classpath, its types are faked as real, inert instances rather
-  than a generated implementation: `Flow` as `emptyFlow()`; `SharedFlow`/`MutableSharedFlow` as
-  `MutableSharedFlow()`; `StateFlow`/`MutableStateFlow` as `MutableStateFlow(<faked value>)` — the
-  wrapped value is faked exactly like any other property, so `StateFlow<User>` holds a faked `User`
-  and `StateFlow<User?>` holds `null`; `Channel`/`ReceiveChannel`/`SendChannel` as `Channel()`;
-  `Job`/`CompletableJob` as `Job()`; `Deferred`/`CompletableDeferred` as `CompletableDeferred()`;
-  `CoroutineScope` as `CoroutineScope(EmptyCoroutineContext)`; `Mutex` as `Mutex()`; `Semaphore` as
-  `Semaphore(1)`. `kotlin.coroutines.CoroutineContext` is always faked as `EmptyCoroutineContext`,
-  coroutines dependency or not, since it's part of the Kotlin standard library.
+* `List`, `Set`, `Map` and their concrete variants (`ArrayList`, `ArrayDeque`, `HashSet`, `LinkedHashSet`, `HashMap`, `LinkedHashMap`) are faked empty, and `Array` is faked as an empty array.
+* When `kotlinx.coroutines` is on the classpath, its types are faked as real, inert instances rather than a generated implementation:
+** `Flow` as `emptyFlow()`.
+** `SharedFlow` / `MutableSharedFlow` as `MutableSharedFlow()`.
+** `StateFlow` / `MutableStateFlow` as `MutableStateFlow(<faked value>)`.
+The wrapped value is faked exactly like any other property, so `StateFlow<User>` holds a faked `User` and `StateFlow<User?>` holds `null`.
+** `Channel` / `ReceiveChannel` / `SendChannel` as `Channel()`.
+** `Job` / `CompletableJob` as `Job()`.
+** `Deferred` / `CompletableDeferred` as `CompletableDeferred()`.
+** `CoroutineScope` as `CoroutineScope(EmptyCoroutineContext)`.
+** `Mutex` as `Mutex()`, and `Semaphore` as `Semaphore(1)`.
+* `kotlin.coroutines.CoroutineContext` is always faked as `EmptyCoroutineContext`, coroutines dependency or not, since it's part of the Kotlin standard library.
 * Other non-nullable non-primitive values are faked.
 
 [TIP]
@@ -92,8 +87,7 @@ val user = fake<User>().copy(id = 42)
 [#interfaces]
 == Faking interfaces and abstract classes
 
-A type that cannot be constructed can still be implemented, so MocKMP fakes an interface (or an
-abstract class) by generating a class that implements it:
+A type that cannot be constructed can still be implemented, so MocKMP fakes an interface (or an abstract class) by generating a class that implements it:
 
 [source,kotlin]
 ----
@@ -101,7 +95,7 @@ interface UserRepository {
     val cacheName: String
     fun record(user: User)
     fun lastUser(): User
-    fun describe(): String = "$cacheName cache" //<1>
+    fun describe(): String = "$cacheName cache" // <1>
 }
 
 @UsesFakes(UserRepository::class)
@@ -114,32 +108,25 @@ class MyTests {
 Its members follow the same rules as everything else on this page:
 
 * Functions returning `Unit` do nothing.
-* Functions returning a value return a fake of their return type (`lastUser()` above returns a faked
-  `User`).
-* Properties hold a fake of their type (`cacheName` above is `""`), and a `var` keeps whatever it is
-  later assigned.
-* A property holding another fake is generated `by LazyFake { }`, so — unlike a function's return
-  value, which was already only built when the function is called — it is not built until that
-  property is first read. Reading it again reuses the same value.
-* A member typed `Nothing` throws when reached instead: no value of that type exists, so a fake of an
-  interface with `val impossible: Nothing` or `fun fail(): Nothing` still constructs — it is only
-  *that* member that fails, if something ever reads or calls it.
+* Functions returning a value return a fake of their return type (`lastUser()` above returns a faked `User`).
+* Properties hold a fake of their type (`cacheName` above is `""`), and a `var` keeps whatever it is later assigned.
+* A property holding another fake is generated `by LazyFake { }`, so — unlike a function's return value, which was already only built when the function is called — it is not built until that property is first read.
+Reading it again reuses the same value.
+* A member typed `Nothing` throws when reached instead: no value of that type exists, so a fake of an interface with `val impossible: Nothing` or `fun fail(): Nothing` still constructs.
+It is only *that* member that fails, if something ever reads or calls it.
 * Only *abstract* members are overridden: a default implementation is left to run over them.
 * An abstract class is constructed with faked arguments, exactly as a concrete class would be.
 
-The generated implementation class itself is private to the file it is generated in — `fake<T>()` (or
-an injected `@Fake` property) is the only way to obtain an instance of it.
+The generated implementation class itself is private to the file it is generated in — `fake<T>()` (or an injected `@Fake` property) is the only way to obtain an instance of it.
 
-TIP: Prefer `@Mock` over `@Fake` for a collaborator whose calls the test needs to configure or
-verify: a fake records nothing and cannot be given behaviour.
+TIP: Prefer `@Mock` over `@Fake` for a collaborator whose calls the test needs to configure or verify: a fake records nothing and cannot be given behaviour.
 A fake is for the collaborators that merely need to *exist*.
 
 A function whose return type is one of its own type parameters returns the parameter that holds a
 value of that same type, if it has one: `fun <T> convert(value: T): T` is faked as
 `convert(value) = value`.
-If it has none (`fun <T> get(): T`), it is the one member that cannot be faked — no single value can
-satisfy every `T` a caller may ask for — and it throws when called; the rest of the fake is
-unaffected.
+If it has none (`fun <T> get(): T`), it is the one member that cannot be faked — no single value can satisfy every `T` a caller may ask for — and it throws when called.
+The rest of the fake is unaffected.
 
 Deferring a property's value until it is read (see above) is what makes a self-referential
 *interface* or *abstract class* fakeable at all:
@@ -152,17 +139,14 @@ interface Node {
 }
 ----
 
-`fake<Node>()` builds only the root; each further `.parent` is built the moment it is read, so
-`node.parent.parent.parent` works even though nothing about `Node` bounds how deep it can go.
+`fake<Node>()` builds only the root; each further `.parent` is built the moment it is read, so `node.parent.parent.parent` works even though nothing about `Node` bounds how deep it can go.
 
-CAUTION: A *constructor* parameter is resolved eagerly — the instance cannot exist without a value
-for it — so a type that (transitively) requires a non-nullable value of itself as a constructor
-parameter, e.g. `class Node(val parent: Node)` or an abstract class of the same shape, still cannot
-be faked: faking it would never terminate.
-Make the parameter nullable, turn it into an interface property as above, or provide the fake
-yourself.
+CAUTION: A *constructor* parameter is resolved eagerly — the instance cannot exist without a value for it.
+So a type that (transitively) requires a non-nullable value of itself as a constructor parameter, e.g. `class Node(val parent: Node)` or an abstract class of the same shape, still cannot be faked: faking it would never terminate.
+Make the parameter nullable, turn it into an interface property as above, or provide the fake yourself.
 
 
+[#fake-providers]
 == Providing fake instances
 
 Classes that do not have a public constructor cannot be automatically faked.
@@ -176,11 +160,11 @@ fun provideFakeInstant() = Instant.fromEpochSeconds(0)
 
 CAUTION: There can be only one provider per type, and it needs to be a top-level function.
 
-TIP: A `@FakeProvider` also overrides how any of the types above — including collections and
-coroutines types — is faked, for that exact type. A provider for `List<String>` only replaces
-`emptyList()` where a `List<String>` is faked; a `List<Int>` elsewhere is unaffected.
+TIP: A `@FakeProvider` also overrides how any of the types above — including collections and coroutines types — is faked, for that exact type.
+A provider for `List<String>` only replaces `emptyList()` where a `List<String>` is faked; a `List<Int>` elsewhere is unaffected.
 
 
+[#generics]
 == Generics
 
 You can fake a Star-projected generic type with `@UsesFakes`:
@@ -195,10 +179,10 @@ data class NonNullGenData<T : Any>(val content: T)
 @UsesFakes(NullGenData::class, NonNullGenData::class)
 fun testGenericFake() {
     val nullData = fake<NullGenData<*>>()
-    assertNull(nullData.content) //<1>
+    assertNull(nullData.content) // <1>
 
     val nonNullData = fake<NonNullGenData<*>>()
-    assertNotNull(nonNullData.content) //<2>
+    assertNotNull(nonNullData.content) // <2>
 }
 ----
 <1> A star projection carries no type argument, so each type parameter is faked as its bound. `T` is unbounded here, which means `Any?`: the fake is `null`.

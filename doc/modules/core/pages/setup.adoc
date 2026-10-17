@@ -1,8 +1,36 @@
-= MocKMP Setup
+= Setup
 
-== Standard test setup
+MocKMP is applied with its Gradle plugin, which adds the runtime, the processor and, if you ask for it, the test helper to the source sets you choose.
+You never declare these artifacts by hand:
 
-First, add the gradle plugins:
+[cols="2,3"]
+|===
+| Artifact | Purpose
+
+| `org.kodein.mock.mockmp`
+| The Gradle plugin, which wires everything below.
+
+| `org.kodein.mock:mockmp-runtime`
+| The `Mocker`, the argument constraints and the fake support, on every platform.
+
+| `org.kodein.mock:mockmp-processor`
+| The KSP processor that generates the mocks and fakes.
+
+| `org.kodein.mock:mockmp-test-helper`
+| The `TestsWithMocks` helper for JUnit 4, added by `withHelper()`.
+
+| `org.kodein.mock:mockmp-test-helper-junit5`
+| The `TestsWithMocks` helper for JUnit 5, added by `withHelper(junit5)`.
+|===
+
+IMPORTANT: MocKMP uses KSP but does not install it in your project.
+This is because the KSP version to use depends on the version of Kotlin you are using.
+It is therefore your responsibility to install it on your project along with MocKMP.
+
+
+== Kotlin Multiplatform
+
+First, add the Gradle plugins:
 
 [source,kotlin,subs="verbatim,attributes"]
 .build.gradle.kts
@@ -14,10 +42,6 @@ plugins {
 }
 ----
 
-IMPORTANT: MocKMP uses KSP but does not install it in your project.
-This is because the KSP version to use depends on the version of Kotlin you are using.
-It is therefore your responsibility to install it on your project along with MocKMP.
-
 Then, configure your Kotlin targets and dependencies.
 For example:
 
@@ -26,7 +50,7 @@ For example:
 ----
 kotlin {
     androidTarget()
-    jvmToolchain(11)
+    jvmToolchain({jdk})
 
     iosArm64()
     iosSimulatorArm64()
@@ -46,8 +70,8 @@ Finally, apply MocKMP to your test source sets:
 
 IMPORTANT: This must be done *after* configuring Kotlin targets.
 
-[[mockmp-gradle-config]]
-[source,kotlin,subs="verbatim,attributes"]
+[#mockmp-gradle-config]
+[source,kotlin]
 .build.gradle.kts
 ----
 mockmp {
@@ -59,14 +83,14 @@ mockmp {
 }
 ----
 
-[[junit-version]]
+[#junit-version]
 [TIP]
 ====
 The `withHelper()` *is optional* and will add the `TestsWithMocks` helper class dependency to your project.
 It will by default try to detect which JUnit version your JVM / Android target is using and may fail. +
 You can force the JUnit version by using `withHelper(junit4)` or `withHelper(junit5)`:
 
-[source,kotlin,subs="verbatim,attributes"]
+[source,kotlin]
 .build.gradle.kts
 ----
 mockmp {
@@ -76,6 +100,32 @@ mockmp {
 }
 ----
 ====
+
+
+== JVM
+
+On a JVM-only project, apply the same plugins to a `kotlin("jvm")` module:
+
+[source,kotlin,subs="verbatim,attributes"]
+.build.gradle.kts
+----
+plugins {
+    kotlin("jvm") version "{kotlin-version}"
+    id("com.google.devtools.ksp") version "{ksp-version}"
+    id("org.kodein.mock.mockmp") version "{version}"
+}
+
+kotlin {
+    jvmToolchain({jdk})
+}
+
+mockmp {
+    onTest {
+        withHelper()
+    }
+}
+----
+
 
 == Applying to main source sets
 
@@ -92,7 +142,7 @@ mockmp {
 ----
 
 IMPORTANT: The `withHelper()` JUnit detection *will fail* when applying MocKMP to main source-sets.
-If you want to add the `TestsWithMocks` helper class to your main source-sets, you must specify explicitely which JUnit version to use.
+If you want to add the `TestsWithMocks` helper class to your main source-sets, you must specify explicitly which JUnit version to use.
 
 
 == Other configurations
@@ -123,3 +173,36 @@ mockmp {
     }
 }
 ----
+
+
+== What gets generated
+
+For every type you request, the processor generates plain Kotlin sources under `build/generated/ksp`, which are compiled with your tests:
+
+[cols="2,3"]
+|===
+| Request | Generated
+
+| `@Mock` property, or `@UsesMocks` type `Service`
+| A `MockService` class implementing `Service`, in the file `MockService.kt`.
+
+| `@Fake` property, or `@UsesFakes` type `Greeting`
+| A `fakeGreeting()` function, in the file `fakeGreeting.kt`.
+
+| A class `OptionsTests` with `@Mock` or `@Fake` properties
+| A `Mocker.injectMocks(receiver: OptionsTests)` extension, in the file `OptionsTests_injectMocks.kt`.
+|===
+
+For example, for a test class declaring `@Mock lateinit var service: Service` and `@Fake lateinit var greeting: Greeting`:
+
+[source,kotlin]
+.OptionsTests_injectMocks.kt
+----
+public fun Mocker.injectMocks(`receiver`: OptionsTests) {
+    receiver.service = MockService(this)
+    receiver.greeting = fakeGreeting()
+}
+----
+
+You never call these generated classes yourself: use `mocker.mock<T>()`, `fake<T>()` and `injectMocks`, which are the supported entry points.
+Their accessors are generated in the `org.kodein.mock.generated` package, which you can change with `accessorsPackage`, as shown above.

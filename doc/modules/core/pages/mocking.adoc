@@ -1,11 +1,9 @@
 = Mocking types
 
-[TIP]
-====
-This section covers the use of the MocKMP `mocker` by itself. +
-MocKMP also provides a very useful abstract class helper for test classes.
-The `TestWithMocks` helper class usage is recommended when possible (as it makes your tests easier to read), and is documented later in xref:helper.adoc[] chapter.
-====
+This page covers how to request a mock, define its behaviour and verify the calls made on it, using the `mocker` by itself.
+
+TIP: MocKMP also provides a helper class for test classes, which makes your tests easier to read and is recommended when possible.
+It is documented in xref:helper.adoc[].
 
 CAUTION: Only *interfaces* and *abstract classes* can be mocked!
 A mock is a generated implementation of its type, so a type that cannot be implemented (a concrete class, an object, an enum) cannot be mocked.
@@ -29,10 +27,8 @@ fun testDatabase() {}
 
 Once a type appears in `@UsesMocks`, the processor will generate a mock class for it.
 
-NOTE: `mocker.mock<T>()` only works for a type requested directly — with `@UsesMocks`, or a `@Mock`
-property. Unlike xref:faking.adoc[faking], where a type can be generated as a side effect of faking
-another one (and is deliberately not reachable through `fake<T>()` for that reason), nothing is ever
-mocked as a side effect of mocking something else, so there is no such case to worry about here.
+NOTE: `mocker.mock<T>()` only works for a type requested directly — with `@UsesMocks`, or a `@Mock` property.
+Unlike xref:faking.adoc[faking], where a type can be generated as a side effect of faking another one (and is deliberately not reachable through `fake<T>()` for that reason), nothing is ever mocked as a side effect of mocking something else, so there is no such case to worry about here.
 
 
 [#abstract-classes]
@@ -42,14 +38,13 @@ An abstract class is mocked exactly like an interface, save for two differences:
 
 * Only its *abstract* members are mocked.
   A concrete member is left alone: it runs its real implementation, and can neither be given a behaviour with `every` nor be verified.
-* The generated mock *extends* it, so its constructor runs, with an inert value for each of its
-  parameters, resolved the same way xref:faking.adoc[faking] resolves one.
+* The generated mock *extends* it, so its constructor runs, with an inert value for each of its parameters, resolved the same way xref:faking.adoc[faking] resolves one.
 
 [source,kotlin]
 ----
 abstract class Repository(val name: String) {
     abstract fun count(): Int
-    fun describe(): String = "$name repository" //<1>
+    fun describe(): String = "$name repository" // <1>
 }
 
 @UsesMocks(Repository::class)
@@ -59,7 +54,7 @@ class MyTests {
         val repository = mocker.mock<Repository>()
 
         mocker.every { repository.count() } returns 42
-        assertEquals(" repository", repository.describe()) //<2>
+        assertEquals(" repository", repository.describe()) // <2>
     }
 }
 ----
@@ -69,6 +64,7 @@ class MyTests {
 NOTE: This is the reverse of an interface's default method, which *is* overridden and mocked, and therefore must be given a behaviour like any other function.
 
 
+[#defining-behaviour]
 == Defining behaviour
 
 To manipulate a mocked type, you need a `Mocker`.
@@ -83,8 +79,8 @@ class DatabaseTests {
         val db = mocker.mock<Database>()
         val api = mocker.mock<API>()
 
-        mocker.every { db.open(isAny()) } returns Unit //<1>
-        mocker.every { api.getCurrentUser() } runs { fakeUser() } //<2>
+        mocker.every { db.open(isAny()) } returns Unit // <1>
+        mocker.every { api.getCurrentUser() } runs { fakeUser() } // <2>
 
         //...
     }
@@ -139,7 +135,7 @@ class MyTests {
         mocker.every { place.id } returns 1
 
         // Mocking a var property:
-        mocker.every { place.name = isAny() } returns Unit //<1>
+        mocker.every { place.name = isAny() } returns Unit // <1>
         mocker.every { place.name } returns "Machu Pichu"
     }
 }
@@ -171,7 +167,7 @@ You can define the behaviour of a suspending function with `everySuspending`:
 
 [source,kotlin]
 ----
-mocker.everySuspending { app.openDB() } runs { openTestDB() } //<1>
+mocker.everySuspending { app.openDB() } runs { openTestDB() } // <1>
 mocker.everySuspending { api.getCurrentUser() } returns fakeUser()
 ----
 <1> Here, `openTestDB` can be suspending.
@@ -183,19 +179,19 @@ mocker.everySuspending { api.getCurrentUser() } returns fakeUser()
 ====
 
 
+[#argument-constraints]
 == Adding argument constraints
 
 Available constraints are:
 
-- `isAny` is always valid (even with `null` values).
-- `isNull` and `isNotNull` check nullability.
-- `isEqual` and `isNotEqual` check regular equality.
-- `isSame` and `isNotSame` check identity.
-- `isInstanceOf` checks type.
+* `isAny` is always valid (even with `null` values).
+* `isNull` and `isNotNull` check nullability.
+* `isEqual` and `isNotEqual` check regular equality.
+* `isSame` and `isNotSame` check identity.
+* `isInstanceOf` checks type.
 
-`isEqual`, `isNotEqual`, `isSame` and `isNotSame` return the value you pass them, so they never need a
-placeholder for the argument type. `isAny`, `isNull`, `isNotNull` and `isInstanceOf` have no such
-value to return, so they hand back a _placeholder_ instead — see the note below.
+`isEqual`, `isNotEqual`, `isSame` and `isNotSame` return the value you pass them, so they never need a placeholder for the argument type.
+`isAny`, `isNull`, `isNotNull` and `isInstanceOf` have no such value to return, so they hand back a _placeholder_ instead — see the note below.
 
 [WARNING]
 ====
@@ -206,34 +202,27 @@ value to return, so they hand back a _placeholder_ instead — see the note belo
 mocker.every { api.registerCallback(isInstanceOf(AdminCallback::class)) } returns Unit
 ----
 
-Do *not* write `isInstanceOf<AdminCallback>()`. `isInstanceOf` is still a `reified` function, but that reified
-type parameter is only there so MocKMP can produce a placeholder return value for `every`/`verify` — it must stay
-inferred from the surrounding call (here, the declared type of `registerCallback`'s parameter), never given
-explicitly. Passing an explicit type argument forces the placeholder lookup to happen for that exact (possibly
-narrower) type instead, which the generated code has no placeholder for unless that precise type is used
-elsewhere in your mocked interfaces — and mocking fails at runtime with a "Could not find a way to get a
-reference of ..." error that names this exact mistake as the likely cause.
+Do *not* write `isInstanceOf<AdminCallback>()`.
+`isInstanceOf` is still a `reified` function, but that reified type parameter is only there so MocKMP can produce a placeholder return value for `every`/`verify`.
+It must stay inferred from the surrounding call (here, the declared type of ``registerCallback``'s parameter), never given explicitly.
+Passing an explicit type argument forces the placeholder lookup to happen for that exact (possibly narrower) type instead, which the generated code has no placeholder for unless that precise type is used elsewhere in your mocked interfaces.
+Mocking then fails at runtime with a "Could not find a way to get a reference of ..." error that names this exact mistake as the likely cause.
 ====
 
 [NOTE]
 ====
-A placeholder is never meant to be used as a real value — it only has to exist so a placeholder-returning
-constraint like `isAny<T>()` can typecheck. For most types the processor builds one automatically (an empty
-collection, an instance built from an accessible constructor, an implementation whose members all throw...). When
-it genuinely cannot — for example a type with no public constructor, reachable only as a parameter of a mocked
-interface's member — the generated placeholder function throws a `MocKMPNoPlaceholderException` explaining why,
-instead of silently producing something broken. (`isEqual` and the other value-carrying constraints above sidestep
-this entirely — they return the value you gave them.)
+A placeholder is never meant to be used as a real value — it only has to exist so a placeholder-returning constraint like `isAny<T>()` can typecheck.
+For most types the processor builds one automatically (an empty collection, an instance built from an accessible constructor, an implementation whose members all throw...).
+When it genuinely cannot — for example a type with no public constructor, reachable only as a parameter of a mocked interface's member — the generated placeholder function throws a `MocKMPNoPlaceholderException` explaining why, instead of silently producing something broken.
+(`isEqual` and the other value-carrying constraints above sidestep this entirely — they return the value you gave them.)
 
-Every value a generated placeholder builds is first looked up through the mocker's references, so
-`mocker.useReference(instance)` fixes it whether the unbuildable type is the one `isAny<T>()` asks for directly
-*or* one buried inside a placeholder the processor could otherwise build — registering the `Amount` in
-`isAny<MoneyTransfer>()` where `MoneyTransfer(val amount: Amount)` and `Amount` has no public constructor.
+Every value a generated placeholder builds is first looked up through the mocker's references.
+So `mocker.useReference(instance)` fixes it whether the unbuildable type is the one `isAny<T>()` asks for directly *or* one buried inside a placeholder the processor could otherwise build — registering the `Amount` in `isAny<MoneyTransfer>()` where `MoneyTransfer(val amount: Amount)` and `Amount` has no public constructor.
 ====
 
 [NOTE]
 ====
-Passing a non-constraint value to the function is equivalent to passing `isEqual(value)`
+Passing a non-constraint value to the function is equivalent to passing `isEqual(value)`:
 
 [source,kotlin]
 ----
@@ -268,6 +257,7 @@ mocker.every { api.registerCallback(isEqual(42), isAny()) } returns Unit
 ====
 
 
+[#verifying]
 == Verifying
 
 You can check that mock functions have been run in order with `verify`.
@@ -289,7 +279,7 @@ mocker.verify {
 }
 ----
 
-You can of course use constraints (in fact, not using passing a constraint is equivalent to passing `isEqual(value)`):
+You can of course use constraints (in fact, passing a plain value is equivalent to passing `isEqual(value)`):
 
 [source,kotlin]
 ----
@@ -337,7 +327,7 @@ If you configure your behaviour to _maybe throw_ an exception, you can verify a 
 ----
 val fakeUser = fake<User>()
 
-mocker.every { api.getUserById(isAny()) } runs { args -> //<1>
+mocker.every { api.getUserById(isAny()) } runs { args -> // <1>
     val idArg = args[0] as Int
     if (idArg == 42) fakeUser
     else throw UnknownUserException(idArg)
@@ -353,6 +343,7 @@ mocker.verify {
 A `return` here would try to return from the enclosing function and will not compile.
 
 
+[#exhaustivity-and-order]
 == Configuring verification exhaustivity & order
 
 By default, the `verify` block is exhaustive and in order: it must list *all* mocked functions that were called, *in order*.
@@ -368,7 +359,7 @@ You can use `clearCalls` to clear the call log, in order to only verify for futu
 [source,kotlin]
 ----
 controller.onClickUser(userId = 42)
-mocker.clearCalls() //<1>
+mocker.clearCalls() // <1>
 
 controller.onClickDelete()
 mocker.verify { db.deleteUser(42) }
@@ -377,13 +368,13 @@ mocker.verify { db.deleteUser(42) }
 
 You can verify with:
 
-- `exhaustive = false`, which will verify each call, *in their relative order*, but won't fail if you didn't mention every call.
-- `inOrder = false`, which allows you to define all calls in any order, but will fail if you did not mention all of them.
-- `exhaustive = false, inOrder = false`, which checks required calls without order nor exhaustiveness.
+* `exhaustive = false`, which will verify each call, *in their relative order*, but won't fail if you didn't mention every call.
+* `inOrder = false`, which allows you to define all calls in any order, but will fail if you did not mention all of them.
+* `exhaustive = false, inOrder = false`, which checks required calls without order nor exhaustiveness.
 
 [source,kotlin]
 ----
-mocker.verify(exhaustive = false, inOrder = false) { //<1>
+mocker.verify(exhaustive = false, inOrder = false) { // <1>
     db.deleteUser(42)
     api.deleteUser(42)
 }
@@ -392,6 +383,7 @@ mocker.verify(exhaustive = false, inOrder = false) { //<1>
 Other calls to mocks may have been made since exhaustiveness is not checked.
 
 
+[#capturing-arguments]
 == Capturing arguments
 
 You can capture an argument into a `MutableList` to use or verify it later.
@@ -407,9 +399,9 @@ controller.startNewSession()
 assertEquals(1, controller.runningSessions.size)
 
 val sessionCapture = ArrayList<Session>()
-mocker.verify { delegate.setSession(isAny(capture = sessionCapture)) } //<1>
+mocker.verify { delegate.setSession(isAny(capture = sessionCapture)) } // <1>
 
-val session = sessionCapture.single() //<2>
+val session = sessionCapture.single() // <2>
 session.close()
 
 assertEquals(0, controller.runningSessions.size)
@@ -441,7 +433,7 @@ Note that, when declared in a definition block, the capture list may be filled w
 
 == Accessing run block arguments
 
-There are 2 ways you can access arguments in a run block.
+There are two ways you can access arguments in a run block.
 
 * You can use capture lists:
 +
@@ -450,7 +442,7 @@ There are 2 ways you can access arguments in a run block.
 val sessions = ArrayList<String>()
 mocker
     .every { delegate.setSession(isAny(capture = sessions)) }
-    .runs { sessions.last().close() } //<1>
+    .runs { sessions.last().close() } // <1>
 ----
 <1> `.last()` returns the last call argument, which is always the current.
 
@@ -465,13 +457,14 @@ mocker
 ----
 
 
+[#functional-types]
 == Mocking functional types
 
 You can create mocks for functional type by using `mockFunctionX` where X is the number of arguments.
 
 [source,kotlin]
 ----
-val callback: (User) -> Unit = mockFunction1(mocker) //<1>
+val callback: (User) -> Unit = mockFunction1(mocker) // <1>
 mocker.every { callback(isAny()) } returns Unit
 
 userRepository.fetchUser(callback)
@@ -494,7 +487,7 @@ Note that a suspending function mock must be defined with `everySuspending` and 
 
 [source,kotlin]
 ----
-val onUserLoaded: suspend (User) -> Unit = mockSuspendFunction1(mocker) //<1>
+val onUserLoaded: suspend (User) -> Unit = mockSuspendFunction1(mocker) // <1>
 mocker.everySuspending { onUserLoaded(isAny()) } returns Unit
 
 userRepository.observeUser(onUserLoaded)
@@ -504,6 +497,7 @@ mocker.verifyWithSuspend { onUserLoaded(fakeUser) }
 <1> Creating the mock is *not* itself a suspending operation, so this line does not need to be in a coroutine.
 
 
+[#custom-constraints]
 == Defining custom argument constraints
 
 You can define your own constraints using `isValid`:
@@ -527,9 +521,8 @@ mocker.every { api.getSuccess(isAny()) } returns false
 mocker.verify { api.getUserById(isStrictlyPositive()) }
 ----
 
-Like `isAny`, single-argument `isValid` resolves a placeholder for the argument type. If that type has
-no placeholder, pass a real stand-in value as `placeholder` — it is never checked, only the
-constraint is:
+Like `isAny`, single-argument `isValid` resolves a placeholder for the argument type.
+If that type has no placeholder, pass a real stand-in value as `placeholder` — it is never checked, only the constraint is:
 
 [source,kotlin]
 ----

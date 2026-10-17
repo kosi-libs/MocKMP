@@ -1,14 +1,18 @@
 = The test helper
 
+The test helper removes the `Mocker` and `reset` boilerplate from your test classes.
+This page shows its abstract class, and its interface for classes that already have a super class.
+
+
 == The `TestsWithMocks` abstract class
 
 MocKMP provides the `TestsWithMocks` helper class that your test classes can inherit from.
 It provides the following benefits:
 
-- Provides a `Mocker`.
-- Resets the `Mocker` before each test.
-- Provides `withMocks` property delegates to initialize objects with mocks.
-- Allows to call `every`, `everySuspending`, `verify`, and `verifyWithSuspend` without `mocker.`.
+* Provides a `Mocker`.
+* Resets the `Mocker` before each test.
+* Provides `withMocks` property delegates to initialize objects with mocks.
+* Allows to call `every`, `everySuspending`, `verify`, and `verifyWithSuspend` without `mocker.`.
 
 It does not come with the standard runtime (as it forces the dependency to JUnit on the JVM), so to use it you need to call `withHelper()` in the xref:setup.adoc#mockmp-gradle-config[MocKMP Gradle plugin configuration block].
 
@@ -17,21 +21,21 @@ Here's a test class example with `TestsWithMocks`:
 [source,kotlin]
 ----
 @UsesFakes(User::class)
-class MyTests : TestsWithMocks() { //<1>
-    override fun setUpMocks() = mocker.injectMocks(this) //<2>
+class MyTests : TestsWithMocks() { // <1>
+    override fun setUpMocks() = mocker.injectMocks(this) // <2>
 
     @Mock lateinit var db: Database
     @Mock lateinit var api: API
 
     @Fake lateinit var user: User
 
-    val controller by withMocks { ControllerImpl(db, api) } //<3>
+    val controller by withMocks { ControllerImpl(db, api) } // <3>
 
     @Test fun controllerTest() {
-        every { api.getCurrentUser() } returns user //<4>
+        every { api.getCurrentUser() } returns user // <4>
         every { db.saveUser(isAny()) } returns Unit
         controller.start()
-        verify { //<4>
+        verify { // <4>
             api.getCurrentUser()
             db.saveUser(user)
         }
@@ -39,8 +43,8 @@ class MyTests : TestsWithMocks() { //<1>
 }
 ----
 <1> The class inherits `TestsWithMocks`, which provides helpers.
-<2> `setUpMocks` must be overriden, and can generally be just a delegation to the `injectMocks` generated function.
-<3> Controller will be (re)created before each tests with the new mock dependencies.
+<2> `setUpMocks` must be overridden, and can generally be just a delegation to the `injectMocks` generated function.
+<3> The controller is (re)created before each test, with the new mock dependencies.
 <4> Note the absence of `mocker.` as you can use `every` and `verify` directly.
 
 NOTE: Properties delegated to `withMocks` will be (re)initialized *before each tests*, after the mocks have been (re)injected.
@@ -61,6 +65,8 @@ class MyTests : TestsWithMocks() {
 ----
 ====
 
+
+[#interface]
 == The `ITestsWithMocks` interface
 
 In case your test class already extends another class, you can use the `ITestsWithMocks` interface instead:
@@ -68,9 +74,9 @@ In case your test class already extends another class, you can use the `ITestsWi
 [source,kotlin]
 ----
 @UsesFakes(User::class)
-class MyTests : MySuperAbstractTests(), ITestsWithMocks { //<1>
+class MyTests : MySuperAbstractTests(), ITestsWithMocks { // <1>
 
-    override val mocksState = ITestsWithMocks.State() //<2>
+    override val mocksState = ITestsWithMocks.State() // <2>
 
     override fun setUpMocks() = mocker.injectMocks(this)
 

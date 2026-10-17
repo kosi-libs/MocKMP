@@ -1,6 +1,10 @@
 = Injecting your test classes
 
 Instead of manually creating your own mocks & fakes, it can be useful to inject them in your test classes, especially if you have multiple tests using them.
+This page shows how to declare them as annotated properties, and how the processor fills them in.
+
+
+== Injecting into a test class
 
 [source,kotlin]
 ----
@@ -15,9 +19,9 @@ class MyTests {
     val mocker = Mocker()
 
     @BeforeTest fun setUp() {
-        mocker.reset() //<1>
-        mocker.injectMocks(this) //<2>
-        controller = ControllerImpl(db, api) //<3>
+        mocker.reset() // <1>
+        mocker.injectMocks(this) // <2>
+        controller = ControllerImpl(db, api) // <3>
     }
 
     @Test fun controllerTest() {
@@ -39,18 +43,22 @@ As soon as a class `T` contains a `@Mock` or `@Fake` annotated property, a `Mock
 
 IMPORTANT: Don't forget to `reset` the `Mocker` in a `@BeforeTest` method!
 
+
+[#base-classes]
+== Sharing mocks in a base class
+
 Inherited properties are injected as well, so you can put the mocks & fakes that all your tests need in a shared base class:
 
 [source,kotlin]
 ----
 abstract class BaseTests {
-    @Mock lateinit var db: Database //<1>
+    @Mock lateinit var db: Database // <1>
 
     val mocker = Mocker()
 
     @BeforeTest fun setUp() {
         mocker.reset()
-        mocker.injectMocks(this) //<2>
+        mocker.injectMocks(this) // <2>
     }
 }
 
@@ -63,8 +71,10 @@ class MyTests : BaseTests() {
 
 NOTE: The base class must be in the same module as its subclasses: the processor only sees the annotations of the module it is running on.
 
-[TIP]
-====
+
+[#other-classes]
+== Injecting other classes
+
 You can inject other classes than test classes:
 
 [source,kotlin]
@@ -76,4 +86,5 @@ class MyMocks {
 ----
 
 ...will generate the `Mocker.injectMocks(receiver: MyMocks)` function.
-====
+
+TIP: xref:helper.adoc[] removes the `Mocker` and `reset` boilerplate of the first example.

@@ -1,4 +1,4 @@
-= Migrate MocKMP from 1.17 to 2.0
+= 1.x to 2.0
 
 The new MocKMP 2 changes the way:
 
@@ -60,7 +60,7 @@ mockmp {
 ----
 <1> Note that you can xref:core:setup.adoc#junit-version[specify which JUnit version] you are using (instead of relying on detection).
 
-To see additional configuration options, as well as how to apply MocKMP to the main source sets, have a look at xref:core:setup.adoc[the setup documentation] .
+To see additional configuration options, as well as how to apply MocKMP to the main source sets, have a look at xref:core:setup.adoc[the setup documentation].
 
 
 == Kotlin sources
