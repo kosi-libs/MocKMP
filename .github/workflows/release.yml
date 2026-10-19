@@ -9,10 +9,10 @@ jobs:
     runs-on: macOS-latest
     steps:
       - name: Setup
-        uses: KodeinKoders/kodein-github-actions/gradle-kotlin-setup@v0.1
+        uses: KodeinKoders/kodein-github-actions/gradle-kotlin-setup@v0.3
       # The version lives in the mockmp included build, not in the root build.
       - name: Check version
-        uses: KodeinKoders/kodein-github-actions/version-check@v0.2
+        uses: KodeinKoders/kodein-github-actions/version-check@v0.3
         with:
           release-name: ${{ github.event.release.name }}
           gradle-build-path: mockmp
@@ -24,7 +24,7 @@ jobs:
         run: ./gradlew --stacktrace --scan :tests-projects:check
         shell: bash
       - name: Publish
-        uses: KodeinKoders/kodein-github-actions/publish@v0.1
+        uses: KodeinKoders/kodein-github-actions/publish@v0.3
         with:
           project: mockmp
           central-portal-token-username: ${{ secrets.CENTRAL_PORTAL_TOKEN_USERNAME }}
@@ -42,7 +42,7 @@ jobs:
       contents: write
     steps:
       - name: Release branch
-        uses: KodeinKoders/kodein-github-actions/release-branches@v0.2
+        uses: KodeinKoders/kodein-github-actions/release-branches@v0.3
         with:
           release-name: ${{ github.event.release.name }}
 
