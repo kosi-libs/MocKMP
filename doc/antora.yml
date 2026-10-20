@@ -1,7 +1,7 @@
 name: mockmp
 title: MocKMP
-version: '3.5.5'
-display_version: '3.5'
+version: '3.5'
+display_version: '3.5.5'
 nav:
   - modules/ROOT/nav.adoc
   - modules/core/nav.adoc
