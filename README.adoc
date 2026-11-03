@@ -96,3 +96,11 @@ For the other platforms and setups, see the https://kosi-libs.org/mockmp/latest/
 == Documentation
 
 The full documentation is on https://kosi-libs.org/mockmp[kosi-libs.org].
+
+## Developped by
+
+[![Kodein Koders logo.](https://kodein-koders.com/app/uploads/2026/11/colored-invert.svg)](https://kodein-koders.com)
+
+## Supported by
+
+[![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSourceSupport)
